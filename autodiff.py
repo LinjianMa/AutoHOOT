@@ -1,4 +1,6 @@
 import numpy as np
+import backend as T
+from functools import reduce
 
 
 class Node(object):
@@ -6,11 +8,11 @@ class Node(object):
 
     def __init__(self):
         """Constructor, new node is indirectly created by Op object __call__ method.
-            
+
             Instance variables
             ------------------
             self.inputs: the list of input nodes.
-            self.op: the associated op object, 
+            self.op: the associated op object,
                 e.g. add_op object if this node is created by adding two other nodes.
             self.const_attr: the add or multiply constant,
                 e.g. self.const_attr=5 if this node is created by x+5.
@@ -50,7 +52,7 @@ class Node(object):
 
 
 def Variable(name):
-    """User defined variables in an expression.  
+    """User defined variables in an expression.
         e.g. x = Variable(name = "x")
     """
     placeholder_node = placeholder_op()
@@ -63,7 +65,7 @@ class Op(object):
 
     def __call__(self):
         """Create a new node and associate the op object with the node.
-        
+
         Returns
         -------
         The new node object.
@@ -142,6 +144,7 @@ class AddByConstOp(Op):
 
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
+
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
@@ -199,24 +202,37 @@ class MatMulOp(Op):
         new_node.matmul_attr_trans_A = trans_A
         new_node.matmul_attr_trans_B = trans_B
         new_node.inputs = [node_A, node_B]
-        new_node.name = "MatMul(%s,%s,%s,%s)" % (node_A.name, node_B.name, str(trans_A), str(trans_B))
+        new_node.name = "MatMul(%s,%s,%s,%s)" % (
+            node_A.name, node_B.name, str(trans_A), str(trans_B))
         return new_node
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         assert len(input_vals) == 2
-        assert isinstance(input_vals[0], np.ndarray)
-        assert isinstance(input_vals[1], np.ndarray)
-        return np.matmul(input_vals[0].T if node.matmul_attr_trans_A else input_vals[0],
-                      input_vals[1].T if node.matmul_attr_trans_B else input_vals[1])
+        assert T.is_tensor(input_vals[0])
+        assert T.is_tensor(input_vals[1])
+        tensor1 = T.transpose(
+            input_vals[0]) if node.matmul_attr_trans_A else input_vals[0]
+        tensor2 = T.transpose(
+            input_vals[1]) if node.matmul_attr_trans_B else input_vals[1]
+        return T.dot(tensor1, tensor2)
 
     def gradient(self, node, output_grad):
         """Given gradient of multiply node, return gradient contributions to each input.
-            
+
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
-        return [matmul_op(output_grad, node.inputs[1], trans_A=False, trans_B=not node.matmul_attr_trans_B),
-                matmul_op(node.inputs[0], output_grad, trans_A=not node.matmul_attr_trans_A, trans_B=False)]
+        return [
+            matmul_op(
+                output_grad,
+                node.inputs[1],
+                trans_A=False,
+                trans_B=not node.matmul_attr_trans_B),
+            matmul_op(
+                node.inputs[0],
+                output_grad,
+                trans_A=not node.matmul_attr_trans_A,
+                trans_B=False)]
 
 
 class PlaceholderOp(Op):
@@ -237,10 +253,10 @@ class PlaceholderOp(Op):
 
 
 class ZerosLikeOp(Op):
-    """Op that represents a constant np.zeros_like."""
+    """Op that represents a constant T.zeros_like."""
 
     def __call__(self, node_A):
-        """Creates a node that represents a np.zeros array of same shape as node_A."""
+        """Creates a node that represents a T.zeros array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
         new_node.name = "Zeroslike(%s)" % node_A.name
@@ -248,18 +264,18 @@ class ZerosLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
-        assert (isinstance(input_vals[0], np.ndarray))
-        return np.zeros(input_vals[0].shape)
+        assert (T.is_tensor(input_vals[0]))
+        return T.zeros(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
         return [zeroslike_op(node.inputs[0])]
 
 
 class OnesLikeOp(Op):
-    """Op that represents a constant np.ones_like."""
+    """Op that represents a constant T.ones_like."""
 
     def __call__(self, node_A):
-        """Creates a node that represents a np.ones array of same shape as node_A."""
+        """Creates a node that represents a T.ones array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
         new_node.name = "Oneslike(%s)" % node_A.name
@@ -267,8 +283,8 @@ class OnesLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
-        assert (isinstance(input_vals[0], np.ndarray))
-        return np.ones(input_vals[0].shape)
+        assert (T.is_tensor(input_vals[0]))
+        return T.ones(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
         return [zeroslike_op(node.inputs[0])]
@@ -304,10 +320,11 @@ class Executor:
 
         Returns
         -------
-        A list of values for nodes in eval_node_list. 
+        A list of values for nodes in eval_node_list.
         """
         node_to_val_map = dict(feed_dict)
-        # Traverse graph in topological sort order and compute values for all nodes.
+        # Traverse graph in topological sort order and compute values for all
+        # nodes.
         topo_order = find_topo_sort(self.eval_node_list)
         for node in topo_order:
             if node not in node_to_val_map:
@@ -316,7 +333,8 @@ class Executor:
                 node_to_val_map[node] = result
 
         # Collect node values.
-        node_val_results = [node_to_val_map[node] for node in self.eval_node_list]
+        node_val_results = [node_to_val_map[node]
+                            for node in self.eval_node_list]
         return node_val_results
 
 
@@ -338,11 +356,13 @@ def gradients(output_node, node_list):
     node_to_output_grads_list = {}
     # Special note on initializing gradient of output_node as oneslike_op(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
-    # instead of the vector output_node. But this is the common case for loss function.
+    # instead of the vector output_node. But this is the common case for loss
+    # function.
     node_to_output_grads_list[output_node] = [oneslike_op(output_node)]
     # a map from node to the gradient of that node
     node_to_output_grad = {}
-    # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
+    # Traverse graph in reverse topological order given the output_node that
+    # we are taking gradient wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     for node in reverse_topo_order:
@@ -362,13 +382,13 @@ def gradients(output_node, node_list):
 
 
 ##############################
-####### Helper Methods ####### 
+####### Helper Methods #######
 ##############################
 
 def find_topo_sort(node_list):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
-    
-    A simple algorithm is to do a post-order DFS traversal on the given nodes, 
+
+    A simple algorithm is to do a post-order DFS traversal on the given nodes,
     going backwards based on input edges. Since a node is added to the ordering
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
