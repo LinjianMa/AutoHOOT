@@ -1,6 +1,7 @@
 import numpy as np
 import backend as T
 from functools import reduce
+from utils import find_topo_sort, topo_sort_dfs, sum_node_list
 
 
 class Node(object):
@@ -13,7 +14,7 @@ class Node(object):
             ------------------
             self.inputs: the list of input nodes.
             self.op: the associated op object,
-                e.g. add_op object if this node is created by adding two other nodes.
+                e.g. add object if this node is created by adding two other nodes.
             self.const_attr: the add or multiply constant,
                 e.g. self.const_attr=5 if this node is created by x+5.
             self.name: node name for debugging purposes.
@@ -23,25 +24,51 @@ class Node(object):
         self.const_attr = None
         self.name = ""
 
+    def __neg__(self):
+        return negative(self)
+
     def __add__(self, other):
-        """Adding two nodes return a new node."""
         if isinstance(other, Node):
-            new_node = add_op(self, other)
+            new_node = add(self, other)
         else:
-            # Add by a constant stores the constant in the new node's const_attr field.
-            # 'other' argument is a constant
-            new_node = add_byconst_op(self, other)
+            new_node = add_byconst(self, other)
+        return new_node
+
+    def __sub__(self, other):
+        if isinstance(other, Node):
+            new_node = sub(self, other)
+        else:
+            new_node = sub_byconst(self, other)
         return new_node
 
     def __mul__(self, other):
         if isinstance(other, Node):
-            new_node = mul_op(self, other)
+            new_node = mul(self, other)
         else:
-            new_node = mul_byconst_op(self, other)
+            new_node = mul_byconst(self, other)
         return new_node
+
+    def __matmul__(self, other):
+        return matmul(self, other)
+
+    # TODOs:
+    # def __pow__(self, other): return anp.power   (self, other)
+    # def __div__(self, other): return anp.divide(  self, other)
+    # def __mod__(self, other): return anp.mod(     self, other)
+    # def __eq__(self, other): return anp.equal(self, other)
+    # def __ne__(self, other): return anp.not_equal(self, other)
+    # def __gt__(self, other): return anp.greater(self, other)
+    # def __ge__(self, other): return anp.greater_equal(self, other)
+    # def __lt__(self, other): return anp.less(self, other)
+    # def __le__(self, other): return anp.less_equal(self, other)
+    # def __abs__(self): return anp.abs(self)
+
+    # TODO:
+    # einsum
 
     # Allow left-hand-side add and multiply.
     __radd__ = __add__
+    __rsub__ = __sub__
     __rmul__ = __mul__
 
     def __str__(self):
@@ -55,7 +82,7 @@ def Variable(name):
     """User defined variables in an expression.
         e.g. x = Variable(name = "x")
     """
-    placeholder_node = placeholder_op()
+    placeholder_node = placeholder()
     placeholder_node.name = name
     return placeholder_node
 
@@ -136,6 +163,45 @@ class AddByConstOp(Op):
         """Given values of input node, return result of element-wise addition."""
         assert len(input_vals) == 1
         return input_vals[0] + node.const_attr
+
+    def gradient(self, node, output_grad):
+        """Given gradient of add node, return gradient contribution to input."""
+        return [output_grad]
+
+
+class SubOp(Op):
+    """Op to element-wise subtract two nodes."""
+
+    def __call__(self, node_A, node_B):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A, node_B]
+        new_node.name = "(%s-%s)" % (node_A.name, node_B.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        """Given values of two input nodes, return result of element-wise addition."""
+        assert len(input_vals) == 2
+        return input_vals[0] - input_vals[1]
+
+    def gradient(self, node, output_grad):
+        """Given gradient of add node, return gradient contributions to each input."""
+        return [output_grad, -output_grad]
+
+
+class SubByConstOp(Op):
+    """Op to element-wise add a nodes by a constant."""
+
+    def __call__(self, node_A, const_val):
+        new_node = Op.__call__(self)
+        new_node.const_attr = const_val
+        new_node.inputs = [node_A]
+        new_node.name = "(%s-%s)" % (node_A.name, str(const_val))
+        return new_node
+
+    def compute(self, node, input_vals):
+        """Given values of input node, return result of element-wise addition."""
+        assert len(input_vals) == 1
+        return input_vals[0] - node.const_attr
 
     def gradient(self, node, output_grad):
         """Given gradient of add node, return gradient contribution to input."""
@@ -223,12 +289,12 @@ class MatMulOp(Op):
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
         return [
-            matmul_op(
+            matmul(
                 output_grad,
                 node.inputs[1],
                 trans_A=False,
                 trans_B=not node.matmul_attr_trans_B),
-            matmul_op(
+            matmul(
                 node.inputs[0],
                 output_grad,
                 trans_A=not node.matmul_attr_trans_A,
@@ -268,7 +334,7 @@ class ZerosLikeOp(Op):
         return T.zeros(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
-        return [zeroslike_op(node.inputs[0])]
+        return [zeroslike(node.inputs[0])]
 
 
 class OnesLikeOp(Op):
@@ -287,18 +353,40 @@ class OnesLikeOp(Op):
         return T.ones(input_vals[0].shape)
 
     def gradient(self, node, output_grad):
-        return [zeroslike_op(node.inputs[0])]
+        return [zeroslike(node.inputs[0])]
+
+
+class NegativeOp(Op):
+    """Op that represents a constant T.ones_like."""
+
+    def __call__(self, node_A):
+        """Creates a node that represents a T.ones array of same shape as node_A."""
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "(-%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        """Returns ones_like of the same shape as input."""
+        assert (T.is_tensor(input_vals[0]))
+        return -input_vals
+
+    def gradient(self, node, output_grad):
+        return [-output_grad]
 
 
 # Create global singletons of operators.
-add_op = AddOp()
-mul_op = MulOp()
-add_byconst_op = AddByConstOp()
-mul_byconst_op = MulByConstOp()
-matmul_op = MatMulOp()
-placeholder_op = PlaceholderOp()
-oneslike_op = OnesLikeOp()
-zeroslike_op = ZerosLikeOp()
+add = AddOp()
+mul = MulOp()
+sub = SubOp()
+add_byconst = AddByConstOp()
+mul_byconst = MulByConstOp()
+sub_byconst = SubByConstOp()
+matmul = MatMulOp()
+placeholder = PlaceholderOp()
+oneslike = OnesLikeOp()
+zeroslike = ZerosLikeOp()
+negative = NegativeOp()
 
 
 class Executor:
@@ -354,11 +442,11 @@ def gradients(output_node, node_list):
 
     # a map from node to a list of gradient contributions from each output node
     node_to_output_grads_list = {}
-    # Special note on initializing gradient of output_node as oneslike_op(output_node):
+    # Special note on initializing gradient of output_node as oneslike(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
     # instead of the vector output_node. But this is the common case for loss
     # function.
-    node_to_output_grads_list[output_node] = [oneslike_op(output_node)]
+    node_to_output_grads_list[output_node] = [oneslike(output_node)]
     # a map from node to the gradient of that node
     node_to_output_grad = {}
     # Traverse graph in reverse topological order given the output_node that
@@ -379,40 +467,3 @@ def gradients(output_node, node_list):
     # Collect results for gradients requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
-
-
-##############################
-####### Helper Methods #######
-##############################
-
-def find_topo_sort(node_list):
-    """Given a list of nodes, return a topological sort list of nodes ending in them.
-
-    A simple algorithm is to do a post-order DFS traversal on the given nodes,
-    going backwards based on input edges. Since a node is added to the ordering
-    after all its predecessors are traversed due to post-order DFS, we get a topological
-    sort.
-
-    """
-    visited = set()
-    topo_order = []
-    for node in node_list:
-        topo_sort_dfs(node, visited, topo_order)
-    return topo_order
-
-
-def topo_sort_dfs(node, visited, topo_order):
-    """Post-order DFS"""
-    if node in visited:
-        return
-    visited.add(node)
-    for n in node.inputs:
-        topo_sort_dfs(n, visited, topo_order)
-    topo_order.append(node)
-
-
-def sum_node_list(node_list):
-    """Custom sum function in order to avoid create redundant nodes in Python sum implementation."""
-    from operator import add
-    from functools import reduce
-    return reduce(add, node_list)

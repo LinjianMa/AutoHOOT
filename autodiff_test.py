@@ -236,7 +236,7 @@ def test_matmul_two_vars():
 
         x2 = ad.Variable(name="x2")
         x3 = ad.Variable(name="x3")
-        y = ad.matmul_op(x2, x3)
+        y = x2 @ x3
 
         grad_x2, grad_x3 = ad.gradients(y, [x2, x3])
 
