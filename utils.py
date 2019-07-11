@@ -1,8 +1,17 @@
 from functools import reduce
+import re
 
 ##############################
 ####### Helper Methods #######
 ##############################
+
+
+def einsum_grad_subscripts(subscripts, left=True):
+    match = re.search(r'^(.*),(.*)->(.*)', subscripts)
+    if left:
+        return match.group(3) + ',' + match.group(2) + '->' + match.group(1)
+    else:
+        return match.group(1) + ',' + match.group(3) + '->' + match.group(2)
 
 
 def find_topo_sort(node_list):

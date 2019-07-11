@@ -292,7 +292,6 @@ class Backend(object):
         """
         raise NotImplementedError
 
-
     @staticmethod
     def argmax(tensor):
         """The argument of the max value in a tensor.
@@ -458,6 +457,18 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def power(a, b):
+        """power of two tensors.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def einsum(subscripts, operand1, operand2):
+        """einstein summation
+        """
+        raise NotImplementedError
+
+    @staticmethod
     def solve(a, b):
         """Solve a linear matrix equation, or system of linear scalar equations.
 
@@ -502,7 +513,7 @@ class Backend(object):
         Join a sequence of arrays along a new axis.
         """
         raise NotImplementedError
-    
+
     @staticmethod
     def conj(x, *args, **kwargs):
         """Return the complex conjugate, element-wise.
@@ -564,8 +575,10 @@ class Backend(object):
             text{ is of size } (\\prod_{k=1}^n I_k \\times R)
         """
         if len(matrices) < 2:
-            raise ValueError('kr requires a list of at least 2 matrices, but {} '
-                            'given.'.format(len(matrices)))
+            raise ValueError(
+                'kr requires a list of at least 2 matrices, but {} '
+                'given.'.format(
+                    len(matrices)))
 
         n_col = self.shape(matrices[0])[1]
         for i, e in enumerate(matrices[1:]):
@@ -573,19 +586,20 @@ class Backend(object):
                 if weights is None:
                     res = matrices[0]
                 else:
-                    res = matrices[0]*self.reshape(weights, (1, -1))
+                    res = matrices[0] * self.reshape(weights, (1, -1))
             s1, s2 = self.shape(res)
             s3, s4 = self.shape(e)
             if not s2 == s4 == n_col:
-                raise ValueError('All matrices should have the same number of columns.')
+                raise ValueError(
+                    'All matrices should have the same number of columns.')
 
             a = self.reshape(res, (s1, 1, s2))
             b = self.reshape(e, (1, s3, s4))
             res = self.reshape(a * b, (-1, n_col))
-        
+
         m = self.reshape(mask, (-1, 1)) if mask is not None else 1
-        
-        return res*m
+
+        return res * m
 
     def partial_svd(self, matrix, n_eigenvecs=None):
         """Computes a fast partial SVD on `matrix`
@@ -631,9 +645,11 @@ class Backend(object):
 
         if n_eigenvecs >= min_dim:
             if n_eigenvecs > max_dim:
-                warnings.warn(('Trying to compute SVD with n_eigenvecs={0}, which '
-                               'is larger than max(matrix.shape)={1}. Setting '
-                               'n_eigenvecs to {1}').format(n_eigenvecs, max_dim))
+                warnings.warn(
+                    ('Trying to compute SVD with n_eigenvecs={0}, which '
+                     'is larger than max(matrix.shape)={1}. Setting '
+                     'n_eigenvecs to {1}').format(
+                        n_eigenvecs, max_dim))
                 n_eigenvecs = max_dim
 
             if n_eigenvecs is None or n_eigenvecs > min_dim:

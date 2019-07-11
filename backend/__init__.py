@@ -14,10 +14,11 @@ import inspect
 
 _DEFAULT_BACKEND = 'numpy'
 _KNOWN_BACKENDS = {'numpy': 'NumpyBackend',
-                   'ctf':'CTFBackend'}
+                   'ctf': 'CTFBackend'}
 
 _LOADED_BACKENDS = {}
 _LOCAL_STATE = threading.local()
+
 
 def initialize_backend():
     """Initialises the backend
@@ -28,22 +29,22 @@ def initialize_backend():
     backend_name = os.environ.get('TENSORLY_BACKEND', _DEFAULT_BACKEND)
     if backend_name not in _KNOWN_BACKENDS:
         msg = ("TENSORLY_BACKEND should be one of {}, got {}. Defaulting to {}'").format(
-                    ', '.join(map(repr, _KNOWN_BACKENDS)),
-                        backend_name, _DEFAULT_BACKEND)
+            ', '.join(map(repr, _KNOWN_BACKENDS)), backend_name, _DEFAULT_BACKEND)
         warnings.warn(msg, UserWarning)
         backend_name = _DEFAULT_BACKEND
-    
+
     set_backend(backend_name, local_threadsafe=False)
 
+
 def register_backend(backend_name):
-    """Registers a new backend by importing the corresponding module 
+    """Registers a new backend by importing the corresponding module
         and adding the correspond `Backend` class in Backend._LOADED_BACKEND
         under the key `backend_name`
-    
+
     Parameterss
     ----------
     backend_name : str, name of the backend to load
-    
+
     Raises
     ------
     ValueError
@@ -51,23 +52,25 @@ def register_backend(backend_name):
             in `_KNOWN_BACKEND`
     """
     if backend_name in _KNOWN_BACKENDS:
-        module = importlib.import_module('backend.{0}_backend'.format(backend_name))
+        module = importlib.import_module(
+            'backend.{0}_backend'.format(backend_name))
         backend = getattr(module, _KNOWN_BACKENDS[backend_name])()
         _LOADED_BACKENDS[backend_name] = backend
     else:
         msg = "Unknown backend name {0!r}, known backends are [{1}]".format(
-                backend_name, ', '.join(map(repr, _KNOWN_BACKENDS)))
+            backend_name, ', '.join(map(repr, _KNOWN_BACKENDS)))
         raise ValueError(msg)
+
 
 def set_backend(backend, local_threadsafe=False):
     """Changes the backend to the specified one
-    
+
     Parameters
     ----------
     backend : tensorly.Backend or str
         name of the backend to load or Backend Class
     local_threadsafe : bool, optional, default is False
-        If False, set the backend as default for all threads        
+        If False, set the backend as default for all threads
     """
     if not isinstance(backend, Backend):
         # Backend is a string
@@ -78,15 +81,17 @@ def set_backend(backend, local_threadsafe=False):
 
     # Set the backend
     _LOCAL_STATE.backend = backend
-    
+
     if not local_threadsafe:
         global _DEFAULT_BACKEND
         _DEFAULT_BACKEND = backend.backend_name
+
 
 def get_backend():
     """Returns the name of the current backend
     """
     return _get_backend_method('backend_name')
+
 
 def _get_backend_method(key):
     try:
@@ -94,8 +99,10 @@ def _get_backend_method(key):
     except AttributeError:
         return getattr(_LOADED_BACKENDS[_DEFAULT_BACKEND], key)
 
+
 def _get_backend_dir():
     return [k for k in dir(_LOCAL_STATE.backend) if not k.startswith('_')]
+
 
 @contextmanager
 def backend_context(backend, local_threadsafe=False):
@@ -124,6 +131,7 @@ def backend_context(backend, local_threadsafe=False):
     finally:
         set_backend(_old_backend)
 
+
 def override_module_dispatch(module_name, getter_fun, dir_fun):
     """Override the module's dispatch mechanism
         In Python >= 3.7, we use module's __getattr__ and __dir__
@@ -138,12 +146,14 @@ def override_module_dispatch(module_name, getter_fun, dir_fun):
 
         class BackendAttributeModuleType(types.ModuleType):
             """A module type to dispatch backend generic attributes."""
+
             def __getattr__(self, key):
                 return getter_fun(key)
 
             def __dir__(self):
                 out = set(super().__dir__())
-                out.update({k for k in dir(_LOCAL_STATE.backend) if not k.startswith('_')})
+                out.update({k for k in dir(_LOCAL_STATE.backend)
+                            if not k.startswith('_')})
                 return list(out)
 
         sys.modules[module_name].__class__ = BackendAttributeModuleType
@@ -173,6 +183,7 @@ def dispatch(method):
     inner.__signature__ = sig
 
     return inner
+
 
 # Generic methods, exposed as part of the public API
 context = dispatch(Backend.context)
@@ -210,14 +221,16 @@ norm = dispatch(Backend.norm)
 dot = dispatch(Backend.dot)
 kron = dispatch(Backend.kron)
 solve = dispatch(Backend.solve)
+power = dispatch(Backend.power)
 qr = dispatch(Backend.qr)
 kr = dispatch(Backend.kr)
 partial_svd = dispatch(Backend.partial_svd)
 array_equal = dispatch(Backend.array_equal)
+einsum = dispatch(Backend.einsum)
 
 
 # Initialise the backend to the default one
 initialize_backend()
-override_module_dispatch(__name__, 
+override_module_dispatch(__name__,
                          _get_backend_method,
                          _get_backend_dir)

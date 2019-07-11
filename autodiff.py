@@ -1,7 +1,7 @@
 import numpy as np
 import backend as T
 from functools import reduce
-from utils import find_topo_sort, topo_sort_dfs, sum_node_list
+from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list
 
 
 class Node(object):
@@ -41,6 +41,13 @@ class Node(object):
             new_node = sub_byconst(self, other)
         return new_node
 
+    def __rsub__(self, other):
+        if isinstance(other, Node):
+            new_node = sub(other, other)
+        else:
+            new_node = negative(sub_byconst(self, other))
+        return new_node
+
     def __mul__(self, other):
         if isinstance(other, Node):
             new_node = mul(self, other)
@@ -48,11 +55,14 @@ class Node(object):
             new_node = mul_byconst(self, other)
         return new_node
 
+    # NOTE: currently only supports pow(variable, constant).
+    def __pow__(self, other):
+        return power(self, other)
+
     def __matmul__(self, other):
         return matmul(self, other)
 
     # TODOs:
-    # def __pow__(self, other): return anp.power   (self, other)
     # def __div__(self, other): return anp.divide(  self, other)
     # def __mod__(self, other): return anp.mod(     self, other)
     # def __eq__(self, other): return anp.equal(self, other)
@@ -63,12 +73,8 @@ class Node(object):
     # def __le__(self, other): return anp.less_equal(self, other)
     # def __abs__(self): return anp.abs(self)
 
-    # TODO:
-    # einsum
-
     # Allow left-hand-side add and multiply.
     __radd__ = __add__
-    __rsub__ = __sub__
     __rmul__ = __mul__
 
     def __str__(self):
@@ -247,6 +253,32 @@ class MulByConstOp(Op):
         return [output_grad * node.const_attr]
 
 
+class PowerOp(Op):
+    """Op to element-wise power a nodes by a constant."""
+
+    def __call__(self, node_A, const_val):
+        new_node = Op.__call__(self)
+        new_node.const_attr = const_val
+        new_node.inputs = [node_A]
+        new_node.name = "(%s**%s)" % (node_A.name, str(const_val))
+        return new_node
+
+    def compute(self, node, input_vals):
+        """Given values of input node, return result of element-wise multiplication."""
+        assert len(input_vals) == 1
+        return T.power(input_vals[0], node.const_attr)
+
+    def gradient(self, node, output_grad):
+        """Given gradient of multiplication node, return gradient contribution to input."""
+        return [
+            output_grad *
+            node.const_attr *
+            power(
+                node.inputs[0],
+                node.const_attr -
+                1)]
+
+
 class MatMulOp(Op):
     """Op to matrix multiply two nodes."""
 
@@ -299,6 +331,51 @@ class MatMulOp(Op):
                 output_grad,
                 trans_A=not node.matmul_attr_trans_A,
                 trans_B=False)]
+
+
+class EinsumOp(Op):
+    """Op to perform einstein summation for two nodes."""
+
+    def __call__(self, subscripts, node_A, node_B):
+        """Create a new node that is the result a matrix multiple of two input nodes.
+
+        Parameters
+        ----------
+        node_A: lhs of einsum
+        node_B: rhs of einsum
+
+        Returns
+        -------
+        Returns a node that is the result of einsum.
+        """
+        new_node = Op.__call__(self)
+        new_node.einsum_subscripts = subscripts
+        new_node.inputs = [node_A, node_B]
+        new_node.name = "einsum(%s,%s,%s)" % (
+            subscripts, node_A.name, node_B.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        """Given values of input nodes, return result of matrix multiplication."""
+        assert len(input_vals) == 2
+        assert T.is_tensor(input_vals[0])
+        assert T.is_tensor(input_vals[1])
+        return T.einsum(node.einsum_subscripts, input_vals[0], input_vals[1])
+
+    def gradient(self, node, output_grad):
+        subscripts_dl = einsum_grad_subscripts(
+            node.einsum_subscripts, left=True)
+        subscripts_dr = einsum_grad_subscripts(
+            node.einsum_subscripts, left=False)
+        return [
+            einsum(
+                subscripts_dl,
+                output_grad,
+                node.inputs[1]),
+            einsum(
+                subscripts_dr,
+                node.inputs[0],
+                output_grad)]
 
 
 class PlaceholderOp(Op):
@@ -369,7 +446,7 @@ class NegativeOp(Op):
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
         assert (T.is_tensor(input_vals[0]))
-        return -input_vals
+        return -input_vals[0]
 
     def gradient(self, node, output_grad):
         return [-output_grad]
@@ -387,6 +464,8 @@ placeholder = PlaceholderOp()
 oneslike = OnesLikeOp()
 zeroslike = ZerosLikeOp()
 negative = NegativeOp()
+power = PowerOp()
+einsum = EinsumOp()
 
 
 class Executor:
