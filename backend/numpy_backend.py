@@ -45,7 +45,7 @@ class NumpyBackend(Backend):
 
         if order == 'inf':
             return np.max(np.abs(tensor), axis=axis)
-        if order == 1:
+        elif order == 1:
             return np.sum(np.abs(tensor), axis=axis)
         elif order == 2:
             return np.sqrt(np.sum(tensor**2, axis=axis))
