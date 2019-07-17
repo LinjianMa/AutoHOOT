@@ -121,17 +121,17 @@ class Op(object):
         """
         raise NotImplementedError
 
-    def gradient(self, node, output_grad):
-        """Given value of output gradient, compute gradient contributions to each input node.
+    def vjp(self, node, output_grad):
+        """Given value of output vector-jacobian product, compute vjp contributions to each input node.
 
         Parameters
         ----------
-        node: node that performs the gradient.
-        output_grad: value of output gradient summed from children nodes' contributions
+        node: node that performs the vjp.
+        output_grad: value of output vjp summed from children nodes' contributions
 
         Returns
         -------
-        A list of gradient contributions to each input node respectively.
+        A list of vjp contributions to each input node respectively.
         """
         raise NotImplementedError
 
@@ -150,8 +150,7 @@ class AddOp(Op):
         assert len(input_vals) == 2
         return input_vals[0] + input_vals[1]
 
-    def gradient(self, node, output_grad):
-        """Given gradient of add node, return gradient contributions to each input."""
+    def vjp(self, node, output_grad):
         return [output_grad, output_grad]
 
 
@@ -170,8 +169,7 @@ class AddByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] + node.const_attr
 
-    def gradient(self, node, output_grad):
-        """Given gradient of add node, return gradient contribution to input."""
+    def vjp(self, node, output_grad):
         return [output_grad]
 
 
@@ -189,8 +187,7 @@ class SubOp(Op):
         assert len(input_vals) == 2
         return input_vals[0] - input_vals[1]
 
-    def gradient(self, node, output_grad):
-        """Given gradient of add node, return gradient contributions to each input."""
+    def vjp(self, node, output_grad):
         return [output_grad, -output_grad]
 
 
@@ -209,8 +206,7 @@ class SubByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] - node.const_attr
 
-    def gradient(self, node, output_grad):
-        """Given gradient of add node, return gradient contribution to input."""
+    def vjp(self, node, output_grad):
         return [output_grad]
 
 
@@ -228,8 +224,7 @@ class MulOp(Op):
         assert len(input_vals) == 2
         return input_vals[0] * input_vals[1]
 
-    def gradient(self, node, output_grad):
-        """Given gradient of multiply node, return gradient contributions to each input."""
+    def vjp(self, node, output_grad):
         return [output_grad * node.inputs[1], output_grad * node.inputs[0]]
 
 
@@ -248,8 +243,7 @@ class MulByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] * node.const_attr
 
-    def gradient(self, node, output_grad):
-        """Given gradient of multiplication node, return gradient contribution to input."""
+    def vjp(self, node, output_grad):
         return [output_grad * node.const_attr]
 
 
@@ -268,8 +262,7 @@ class PowerOp(Op):
         assert len(input_vals) == 1
         return T.power(input_vals[0], node.const_attr)
 
-    def gradient(self, node, output_grad):
-        """Given gradient of multiplication node, return gradient contribution to input."""
+    def vjp(self, node, output_grad):
         return [
             output_grad *
             node.const_attr *
@@ -315,8 +308,8 @@ class MatMulOp(Op):
             input_vals[1]) if node.matmul_attr_trans_B else input_vals[1]
         return T.dot(tensor1, tensor2)
 
-    def gradient(self, node, output_grad):
-        """Given gradient of multiply node, return gradient contributions to each input.
+    def vjp(self, node, output_grad):
+        """Given vjp of multiply node, return vjp contributions to each input.
 
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
@@ -362,7 +355,7 @@ class EinsumOp(Op):
         assert T.is_tensor(input_vals[1])
         return T.einsum(node.einsum_subscripts, input_vals[0], input_vals[1])
 
-    def gradient(self, node, output_grad):
+    def vjp(self, node, output_grad):
         subscripts_dl = einsum_grad_subscripts(
             node.einsum_subscripts, left=True)
         subscripts_dr = einsum_grad_subscripts(
@@ -390,8 +383,8 @@ class PlaceholderOp(Op):
         """No compute function since node value is fed directly in Executor."""
         assert False, "placeholder values provided by feed_dict"
 
-    def gradient(self, node, output_grad):
-        """No gradient function since node has no inputs."""
+    def vjp(self, node, output_grad):
+        """No vjp function since node has no inputs."""
         return None
 
 
@@ -410,7 +403,7 @@ class ZerosLikeOp(Op):
         assert (T.is_tensor(input_vals[0]))
         return T.zeros(input_vals[0].shape)
 
-    def gradient(self, node, output_grad):
+    def vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
 
 
@@ -429,7 +422,7 @@ class OnesLikeOp(Op):
         assert (T.is_tensor(input_vals[0]))
         return T.ones(input_vals[0].shape)
 
-    def gradient(self, node, output_grad):
+    def vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
 
 
@@ -448,7 +441,7 @@ class NegativeOp(Op):
         assert (T.is_tensor(input_vals[0]))
         return -input_vals[0]
 
-    def gradient(self, node, output_grad):
+    def vjp(self, node, output_grad):
         return [-output_grad]
 
 
@@ -505,8 +498,8 @@ class Executor:
         return node_val_results
 
 
-def gradients(output_node, node_list):
-    """Take gradient of output node with respect to each node in node_list.
+def vjps(output_node, node_list, input_vector):
+    """Take vector-jacobian product of output node with respect to each node in node_list.
 
     Parameters
     ----------
@@ -515,34 +508,40 @@ def gradients(output_node, node_list):
 
     Returns
     -------
-    A list of gradient values, one for each node in node_list respectively.
+    A list of vjp values, one for each node in node_list respectively.
 
     """
 
-    # a map from node to a list of gradient contributions from each output node
+    # a map from node to a list of vjp contributions from each output node
     node_to_output_grads_list = {}
-    # Special note on initializing gradient of output_node as oneslike(output_node):
+    # Special note on initializing vjp of output_node as oneslike(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
     # instead of the vector output_node. But this is the common case for loss
     # function.
-    node_to_output_grads_list[output_node] = [oneslike(output_node)]
-    # a map from node to the gradient of that node
+    node_to_output_grads_list[output_node] = [input_vector]
+    # a map from node to the vjp of that node
     node_to_output_grad = {}
     # Traverse graph in reverse topological order given the output_node that
-    # we are taking gradient wrt.
+    # we are taking vjp wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     for node in reverse_topo_order:
         assert node in node_to_output_grads_list
-        gradient = sum(node_to_output_grads_list[node])
-        node_to_output_grad[node] = gradient
+        vjp = sum(node_to_output_grads_list[node])
+        node_to_output_grad[node] = vjp
         for index, input in enumerate(node.inputs):
-            input_gradient = node.op.gradient(node, gradient)[index]
+            input_vjp = node.op.vjp(node, vjp)[index]
             if input not in node_to_output_grads_list:
-                node_to_output_grads_list[input] = [input_gradient]
+                node_to_output_grads_list[input] = [input_vjp]
             else:
-                node_to_output_grads_list[input].append(input_gradient)
+                node_to_output_grads_list[input].append(input_vjp)
 
-    # Collect results for gradients requested.
+    # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
+
+
+def gradients(output_node, node_list):
+    return vjps(output_node, node_list, oneslike(output_node))
+
+
