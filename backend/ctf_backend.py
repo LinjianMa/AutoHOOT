@@ -43,6 +43,13 @@ class CTFBackend(Backend):
     #     return np.clip(tensor, a_min, a_max)
 
     @staticmethod
+    def power(a, b):
+        if isinstance(a, ctf.core.tensor):
+            return ctf.power(a, b)
+        else:
+            return np.power(a, b)
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         # handle difference in default axis notation
         if axis == ():
@@ -69,6 +76,6 @@ class CTFBackend(Backend):
 
 
 for name in ['reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros',
-             'zeros_like', 'eye', 'abs', 'dot', 'power', 'einsum',
+             'zeros_like', 'eye', 'abs', 'dot', 'einsum',
              'sum']:
     CTFBackend.register_method(name, getattr(ctf, name))

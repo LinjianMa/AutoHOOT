@@ -371,6 +371,27 @@ class EinsumOp(Op):
                 output_grad)]
 
 
+class NormOp(Op):
+
+    def __call__(self, node, order=2, axis=None):
+        new_node = Op.__call__(self)
+        new_node.order = order
+        new_node.axis = axis
+        new_node.inputs = [node]
+        new_node.name = "norm(%s,%s,%s)" % (node.name, order, axis)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        assert T.is_tensor(input_vals[0])
+        return T.norm(input_vals[0], node.order, node.axis)
+
+    def vjp(self, node, output_grad):
+        if node.axis != None or node.order != 2:
+            raise NotImplementedError
+        return [output_grad * norm(node.inputs[0])**(-1) * node.inputs[0]]
+
+
 class PlaceholderOp(Op):
     """Op to feed value to a nodes."""
 
@@ -419,7 +440,6 @@ class OnesLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
-        assert (T.is_tensor(input_vals[0]))
         return T.ones(input_vals[0].shape)
 
     def vjp(self, node, output_grad):
@@ -459,6 +479,7 @@ zeroslike = ZerosLikeOp()
 negative = NegativeOp()
 power = PowerOp()
 einsum = EinsumOp()
+norm = NormOp()
 
 
 class Executor:
