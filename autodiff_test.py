@@ -2,10 +2,12 @@ import autodiff as ad
 import numpy as np
 import backend as T
 
+BACKEND_TYPES = ['numpy', 'ctf']
+
 
 def test_identity():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -25,7 +27,7 @@ def test_identity():
 
 def test_add_by_const():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -44,7 +46,7 @@ def test_add_by_const():
 
 def test_sub_by_const():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -63,7 +65,7 @@ def test_sub_by_const():
 
 def test_sub_by_const_2():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -82,7 +84,7 @@ def test_sub_by_const_2():
 
 def test_negative():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -101,7 +103,7 @@ def test_negative():
 
 def test_mul_by_const():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -120,11 +122,11 @@ def test_mul_by_const():
 
 def test_power():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
-        y = x2 ** 3
+        y = x2**3
 
         grad_x2, = ad.gradients(y, [x2])
 
@@ -133,13 +135,13 @@ def test_power():
         y_val, grad_x2_val = executor.run(feed_dict={x2: x2_val})
 
         assert isinstance(y, ad.Node)
-        assert T.array_equal(y_val, x2_val ** 3)
+        assert T.array_equal(y_val, x2_val**3)
         assert T.array_equal(grad_x2_val, 3 * (x2_val**2))
 
 
 def test_add_two_vars():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -151,8 +153,10 @@ def test_add_two_vars():
         executor = ad.Executor([y, grad_x2, grad_x3])
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x2_val + x3_val)
@@ -162,7 +166,7 @@ def test_add_two_vars():
 
 def test_sub_two_vars():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -174,8 +178,10 @@ def test_sub_two_vars():
         executor = ad.Executor([y, grad_x2, grad_x3])
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x2_val - x3_val)
@@ -185,7 +191,7 @@ def test_sub_two_vars():
 
 def test_mul_two_vars():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -197,8 +203,10 @@ def test_mul_two_vars():
         executor = ad.Executor([y, grad_x2, grad_x3])
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x2_val * x3_val)
@@ -208,7 +216,7 @@ def test_mul_two_vars():
 
 def test_add_mul_mix_1():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1")
@@ -223,22 +231,23 @@ def test_add_mul_mix_1():
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
         y_val, grad_x1_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x1: x1_val, x2: x2_val, x3: x3_val})
+            feed_dict={
+                x1: x1_val,
+                x2: x2_val,
+                x3: x3_val
+            })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x1_val + x2_val * x3_val)
-        assert T.array_equal(
-            grad_x1_val,
-            T.ones_like(x1_val) +
-            x2_val *
-            x3_val)
+        assert T.array_equal(grad_x1_val,
+                             T.ones_like(x1_val) + x2_val * x3_val)
         assert T.array_equal(grad_x2_val, x3_val * x1_val)
         assert T.array_equal(grad_x3_val, x2_val * x1_val)
 
 
 def test_add_mul_mix_2():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1")
@@ -255,7 +264,12 @@ def test_add_mul_mix_2():
         x3_val = 3 * T.ones(3)
         x4_val = 4 * T.ones(3)
         y_val, grad_x1_val, grad_x2_val, grad_x3_val, grad_x4_val = executor.run(
-            feed_dict={x1: x1_val, x2: x2_val, x3: x3_val, x4: x4_val})
+            feed_dict={
+                x1: x1_val,
+                x2: x2_val,
+                x3: x3_val,
+                x4: x4_val
+            })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x1_val + x2_val * x3_val * x4_val)
@@ -267,7 +281,7 @@ def test_add_mul_mix_2():
 
 def test_add_mul_mix_3():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -280,8 +294,10 @@ def test_add_mul_mix_3():
         executor = ad.Executor([y, grad_x2, grad_x3])
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         z_val = x2_val * x2_val + x2_val + x3_val + 3
         expected_yval = z_val * z_val + x3_val
@@ -296,7 +312,7 @@ def test_add_mul_mix_3():
 
 def test_grad_of_grad():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -310,7 +326,10 @@ def test_grad_of_grad():
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
         y_val, grad_x2_val, grad_x3_val, grad_x2_x2_val, grad_x2_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+            feed_dict={
+                x2: x2_val,
+                x3: x3_val
+            })
 
         expected_yval = x2_val * x2_val + x2_val * x3_val
         expected_grad_x2_val = 2 * x2_val + x3_val
@@ -328,7 +347,7 @@ def test_grad_of_grad():
 
 def test_matmul_two_vars():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -341,16 +360,16 @@ def test_matmul_two_vars():
         x2_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
         x3_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
 
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         expected_yval = T.dot(x2_val, x3_val)
         expected_grad_x2_val = T.dot(
-            T.ones_like(expected_yval),
-            T.transpose(x3_val))
+            T.ones_like(expected_yval), T.transpose(x3_val))
         expected_grad_x3_val = T.dot(
-            T.transpose(x2_val),
-            T.ones_like(expected_yval))
+            T.transpose(x2_val), T.ones_like(expected_yval))
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -360,7 +379,7 @@ def test_matmul_two_vars():
 
 def test_einsum():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2")
@@ -373,16 +392,16 @@ def test_einsum():
         x2_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
         x3_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
 
-        y_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val
+        })
 
         expected_yval = T.dot(x2_val, x3_val)
         expected_grad_x2_val = T.dot(
-            T.ones_like(expected_yval),
-            T.transpose(x3_val))
+            T.ones_like(expected_yval), T.transpose(x3_val))
         expected_grad_x3_val = T.dot(
-            T.transpose(x2_val),
-            T.ones_like(expected_yval))
+            T.transpose(x2_val), T.ones_like(expected_yval))
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
