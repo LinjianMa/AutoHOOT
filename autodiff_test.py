@@ -407,3 +407,24 @@ def test_einsum():
         assert T.array_equal(y_val, expected_yval)
         assert T.array_equal(grad_x2_val, expected_grad_x2_val)
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
+
+
+def test_inner_product():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        x_inner = ad.einsum('k,k->', x, x)
+
+        grad_x = ad.gradients(x_inner, [x])
+
+        executor = ad.Executor([x_inner, grad_x])
+        x_val = T.tensor([[1, 2]])  # 1x2
+
+        y_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_yval = T.dot(x_val, x_val)
+        expected_grad_x_val = 2 * x_val
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
