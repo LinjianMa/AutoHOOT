@@ -392,6 +392,43 @@ class NormOp(Op):
         return [output_grad * norm(node.inputs[0])**(-1) * node.inputs[0]]
 
 
+class SumOp(Op):
+
+    def __call__(self, node, axis=None):
+        new_node = Op.__call__(self)
+        new_node.axis = axis
+        new_node.inputs = [node]
+        new_node.name = "sum(%s,%s)" % (node.name, axis)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        assert T.is_tensor(input_vals[0])
+        return T.sum(input_vals[0], node.axis)
+
+    def vjp(self, node, output_grad):
+        if node.axis != None:
+            raise NotImplementedError
+        return [output_grad * oneslike(node.inputs[0])]
+
+
+class TransposeOp(Op):
+
+    def __call__(self, node):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node]
+        new_node.name = "transpose(%s)" % (node.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        assert T.is_tensor(input_vals[0])
+        return T.transpose(input_vals[0])
+
+    def vjp(self, node, output_grad):
+        return [transpose(output_grad)]
+
+
 class PlaceholderOp(Op):
     """Op to feed value to a nodes."""
 
@@ -480,6 +517,8 @@ negative = NegativeOp()
 power = PowerOp()
 einsum = EinsumOp()
 norm = NormOp()
+Sum = SumOp()
+transpose = TransposeOp()
 
 
 class Executor:
