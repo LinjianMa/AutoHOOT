@@ -3,6 +3,7 @@ import numpy as np
 import backend as T
 
 BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy']
 
 
 def test_identity():
@@ -230,12 +231,11 @@ def test_add_mul_mix_1():
         x1_val = 1 * T.ones(3)
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
-        y_val, grad_x1_val, grad_x2_val, grad_x3_val = executor.run(
-            feed_dict={
-                x1: x1_val,
-                x2: x2_val,
-                x3: x3_val
-            })
+        y_val, grad_x1_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val,
+            x3: x3_val
+        })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x1_val + x2_val * x3_val)
@@ -264,7 +264,12 @@ def test_add_mul_mix_2():
         x3_val = 3 * T.ones(3)
         x4_val = 4 * T.ones(3)
         y_val, grad_x1_val, grad_x2_val, grad_x3_val, grad_x4_val = executor.run(
-            feed_dict={x1: x1_val, x2: x2_val, x3: x3_val, x4: x4_val})
+            feed_dict={
+                x1: x1_val,
+                x2: x2_val,
+                x3: x3_val,
+                x4: x4_val
+            })
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x1_val + x2_val * x3_val * x4_val)
@@ -321,7 +326,10 @@ def test_grad_of_grad():
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
         y_val, grad_x2_val, grad_x3_val, grad_x2_x2_val, grad_x2_x3_val = executor.run(
-            feed_dict={x2: x2_val, x3: x3_val})
+            feed_dict={
+                x2: x2_val,
+                x3: x3_val
+            })
 
         expected_yval = x2_val * x2_val + x2_val * x3_val
         expected_grad_x2_val = 2 * x2_val + x3_val
@@ -358,10 +366,10 @@ def test_matmul_two_vars():
         })
 
         expected_yval = T.dot(x2_val, x3_val)
-        expected_grad_x2_val = T.dot(
-            T.ones_like(expected_yval), T.transpose(x3_val))
-        expected_grad_x3_val = T.dot(
-            T.transpose(x2_val), T.ones_like(expected_yval))
+        expected_grad_x2_val = T.dot(T.ones_like(expected_yval),
+                                     T.transpose(x3_val))
+        expected_grad_x3_val = T.dot(T.transpose(x2_val),
+                                     T.ones_like(expected_yval))
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -390,10 +398,10 @@ def test_einsum():
         })
 
         expected_yval = T.dot(x2_val, x3_val)
-        expected_grad_x2_val = T.dot(
-            T.ones_like(expected_yval), T.transpose(x3_val))
-        expected_grad_x3_val = T.dot(
-            T.transpose(x2_val), T.ones_like(expected_yval))
+        expected_grad_x2_val = T.dot(T.ones_like(expected_yval),
+                                     T.transpose(x3_val))
+        expected_grad_x3_val = T.dot(T.transpose(x2_val),
+                                     T.ones_like(expected_yval))
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -408,7 +416,7 @@ def test_norm():
 
         x = ad.Variable(name="x")
         y = ad.norm(x)
-        z = y ** 2
+        z = y**2
 
         grad_x, = ad.gradients(z, [x])
 
@@ -417,7 +425,7 @@ def test_norm():
 
         z_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
-        expected_zval = T.norm(x_val) ** 2
+        expected_zval = T.norm(x_val)**2
         expected_grad_x_val = 2 * x_val
 
         assert isinstance(z, ad.Node)
@@ -484,12 +492,44 @@ def test_inner_product():
 
         y_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
-        expected_yval = T.norm(x_val) ** 2
+        expected_yval = T.norm(x_val)**2
         expected_grad_x_val = 2 * x_val
 
         assert isinstance(x_inner, ad.Node)
         assert T.array_equal(y_val[0][0], expected_yval)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
+def test_inner_product_hvp():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        H = ad.Variable(name="H")
+        v = ad.Variable(name="v")
+        y = ad.transpose(x) @ x
+
+        grad_x, = ad.gradients(y, [x])
+        Hv = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
+
+        executor = ad.Executor([y, grad_x, Hv])
+        x_val = T.tensor([[1.], [2.], [3]])  # 2x1
+        v_val = T.tensor([[1.], [2.], [3]])  # 2x1
+        y_val, grad_x_val, Hv_val = executor.run(feed_dict={
+            x: x_val,
+            v: v_val
+        })
+
+        expected_yval = T.transpose(x_val) @ x_val
+        expected_grad_x_val = 2 * x_val
+        expected_hv_val = 2 * v_val
+
+        print(expected_hv_val)
+        print(Hv_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+        assert T.array_equal(Hv_val, expected_hv_val)
 
 
 def test_hvp1():
@@ -501,13 +541,17 @@ def test_hvp1():
         y = ad.Sum(x * (H @ x))
 
         grad_x, = ad.gradients(y, [x])
-        Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
+        Hv = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
 
         executor = ad.Executor([y, grad_x, Hv])
         x_val = T.tensor([[1.], [2.], [3]])  # 2x1
         v_val = T.tensor([[1.], [2.], [3]])  # 2x1
         H_val = T.tensor([[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]])  # 2x2
-        y_val, grad_x_val, Hv_val = executor.run(feed_dict={x: x_val, H: H_val, v: v_val})
+        y_val, grad_x_val, Hv_val = executor.run(feed_dict={
+            x: x_val,
+            H: H_val,
+            v: v_val
+        })
 
         expected_yval = T.transpose(x_val) @ H_val @ x_val
         expected_grad_x_val = 2 * H_val @ x_val
@@ -525,17 +569,20 @@ def test_hvp2():
         x = ad.Variable(name="x")
         H = ad.Variable(name="H")
         v = ad.Variable(name="v")
-        # y = ad.Sum(x * (H @ x))
         y = ad.transpose(x) @ H @ x
 
         grad_x, = ad.gradients(y, [x])
-        Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
+        Hv = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
 
         executor = ad.Executor([y, grad_x, Hv])
         x_val = T.tensor([[1.], [2.], [3]])  # 2x1
         v_val = T.tensor([[1.], [2.], [3]])  # 2x1
         H_val = T.tensor([[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]])  # 2x2
-        y_val, grad_x_val, Hv_val = executor.run(feed_dict={x: x_val, H: H_val, v: v_val})
+        y_val, grad_x_val, Hv_val = executor.run(feed_dict={
+            x: x_val,
+            H: H_val,
+            v: v_val
+        })
 
         expected_yval = T.transpose(x_val) @ H_val @ x_val
         expected_grad_x_val = 2 * H_val @ x_val
@@ -548,4 +595,3 @@ def test_hvp2():
         assert T.array_equal(y_val, expected_yval)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
-
