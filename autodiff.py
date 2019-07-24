@@ -458,7 +458,6 @@ class ZerosLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
-        assert (T.is_tensor(input_vals[0]))
         return T.zeros(input_vals[0].shape)
 
     def vjp(self, node, output_grad):
@@ -603,3 +602,21 @@ def vjps(output_node, node_list, input_vector):
 
 def gradients(output_node, node_list):
     return vjps(output_node, node_list, oneslike(output_node))
+
+def hvp(output_node, node_list, vector_list):
+    """
+    Hessian-Vector Product
+    """
+    def inner_product(vector_list, gradient_list):
+        assert len(vector_list) == len(gradient_list)
+        assert len(vector_list) >= 1
+        inner_product_node = Sum(vector_list[0] * gradient_list[0])
+        for i in range(1,len(vector_list)):
+            inner_product_node = inner_product_node + Sum(vector_list[i] * gradient_list[i])
+        return inner_product_node
+
+    gradient_list = gradients(output_node, node_list)
+    g_v_inner_product = inner_product(vector_list, gradient_list)
+
+    return gradients(g_v_inner_product, node_list)
+
