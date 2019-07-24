@@ -264,12 +264,7 @@ def test_add_mul_mix_2():
         x3_val = 3 * T.ones(3)
         x4_val = 4 * T.ones(3)
         y_val, grad_x1_val, grad_x2_val, grad_x3_val, grad_x4_val = executor.run(
-            feed_dict={
-                x1: x1_val,
-                x2: x2_val,
-                x3: x3_val,
-                x4: x4_val
-            })
+            feed_dict={x1: x1_val, x2: x2_val, x3: x3_val, x4: x4_val})
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, x1_val + x2_val * x3_val * x4_val)
@@ -326,10 +321,7 @@ def test_grad_of_grad():
         x2_val = 2 * T.ones(3)
         x3_val = 3 * T.ones(3)
         y_val, grad_x2_val, grad_x3_val, grad_x2_x2_val, grad_x2_x3_val = executor.run(
-            feed_dict={
-                x2: x2_val,
-                x3: x3_val
-            })
+            feed_dict={x2: x2_val, x3: x3_val})
 
         expected_yval = x2_val * x2_val + x2_val * x3_val
         expected_grad_x2_val = 2 * x2_val + x3_val
@@ -411,7 +403,7 @@ def test_einsum():
 
 def test_norm():
 
-    for datatype in ['numpy', 'ctf']:
+    for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x")

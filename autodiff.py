@@ -387,7 +387,7 @@ class NormOp(Op):
         return T.norm(input_vals[0], node.order, node.axis)
 
     def vjp(self, node, output_grad):
-        if node.axis != None or node.order != 2:
+        if node.axis is not None or node.order != 2:
             raise NotImplementedError
         return [output_grad * norm(node.inputs[0])**(-1) * node.inputs[0]]
 
@@ -603,7 +603,6 @@ def vjps(output_node, node_list, input_vector):
 def gradients(output_node, node_list):
     return vjps(output_node, node_list, oneslike(output_node))
 
-
 def hvp(output_node, node_list, vector_list):
     """
     Hessian-Vector Product
@@ -620,5 +619,4 @@ def hvp(output_node, node_list, vector_list):
     g_v_inner_product = inner_product(vector_list, gradient_list)
 
     return gradients(g_v_inner_product, node_list)
-
 
