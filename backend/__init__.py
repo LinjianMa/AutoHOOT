@@ -227,6 +227,8 @@ kr = dispatch(Backend.kr)
 partial_svd = dispatch(Backend.partial_svd)
 array_equal = dispatch(Backend.array_equal)
 einsum = dispatch(Backend.einsum)
+random = dispatch(Backend.random)
+seed = dispatch(Backend.seed)
 
 
 # Initialise the backend to the default one

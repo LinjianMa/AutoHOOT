@@ -515,6 +515,14 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def random(shape):
+        raise NotImplementedError
+
+    @staticmethod
+    def seed(seed):
+        raise NotImplementedError
+
+    @staticmethod
     def conj(x, *args, **kwargs):
         """Return the complex conjugate, element-wise.
 

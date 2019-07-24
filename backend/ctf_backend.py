@@ -79,3 +79,7 @@ for name in ['reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros',
              'zeros_like', 'eye', 'abs', 'dot', 'einsum',
              'sum']:
     CTFBackend.register_method(name, getattr(ctf, name))
+
+for name in ['random', 'seed']:
+    CTFBackend.register_method(name, getattr(ctf.random, name))
+

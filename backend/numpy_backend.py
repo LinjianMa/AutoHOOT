@@ -82,3 +82,6 @@ for name in ['reshape', 'moveaxis', 'where', 'copy', 'transpose',
 
 for name in ['solve', 'qr']:
     NumpyBackend.register_method(name, getattr(np.linalg, name))
+
+for name in ['random', 'seed']:
+    NumpyBackend.register_method(name, getattr(np.random, name))
