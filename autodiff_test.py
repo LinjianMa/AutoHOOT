@@ -3,7 +3,6 @@ import numpy as np
 import backend as T
 
 BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
 
 
 def test_identity():
