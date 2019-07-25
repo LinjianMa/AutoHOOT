@@ -4,6 +4,8 @@ import backend as T
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
+BACKEND_TYPES = ['numpy']
+
 
 def test_identity():
 
@@ -507,19 +509,14 @@ def test_inner_product_hvp():
         v = ad.Variable(name="v")
         y = ad.transpose(x) @ x
 
-        grad_x, = ad.gradients(y, [x])
         Hv = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
 
-        executor = ad.Executor([y, grad_x, Hv])
+        executor = ad.Executor([y, Hv])
         x_val = T.tensor([[1.], [2.], [3]])  # 2x1
         v_val = T.tensor([[1.], [2.], [3]])  # 2x1
-        y_val, grad_x_val, Hv_val = executor.run(feed_dict={
-            x: x_val,
-            v: v_val
-        })
+        y_val, Hv_val = executor.run(feed_dict={x: x_val, v: v_val})
 
         expected_yval = T.transpose(x_val) @ x_val
-        expected_grad_x_val = 2 * x_val
         expected_hv_val = 2 * v_val
 
         print(expected_hv_val)
@@ -527,7 +524,6 @@ def test_inner_product_hvp():
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
-        assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
 
 
@@ -594,3 +590,6 @@ def test_hvp2():
         assert T.array_equal(y_val, expected_yval)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
+
+
+test_inner_product_hvp()

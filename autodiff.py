@@ -145,6 +145,8 @@ class AddOp(Op):
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
         assert len(input_vals) == 2
+        # Don't allow broadcast.
+        assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] + input_vals[1]
 
     def vjp(self, node, output_grad):
@@ -282,6 +284,12 @@ class MatMulOp(Op):
         new_node.inputs = [node_A, node_B]
         new_node.name = "MatMul(%s,%s,%s,%s)" % (node_A.name, node_B.name,
                                                  str(trans_A), str(trans_B))
+        if not trans_A and not trans_B:
+            new_node.name = "(%s @ %s)" % (node_A.name, node_B.name)
+        if trans_A and not trans_B:
+            new_node.name = "(%s.T @ %s)" % (node_A.name, node_B.name)
+        if not trans_A and trans_B:
+            new_node.name = "(%s @ %s.T)" % (node_A.name, node_B.name)
         return new_node
 
     def compute(self, node, input_vals):
@@ -394,7 +402,7 @@ class TransposeOp(Op):
     def __call__(self, node):
         new_node = Op.__call__(self)
         new_node.inputs = [node]
-        new_node.name = "transpose(%s)" % (node.name)
+        new_node.name = "%s.T" % (node.name)
         return new_node
 
     def compute(self, node, input_vals):
@@ -521,6 +529,9 @@ class Executor:
             if node not in node_to_val_map:
                 input_vals = [node_to_val_map[val] for val in node.inputs]
                 result = node.op.compute(node, input_vals)
+                print(
+                    f'node: {node}, input_vals: {input_vals}, result: {result}'
+                )
                 node_to_val_map[node] = result
 
         # Collect node values.
@@ -528,6 +539,13 @@ class Executor:
             node_to_val_map[node] for node in self.eval_node_list
         ]
         return node_val_results
+
+
+def sum_node_list(node_list):
+    """Custom sum function in order to avoid create redundant nodes in Python sum implementation."""
+    from operator import add
+    from functools import reduce
+    return reduce(add, node_list)
 
 
 def vjps(output_node, node_list, input_vector):
@@ -559,15 +577,20 @@ def vjps(output_node, node_list, input_vector):
 
     for node in reverse_topo_order:
         assert node in node_to_output_grads_list
-        vjp = sum(node_to_output_grads_list[node])
+        # vjp = sum(node_to_output_grads_list[node])
+        vjp = sum_node_list(node_to_output_grads_list[node])
         node_to_output_grad[node] = vjp
+        print(f'backward node: {node}: , vjp: {vjp}')
+        print(f'node.inputs: {node.inputs}')
         for index, input in enumerate(node.inputs):
             input_vjp = node.op.vjp(node, vjp)[index]
+            print(f'map {input} : {input_vjp}')
             if input not in node_to_output_grads_list:
                 node_to_output_grads_list[input] = [input_vjp]
             else:
                 node_to_output_grads_list[input].append(input_vjp)
 
+    print(node_to_output_grads_list)
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
@@ -582,16 +605,24 @@ def hvp(output_node, node_list, vector_list):
     Hessian-Vector Product
     """
     def inner_product(vector_list, gradient_list):
+        def inner_internal(x, y):
+            return transpose(x) @ y
+
         assert len(vector_list) == len(gradient_list)
         assert len(vector_list) >= 1
-        inner_product_node = Sum(vector_list[0] * gradient_list[0])
+        inner_product_node = inner_internal(vector_list[0], gradient_list[0])
         for i in range(1, len(vector_list)):
-            inner_product_node = inner_product_node + Sum(
-                vector_list[i] * gradient_list[i])
+            inner_product_node = inner_product_node + inner_internal(
+                vector_list[i], gradient_list[i])
         return inner_product_node
 
+    print("calculating Hv gradients")
     gradient_list = gradients(output_node, node_list)
+    print(gradient_list)
     g_v_inner_product = inner_product(vector_list, gradient_list)
+    print(g_v_inner_product)
 
+    print("calculating Hv")
     Hv, = gradients(g_v_inner_product, node_list)
+    print(f'Hv: {Hv}')
     return Hv
