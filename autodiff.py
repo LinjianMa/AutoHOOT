@@ -6,7 +6,6 @@ from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_nod
 
 class Node(object):
     """Node in a computation graph."""
-
     def __init__(self):
         """Constructor, new node is indirectly created by Op object __call__ method.
 
@@ -95,7 +94,6 @@ def Variable(name):
 
 class Op(object):
     """Op represents operations performed on nodes."""
-
     def __call__(self):
         """Create a new node and associate the op object with the node.
 
@@ -138,7 +136,6 @@ class Op(object):
 
 class AddOp(Op):
     """Op to element-wise add two nodes."""
-
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
@@ -148,6 +145,8 @@ class AddOp(Op):
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
         assert len(input_vals) == 2
+        # Don't allow broadcast.
+        assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] + input_vals[1]
 
     def vjp(self, node, output_grad):
@@ -156,7 +155,6 @@ class AddOp(Op):
 
 class AddByConstOp(Op):
     """Op to element-wise add a nodes by a constant."""
-
     def __call__(self, node_A, const_val):
         new_node = Op.__call__(self)
         new_node.const_attr = const_val
@@ -175,7 +173,6 @@ class AddByConstOp(Op):
 
 class SubOp(Op):
     """Op to element-wise subtract two nodes."""
-
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
@@ -193,7 +190,6 @@ class SubOp(Op):
 
 class SubByConstOp(Op):
     """Op to element-wise add a nodes by a constant."""
-
     def __call__(self, node_A, const_val):
         new_node = Op.__call__(self)
         new_node.const_attr = const_val
@@ -212,7 +208,6 @@ class SubByConstOp(Op):
 
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
-
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
@@ -230,7 +225,6 @@ class MulOp(Op):
 
 class MulByConstOp(Op):
     """Op to element-wise multiply a nodes by a constant."""
-
     def __call__(self, node_A, const_val):
         new_node = Op.__call__(self)
         new_node.const_attr = const_val
@@ -249,7 +243,6 @@ class MulByConstOp(Op):
 
 class PowerOp(Op):
     """Op to element-wise power a nodes by a constant."""
-
     def __call__(self, node_A, const_val):
         new_node = Op.__call__(self)
         new_node.const_attr = const_val
@@ -264,37 +257,28 @@ class PowerOp(Op):
 
     def vjp(self, node, output_grad):
         return [
-            output_grad *
-            node.const_attr *
-            power(
-                node.inputs[0],
-                node.const_attr -
-                1)]
+            output_grad * node.const_attr *
+            power(node.inputs[0], node.const_attr - 1)
+        ]
 
 
 class MatMulOp(Op):
     """Op to matrix multiply two nodes."""
-
-    def __call__(self, node_A, node_B, trans_A=False, trans_B=False):
+    def __call__(self, node_A, node_B):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
         ----------
         node_A: lhs of matrix multiply
         node_B: rhs of matrix multiply
-        trans_A: whether to transpose node_A
-        trans_B: whether to transpose node_B
 
         Returns
         -------
         Returns a node that is the result a matrix multiple of two input nodes.
         """
         new_node = Op.__call__(self)
-        new_node.matmul_attr_trans_A = trans_A
-        new_node.matmul_attr_trans_B = trans_B
         new_node.inputs = [node_A, node_B]
-        new_node.name = "MatMul(%s,%s,%s,%s)" % (
-            node_A.name, node_B.name, str(trans_A), str(trans_B))
+        new_node.name = "MatMul(%s,%s)" % (node_A.name, node_B.name)
         return new_node
 
     def compute(self, node, input_vals):
@@ -302,33 +286,20 @@ class MatMulOp(Op):
         assert len(input_vals) == 2
         assert T.is_tensor(input_vals[0])
         assert T.is_tensor(input_vals[1])
-        tensor1 = T.transpose(
-            input_vals[0]) if node.matmul_attr_trans_A else input_vals[0]
-        tensor2 = T.transpose(
-            input_vals[1]) if node.matmul_attr_trans_B else input_vals[1]
-        return T.dot(tensor1, tensor2)
+        return T.dot(input_vals[0], input_vals[1])
 
     def vjp(self, node, output_grad):
         """Given vjp of multiply node, return vjp contributions to each input.
 
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
-        return [
-            matmul(
-                output_grad,
-                node.inputs[1],
-                trans_A=False,
-                trans_B=not node.matmul_attr_trans_B),
-            matmul(
-                node.inputs[0],
-                output_grad,
-                trans_A=not node.matmul_attr_trans_A,
-                trans_B=False)]
+        grad_A = matmul(output_grad, transpose(node.inputs[1]))
+        grad_B = matmul(transpose(node.inputs[0]), output_grad)            
+        return [grad_A, grad_B]
 
 
 class EinsumOp(Op):
     """Op to perform einstein summation for two nodes."""
-
     def __call__(self, subscripts, node_A, node_B):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
@@ -344,8 +315,8 @@ class EinsumOp(Op):
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
         new_node.inputs = [node_A, node_B]
-        new_node.name = "einsum(%s,%s,%s)" % (
-            subscripts, node_A.name, node_B.name)
+        new_node.name = "einsum(%s,%s,%s)" % (subscripts, node_A.name,
+                                              node_B.name)
         return new_node
 
     def compute(self, node, input_vals):
@@ -356,23 +327,17 @@ class EinsumOp(Op):
         return T.einsum(node.einsum_subscripts, input_vals[0], input_vals[1])
 
     def vjp(self, node, output_grad):
-        subscripts_dl = einsum_grad_subscripts(
-            node.einsum_subscripts, left=True)
-        subscripts_dr = einsum_grad_subscripts(
-            node.einsum_subscripts, left=False)
+        subscripts_dl = einsum_grad_subscripts(node.einsum_subscripts,
+                                               left=True)
+        subscripts_dr = einsum_grad_subscripts(node.einsum_subscripts,
+                                               left=False)
         return [
-            einsum(
-                subscripts_dl,
-                output_grad,
-                node.inputs[1]),
-            einsum(
-                subscripts_dr,
-                node.inputs[0],
-                output_grad)]
+            einsum(subscripts_dl, output_grad, node.inputs[1]),
+            einsum(subscripts_dr, node.inputs[0], output_grad)
+        ]
 
 
 class NormOp(Op):
-
     def __call__(self, node, order=2, axis=None):
         new_node = Op.__call__(self)
         new_node.order = order
@@ -393,7 +358,6 @@ class NormOp(Op):
 
 
 class SumOp(Op):
-
     def __call__(self, node, axis=None):
         new_node = Op.__call__(self)
         new_node.axis = axis
@@ -413,11 +377,10 @@ class SumOp(Op):
 
 
 class TransposeOp(Op):
-
     def __call__(self, node):
         new_node = Op.__call__(self)
         new_node.inputs = [node]
-        new_node.name = "transpose(%s)" % (node.name)
+        new_node.name = "%s.T" % (node.name)
         return new_node
 
     def compute(self, node, input_vals):
@@ -431,7 +394,6 @@ class TransposeOp(Op):
 
 class PlaceholderOp(Op):
     """Op to feed value to a nodes."""
-
     def __call__(self):
         """Creates a variable node."""
         new_node = Op.__call__(self)
@@ -448,7 +410,6 @@ class PlaceholderOp(Op):
 
 class ZerosLikeOp(Op):
     """Op that represents a constant T.zeros_like."""
-
     def __call__(self, node_A):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
         new_node = Op.__call__(self)
@@ -466,7 +427,6 @@ class ZerosLikeOp(Op):
 
 class OnesLikeOp(Op):
     """Op that represents a constant T.ones_like."""
-
     def __call__(self, node_A):
         """Creates a node that represents a T.ones array of same shape as node_A."""
         new_node = Op.__call__(self)
@@ -484,7 +444,6 @@ class OnesLikeOp(Op):
 
 class NegativeOp(Op):
     """Op that represents a constant T.ones_like."""
-
     def __call__(self, node_A):
         """Creates a node that represents a T.ones array of same shape as node_A."""
         new_node = Op.__call__(self)
@@ -522,7 +481,6 @@ transpose = TransposeOp()
 
 class Executor:
     """Executor computes values for a given subset of nodes in a computation graph."""
-
     def __init__(self, eval_node_list):
         """
         Parameters
@@ -552,8 +510,9 @@ class Executor:
                 node_to_val_map[node] = result
 
         # Collect node values.
-        node_val_results = [node_to_val_map[node]
-                            for node in self.eval_node_list]
+        node_val_results = [
+            node_to_val_map[node] for node in self.eval_node_list
+        ]
         return node_val_results
 
 
@@ -586,7 +545,7 @@ def vjps(output_node, node_list, input_vector):
 
     for node in reverse_topo_order:
         assert node in node_to_output_grads_list
-        vjp = sum(node_to_output_grads_list[node])
+        vjp = sum_node_list(node_to_output_grads_list[node])
         node_to_output_grad[node] = vjp
         for index, input in enumerate(node.inputs):
             input_vjp = node.op.vjp(node, vjp)[index]
@@ -611,8 +570,9 @@ def hvp(output_node, node_list, vector_list):
         assert len(vector_list) == len(gradient_list)
         assert len(vector_list) >= 1
         inner_product_node = Sum(vector_list[0] * gradient_list[0])
-        for i in range(1,len(vector_list)):
-            inner_product_node = inner_product_node + Sum(vector_list[i] * gradient_list[i])
+        for i in range(1, len(vector_list)):
+            inner_product_node = inner_product_node + Sum(
+                vector_list[i] * gradient_list[i])
         return inner_product_node
 
     gradient_list = gradients(output_node, node_list)
