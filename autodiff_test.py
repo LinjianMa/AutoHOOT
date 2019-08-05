@@ -437,7 +437,7 @@ def test_sum():
         T.set_backend(datatype)
 
         x = ad.Variable(name="x")
-        y = ad.Sum(x)
+        y = ad.sum(x)
 
         grad_x, = ad.gradients(y, [x])
 
@@ -536,7 +536,7 @@ def test_hvp1():
         x = ad.Variable(name="x")
         H = ad.Variable(name="H")
         v = ad.Variable(name="v")
-        y = ad.Sum(x * (H @ x))
+        y = ad.sum(x * (H @ x))
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
@@ -567,7 +567,6 @@ def test_hvp2():
         x = ad.Variable(name="x")
         H = ad.Variable(name="H")
         v = ad.Variable(name="v")
-        # y = ad.Sum(x * (H @ x))
         y = ad.transpose(x) @ H @ x
 
         grad_x, = ad.gradients(y, [x])

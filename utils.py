@@ -1,5 +1,6 @@
 from functools import reduce
 import re
+import autodiff as ad
 
 ##############################
 ####### Helper Methods #######
@@ -45,3 +46,13 @@ def sum_node_list(node_list):
     from operator import add
     from functools import reduce
     return reduce(add, node_list)
+
+
+def inner_product(vector_list, gradient_list):
+    assert len(vector_list) == len(gradient_list)
+    assert len(vector_list) >= 1
+    inner_product_node = ad.sum(vector_list[0] * gradient_list[0])
+    for i in range(1, len(vector_list)):
+        inner_product_node = inner_product_node + sum(
+            vector_list[i] * gradient_list[i])
+    return inner_product_node
