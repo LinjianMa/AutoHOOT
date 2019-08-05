@@ -3,118 +3,150 @@ from utils import find_topo_sort, inner_product
 
 
 def invert_dict(d):
-    return dict((v,k) for k,v in d.items())
+    return dict((v, k) for k, v in d.items())
 
 
-def subsource_forward(output_node):
-    topo_order = find_topo_sort([output_node])
-    print(f'\n    # forward pass starts')
-    mid_name = '_a'
-    input_index = 0
-    for node in topo_order:
-        if len(node.inputs) == 0:
-            print(f'    {node.name} = inputs[{input_index}]')
-            input_index += 1
-        else:
-            print(f'    {mid_name} = {node.op.s2s_name(node.inputs, node)}')
-            node.name = f'{mid_name}'
-            mid_name = f'_{chr(ord(mid_name[1])+1)}'
-    return mid_name
+class SourceToSource():
+    """Class to generate the source code"""
+
+    def __init__(self):
+        self.mid_name = '_a'
+        self.input_index = 0
+        self.forward_to_grad_map = {}
+        self.grad_to_forward_map = {}
+        self.forward_to_hvp_map = {}
+        self.hvp_to_forward_map = {}
+        self.file = None
 
 
-def subsource_gradients(output_node, node_list):
-
-    mid_name = subsource_forward(output_node)
-
-    print(f'\n    # backward pass of starts')
-
-    node_to_grad_map = ad.gradients_map(output_node, node_list)
-    grad_to_node_map = invert_dict(node_to_grad_map)
-    gradient_nodes = [node_to_grad_map[node] for node in node_list]
-    topo_order_gradients = find_topo_sort(gradient_nodes)
-
-    input_index = 0
-    for node in topo_order_gradients:
-        if not node in node_to_grad_map.keys():
-            if not node in node_to_grad_map.values():
-                print(f'    {mid_name} = {node.op.s2s_name(node.inputs, node)}')
-                node.name = f'{mid_name}'
-                mid_name = f'_{chr(ord(mid_name[1])+1)}'
-            else:
-                forward_node = grad_to_node_map[node]
-                print(f'    _grad{forward_node.name} = {node.op.s2s_name(node.inputs, node)}')
-                node.name = f'_grad{forward_node.name}'  
-    return node_to_grad_map, mid_name              
+    def _print_to_file(self, input):
+        print(input, file=self.file)
 
 
-def source_forward(output_node):
-    print('import backend as T\n')
-    print(f'def forward_pass(inputs):')
-    mid_name = subsource_forward(output_node)
-    print(f'    return _{chr(ord(mid_name[1])-1)}')
+    def _assign_mid_variable(self, node):
+        self._print_to_file(
+            f'    {self.mid_name} = {node.op.s2s_name(node.inputs, node)}')
+        node.name = f'{self.mid_name}'
+        self.mid_name = f'_{chr(ord(self.mid_name[1])+1)}'
 
 
-def source_gradients(output_node, node_list):
-
-    print('import backend as T\n')
-    print(f'def gradients(inputs):')
-    node_to_grad_map,_ = subsource_gradients(output_node, node_list)
-    returned_grad_names = node_to_grad_map[node_list[0]].name
-    for node in node_list[1:]:
-        returned_grad_names = returned_grad_names + f', {node_to_grad_map[node].name}'
-    print(f'    return [{returned_grad_names}]')
+    def _assign_init_variable(self, node):
+        self._print_to_file(f'    {node.name} = inputs[{self.input_index}]')
+        self.input_index += 1
 
 
-def source_hvp(output_node, node_list, vector_list):
+    def _assign_grad_variable(self, node):
+        forward_node = self.grad_to_forward_map[node]
+        self._print_to_file(
+            f'    _grad{forward_node.name} = {node.op.s2s_name(node.inputs, node)}')
+        node.name = f'_grad{forward_node.name}'
 
-    print('import backend as T\n')
-    print(f'def hvp(inputs):')
-    node_to_grad_map, mid_name = subsource_gradients(output_node, node_list)
-    gradient_list = [node_to_grad_map[node] for node in node_list]
 
-    print(f'\n    # inner product of g and v starts')
-    inner_product_node = inner_product(vector_list, gradient_list)
-    print(f'    _gTv = {inner_product_node.op.s2s_name(inner_product_node.inputs, inner_product_node)}')
-    inner_product_node.name = '_gTv'
-
-    grad_to_hvp_map = ad.gradients_map(inner_product_node, node_list)
-    hvp_to_grad_map = invert_dict(grad_to_hvp_map)
-    hvp_nodes = [grad_to_hvp_map[node] for node in node_list]
-    topo_order_hvps = find_topo_sort(hvp_nodes)
-
-    print(f'\n    # backward pass of inner product of g and v starts')
-    input_index = 2
-    for node in topo_order_hvps:
-        if not node in grad_to_hvp_map.keys():
+    def _sub_forward(self, output_node):
+        topo_order = find_topo_sort([output_node])
+        self._print_to_file(f'\n    # forward pass starts')
+        for node in topo_order:
             if len(node.inputs) == 0:
-                print(f'    {node.name} = inputs[{input_index}]')
-                input_index += 1
+                self._assign_init_variable(node)
             else:
-                if not node in grad_to_hvp_map.values():
-                    print(f'    {mid_name} = {node.op.s2s_name(node.inputs, node)}')
-                    node.name = f'{mid_name}'
-                    mid_name = f'_{chr(ord(mid_name[1])+1)}'
+                self._assign_mid_variable(node)
+
+
+    def _sub_gradients(self, output_node, node_list):
+        self._sub_forward(output_node)
+        self._print_to_file(f'\n    # backward pass starts')
+
+        self.forward_to_grad_map = ad.gradients_map(output_node, node_list)
+        self.grad_to_forward_map = invert_dict(self.forward_to_grad_map)
+        self.gradient_list = [self.forward_to_grad_map[node]
+                              for node in node_list]
+        self.topo_order_gradients = find_topo_sort(self.gradient_list)
+
+        for node in self.topo_order_gradients:
+            if node not in self.forward_to_grad_map.keys():
+                if node not in self.forward_to_grad_map.values():
+                    self._assign_mid_variable(node)
                 else:
-                    forward_node = hvp_to_grad_map[node]
-                    print(f'    _gradv{forward_node.name} = {node.op.s2s_name(node.inputs, node)}')
-                    node.name = f'_gradv{forward_node.name}'           
-
-    returned_hvp_names = grad_to_hvp_map[node_list[0]].name
-    for node in node_list[1:]:
-        returned_hvp_names = returned_hvp_names + f', {grad_to_hvp_map[node].name}'
-    print(f'    return [{returned_hvp_names}]')  
+                    self._assign_grad_variable(node)
 
 
+    def _sub_gTv(self, vector_list):
+        self._print_to_file(f'\n    # inner product of g and v starts')
+        for node in vector_list:
+            self._assign_init_variable(node)
+        inner_product_node = inner_product(vector_list, self.gradient_list)
+        topo_order = find_topo_sort([inner_product_node])
+        for node in topo_order:
+            if node not in self.topo_order_gradients and \
+                    node is not inner_product_node and \
+                    node not in vector_list:
+                self._assign_mid_variable(node)
+        self._print_to_file(
+            f'    _gTv = {inner_product_node.op.s2s_name(inner_product_node.inputs, inner_product_node)}')
+        inner_product_node.name = '_gTv'
+        return inner_product_node
 
-x = ad.Variable(name="x")
-H = ad.Variable(name="H")
-v = ad.Variable(name="v")
-y = ad.sum(x * (H @ x))
-grads_x = ad.gradients(y, [x])
-Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
+
+    def _sub_hvp(self, inner_product_node, node_list):
+        self._print_to_file(
+            f'\n    # backward pass of inner product of g and v starts')
+        self.forward_to_hvp_map = ad.gradients_map(
+            inner_product_node, node_list)
+        self.hvp_to_forward_map = invert_dict(self.forward_to_hvp_map)
+        hvp_nodes = [self.forward_to_hvp_map[node] for node in node_list]
+        topo_order_hvps = find_topo_sort(hvp_nodes)
+        for node in topo_order_hvps:
+            if node not in self.forward_to_hvp_map.keys():
+                if node not in self.forward_to_hvp_map.values():
+                    self._assign_mid_variable(node)
+                else:
+                    forward_node = self.hvp_to_forward_map[node]
+                    self._print_to_file(
+                        f'    _grad2{forward_node.name} = {node.op.s2s_name(node.inputs, node)}')
+                    node.name = f'_grad2{forward_node.name}'
 
 
-source_forward(y)
-source_gradients(y, [x])
-source_hvp(y, [x], [v])
+    def forward(self, output_node, file=None):
+        self.mid_name = '_a'
+        self.input_index = 0
+        self.file = file
+        self._print_to_file('import backend as T\n')
+        self._print_to_file(f'def forward(inputs):')
+        self._sub_forward(output_node)
+        self._print_to_file(f'    return _{chr(ord(self.mid_name[1])-1)}')
+        self.file.flush()
+
+
+    def gradients(self, output_node, node_list, file=None):
+        self.mid_name = '_a'
+        self.input_index = 0
+        self.file = file
+        self._print_to_file('import backend as T\n')
+        self._print_to_file(f'def gradients(inputs):')
+        self._sub_gradients(output_node, node_list)
+        returned_grad_names = self.forward_to_grad_map[node_list[0]].name
+        for node in node_list[1:]:
+            returned_grad_names = returned_grad_names + \
+                f', {self.forward_to_grad_map[node].name}'
+        self._print_to_file(f'    return [{returned_grad_names}]')
+        self.file.flush()
+
+
+    def hvp(self, output_node, node_list, vector_list, file=None):
+        self.mid_name = '_a'
+        self.input_index = 0
+        self.file = file
+        self._print_to_file('import backend as T\n')
+        self._print_to_file(f'def hvp(inputs):')
+        self._sub_gradients(output_node, node_list)
+
+        inner_product_node = self._sub_gTv(vector_list)
+        self._sub_hvp(inner_product_node, node_list)
+
+        returned_hvp_names = self.forward_to_hvp_map[node_list[0]].name
+        for node in node_list[1:]:
+            returned_hvp_names = returned_hvp_names + \
+                f', {self.forward_to_hvp_map[node].name}'
+        self._print_to_file(f'    return [{returned_hvp_names}]')
+        self.file.flush()
 

@@ -463,12 +463,12 @@ class ZerosLikeOp(Op):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
-        new_node.name = "T.zeros(%s)" % node_A.name
+        new_node.name = "T.zeros_like(%s)" % node_A.name
         return new_node
 
     def s2s_name(self, inputs, node):
         assert len(inputs) == 1
-        return "T.zeros(%s)" % (inputs[0].name)
+        return "T.zeros_like(%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
@@ -484,12 +484,12 @@ class OnesLikeOp(Op):
         """Creates a node that represents a T.ones array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
-        new_node.name = "T.ones(%s)" % node_A.name
+        new_node.name = "T.ones_like(%s)" % node_A.name
         return new_node
 
     def s2s_name(self, inputs, node):
         assert len(inputs) == 1
-        return "T.ones(%s)" % (inputs[0].name)
+        return "T.ones_like(%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
