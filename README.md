@@ -35,3 +35,44 @@ executor = ad.Executor([y, grad_x1, grad_x2])
 y_val, grad_x1_val, grad_x2_val = executor.run(feed_dict = {x1 : x1_val, x2 : x2_val})
 ```
 grad_x1_val, grad_x2_val now contain the values of dy/dx1 and dy/dx2.
+
+## Second-order information
+
+This repo also supports Hessian-vector products through reverse-mode autodiff. As to a expression `y = x^T @ H @ x`, we first define the expression 
+```python
+x = ad.Variable(name="x")
+H = ad.Variable(name="H")
+v = ad.Variable(name="v")
+y = ad.transpose(x) @ H @ x
+```
+Then define the expression for the gradient and Hessian-vector product:
+```python
+grad_x, = ad.gradients(y, [x])
+Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
+```
+Then we can evaluate y, grad_x and Hv all at once:
+```python
+y_val, grad_x_val, Hv_val = executor.run(feed_dict={
+    x: x_val, H: H_val, v: v_val
+    })
+```
+
+## Source code generation
+
+This repo also supports source code generation for both gradients and Hessian-vector products. For the same expression above, we can generate the functions for gradient and Hvp calculations as follows:
+```python
+from source import SourceToSource
+
+StS = SourceToSource()
+StS.forward(y, file=open("example_forward.py", "w"))
+StS.gradients(y, [x], file=open("example_grad.py", "w"))
+StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
+```
+We can then use the generated functions as follows:
+```python
+import example_forward, example_grad, example_hvp
+
+y_val_s2s = example_forward.forward([x_val, H_val])
+grad_x_val_s2s, = example_grad.gradients([x_val, H_val])
+Hv_val_s2s, = example_hvp.hvp([x_val, H_val, v_val])
+```

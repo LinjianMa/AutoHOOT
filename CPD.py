@@ -1,9 +1,9 @@
 import autodiff as ad
 import numpy as np
 import backend as T
+from tensors.synthetic_tensors import init_rand_3d
 
 BACKEND_TYPES = ['numpy', 'ctf']
-
 
 def CPD_gradient_descent(size, rank, learning_rate):
 
@@ -31,18 +31,6 @@ def CPD_gradient_descent(size, rank, learning_rate):
             B_val -= learning_rate * grad_B_val
             C_val -= learning_rate * grad_C_val
             print('At iteration ' + str(i) + ', the loss is: ' + str(loss_val))
-
-
-def init_rand_3d(s, R):
-    A = T.random((s, R))
-    B = T.random((s, R))
-    C = T.random((s, R))
-    input_tensor = T.einsum("ia,ja->ija", A, B)
-    input_tensor = T.einsum("ija,ka->ijk", input_tensor, C)
-    A = T.random((s, R))
-    B = T.random((s, R))
-    C = T.random((s, R))
-    return [A, B, C, input_tensor]
 
 
 if __name__ == "__main__":

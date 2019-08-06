@@ -503,7 +503,6 @@ def test_inner_product_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x")
-        H = ad.Variable(name="H")
         v = ad.Variable(name="v")
         y = ad.transpose(x) @ x
 
@@ -521,9 +520,6 @@ def test_inner_product_hvp():
         expected_yval = T.transpose(x_val) @ x_val
         expected_grad_x_val = 2 * x_val
         expected_hv_val = 2 * v_val
-
-        print(expected_hv_val)
-        print(Hv_val)
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -560,19 +556,6 @@ def test_hvp1():
         assert T.array_equal(y_val, expected_yval[0][0])
         assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
-
-        StS = SourceToSource()
-        StS.forward(y, file=open("example_forward.py", "w"))
-        StS.gradients(y, [x], file=open("example_grad.py", "w"))
-        StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
-
-        import example_forward, example_grad, example_hvp
-        y_val_s2s = example_forward.forward([x_val, H_val])
-        grad_x_val_s2s, = example_grad.gradients([x_val, H_val])
-        Hv_val_s2s, = example_hvp.hvp([x_val, H_val, v_val])
-        assert T.array_equal(y_val_s2s, expected_yval[0][0])
-        assert T.array_equal(grad_x_val_s2s, expected_grad_x_val)
-        assert T.array_equal(Hv_val_s2s, expected_hv_val)
 
 
 def test_hvp2():
@@ -613,7 +596,50 @@ def test_hvp2():
         y_val_s2s = example_forward.forward([x_val, H_val])
         grad_x_val_s2s, = example_grad.gradients([x_val, H_val])
         Hv_val_s2s, = example_hvp.hvp([x_val, H_val, v_val])
-        assert T.array_equal(y_val_s2s, expected_yval[0][0])
+        assert T.array_equal(y_val_s2s, expected_yval)
         assert T.array_equal(grad_x_val_s2s, expected_grad_x_val)
         assert T.array_equal(Hv_val_s2s, expected_hv_val)
+
+
+def test_cpd_grad():
+    from tensors.synthetic_tensors import init_rand_3d
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(s=20, R=5)
+
+        A = ad.Variable(name='A')
+        B = ad.Variable(name='B')
+        C = ad.Variable(name='C')
+
+        contract_A_B = ad.einsum("ia,ja->ija", A, B)
+        output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
+        norm_error = ad.norm(output_tensor - input_tensor_val)
+        loss = norm_error * norm_error
+
+        grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+        executor = ad.Executor([loss, grad_A, grad_B, grad_C])
+
+        loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
+            feed_dict={A: A_val, B: B_val, C: C_val})
+
+        expected_contract_A_B = T.einsum("ia,ja->ija", A_val, B_val)
+        expected_output_tensor = T.einsum("ija,ka->ijk", expected_contract_A_B, C_val)
+        expected_residual = expected_output_tensor - input_tensor_val
+        expected_norm_error = T.norm(expected_residual)
+        expected_loss = expected_norm_error * expected_norm_error
+
+        expected_contract_residual_A = 2*T.einsum("ijk,ia->ajk", expected_residual, A_val)
+        expected_contract_residual_B = 2*T.einsum("ijk,ja->iak", expected_residual, B_val)
+        expected_contract_residual_C = 2*T.einsum("ijk,ka->ija", expected_residual, C_val)
+
+        expected_grad_A = T.einsum("iak,ka->ia", expected_contract_residual_B, C_val)
+        expected_grad_B = T.einsum("ajk,ka->ja", expected_contract_residual_A, C_val)
+        expected_grad_C = T.einsum("ajk,ja->ka", expected_contract_residual_A, B_val)
+
+        assert T.array_equal(loss_val, expected_loss)
+        assert T.norm(grad_A_val-expected_grad_A) < 1e-8
+        assert T.norm(grad_B_val-expected_grad_B) < 1e-8
+        assert T.norm(grad_C_val-expected_grad_C) < 1e-8
 
