@@ -1,6 +1,7 @@
 from functools import reduce
 import re
 import autodiff as ad
+import backend as T
 
 ##############################
 ####### Helper Methods #######
@@ -53,6 +54,66 @@ def inner_product(vector_list, gradient_list):
     assert len(vector_list) >= 1
     inner_product_node = ad.sum(vector_list[0] * gradient_list[0])
     for i in range(1, len(vector_list)):
-        inner_product_node = inner_product_node + sum(
+        inner_product_node = inner_product_node + ad.sum(
             vector_list[i] * gradient_list[i])
     return inner_product_node
+
+
+#####################################################
+####### Helper Methods for Conjugate gradient #######
+#####################################################
+
+
+def group_minus(xs, ys):
+    assert len(xs) == len(ys)
+    return [x - y for (x, y) in zip(xs, ys)]
+
+
+def group_add(xs, ys):
+    assert len(xs) == len(ys)
+    return [x + y for (x, y) in zip(xs, ys)]
+
+
+def group_negative(xs):
+    return [-x for x in xs]
+
+
+def group_dot(xs, ys):
+    assert len(xs) == len(ys)
+    return sum([T.sum(x * y) for (x, y) in zip(xs, ys)])
+
+
+def group_product(alpha, xs):
+    return [alpha * x for x in xs]
+
+
+def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
+    '''
+        This solves the following problem:
+        hess_fn(x) = grad
+        return: (x)
+    '''
+    if not x0:
+        x0 = [T.ones(grad.shape) for grad in grads]
+    hvps = hess_fn(x0)
+    r = group_minus(hvps, grads)
+    p = group_negative(r)
+    r_k_norm = group_dot(r, r)
+
+    i = 0
+    while True:
+        Ap = hess_fn(p)
+        alpha = r_k_norm / group_dot(p, Ap)
+        x0 = group_add(x0, group_product(alpha, p))
+        r = group_add(r, group_product(alpha, Ap))
+        r_kplus1_norm = group_dot(r, r)
+        beta = r_kplus1_norm / r_k_norm
+        r_k_norm = r_kplus1_norm
+        if float(r_kplus1_norm) < error_tol:
+            break
+        p = group_minus(group_product(beta, p), r)
+        if i > max_iters:
+            print(f'CG max iter reached.')
+            break
+        i += 1
+    return x0

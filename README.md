@@ -4,7 +4,7 @@
 Run all tests with
 ```bash
 # sudo pip install nose
-nosetests -v autodiff_test.py
+nosetests -v tests/*.py
 ```
 
 ## Overview of Module API and Data Structures

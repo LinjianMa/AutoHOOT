@@ -7,7 +7,9 @@ def invert_dict(d):
 
 
 class SourceToSource():
-    """Class to generate the source code"""
+    """Class to generate the source code
+    TODO: Const typed numpy array input is not supported here.
+    """
 
     def __init__(self):
         self.mid_name = '_a'
@@ -23,13 +25,14 @@ class SourceToSource():
 
     def _assign_next_midname(self):
         if self.mid_name[-1] < 'z':
-            self.mid_name = self.mid_name[:-1] + chr(ord(self.mid_name[-1])+1)
+            self.mid_name = self.mid_name[:-1] + \
+                chr(ord(self.mid_name[-1]) + 1)
         else:
             self.mid_name = self.mid_name + 'a'
 
     def _get_prev_midname(self):
         if self.mid_name[-1] > 'a':
-            return self.mid_name[:-1] + chr(ord(self.mid_name[-1])-1)
+            return self.mid_name[:-1] + chr(ord(self.mid_name[-1]) - 1)
         else:
             return self.mid_name[:-1]
 

@@ -225,10 +225,12 @@ class SubByConstOp(Op):
 
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
-    def __call__(self, node_A, node_B):
+    def __call__(self, node_A, node_B, sum_A=False, sum_B=False):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
-        new_node.name = "(%s*%s)" % (node_A.name, node_B.name)
+        new_node.sum_A = sum_A
+        new_node.sum_B = sum_B
+        new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
         return new_node
 
     def s2s_name(self, inputs, node):
@@ -238,10 +240,19 @@ class MulOp(Op):
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise multiplication."""
         assert len(input_vals) == 2
+        if node.sum_A is False and node.sum_B is False:
+            assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] * input_vals[1]
 
     def vjp(self, node, output_grad):
-        return [output_grad * node.inputs[1], output_grad * node.inputs[0]]
+        if node.sum_A is False and node.sum_B is False:
+            return [output_grad * node.inputs[1], output_grad * node.inputs[0]]
+        elif node.sum_A is False and node.sum_B is True:
+            return [mul(output_grad, node.inputs[1], False, True), sum(output_grad * node.inputs[0])]
+        elif node.sum_A is True and node.sum_B is False:
+            return [sum(output_grad * node.inputs[1]), mul(output_grad, node.inputs[0], False, True)]
+        else:
+            raise NotImplementedError
 
 
 class MulByConstOp(Op):
@@ -348,13 +359,13 @@ class EinsumOp(Op):
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
         new_node.inputs = [node_A, node_B]
-        new_node.name = "T.einsum(%s, %s, %s)" % (subscripts, node_A.name,
+        new_node.name = "T.einsum('%s', %s, %s)" % (subscripts, node_A.name,
                                               node_B.name)
         return new_node
 
     def s2s_name(self, inputs, node):
         assert len(inputs) == 2
-        return "T.einsum(%s, %s, %s)" % (node.einsum_subscripts, inputs[0].name, inputs[1].name)
+        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts, inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -395,7 +406,7 @@ class NormOp(Op):
     def vjp(self, node, output_grad):
         if node.axis is not None or node.order != 2:
             raise NotImplementedError
-        return [output_grad * norm(node.inputs[0])**(-1) * node.inputs[0]]
+        return [mul(output_grad * norm(node.inputs[0])**(-1), node.inputs[0], True, False)]
 
 
 class SumOp(Op):
@@ -418,7 +429,7 @@ class SumOp(Op):
     def vjp(self, node, output_grad):
         if node.axis != None:
             raise NotImplementedError
-        return [output_grad * oneslike(node.inputs[0])]
+        return [mul(output_grad, oneslike(node.inputs[0]), True, False)]
 
 
 class TransposeOp(Op):
