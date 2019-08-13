@@ -143,9 +143,9 @@ class AddOp(Op):
         return new_node
 
     def s2s_name(self, inputs, node):
+        """function used for source generation"""
         assert len(inputs) == 2
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
-
 
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -225,11 +225,17 @@ class SubByConstOp(Op):
 
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
-    def __call__(self, node_A, node_B, sum_A=False, sum_B=False):
+    def __call__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+        """
+        if one of the input node is a scalar rather than a tensor:
+            e.g. 5 * [[1,2],[3,4]],
+        set scalar_A / scalar_B to be True.
+        It will affect the vjp expression.
+        """
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
-        new_node.sum_A = sum_A
-        new_node.sum_B = sum_B
+        new_node.scalar_A = scalar_A
+        new_node.scalar_B = scalar_B
         new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
         return new_node
 
@@ -240,19 +246,26 @@ class MulOp(Op):
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise multiplication."""
         assert len(input_vals) == 2
-        if node.sum_A is False and node.sum_B is False:
+        if node.scalar_A is False and node.scalar_B is False:
             assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] * input_vals[1]
 
     def vjp(self, node, output_grad):
-        if node.sum_A is False and node.sum_B is False:
-            return [output_grad * node.inputs[1], output_grad * node.inputs[0]]
-        elif node.sum_A is False and node.sum_B is True:
-            return [mul(output_grad, node.inputs[1], False, True), sum(output_grad * node.inputs[0])]
-        elif node.sum_A is True and node.sum_B is False:
-            return [sum(output_grad * node.inputs[1]), mul(output_grad, node.inputs[0], False, True)]
+        if node.scalar_A is False and node.scalar_B is True:
+            return [
+                mul(output_grad, node.inputs[1], False, True),
+                sum(output_grad * node.inputs[0])
+            ]
+        elif node.scalar_A is True and node.scalar_B is False:
+            return [
+                sum(output_grad * node.inputs[1]),
+                mul(output_grad, node.inputs[0], False, True)
+            ]
         else:
-            raise NotImplementedError
+            return [
+                output_grad * node.inputs[1],
+                output_grad * node.inputs[0],
+            ]
 
 
 class MulByConstOp(Op):
@@ -406,7 +419,14 @@ class NormOp(Op):
     def vjp(self, node, output_grad):
         if node.axis is not None or node.order != 2:
             raise NotImplementedError
-        return [mul(output_grad * norm(node.inputs[0])**(-1), node.inputs[0], True, False)]
+        return [
+            mul(
+                output_grad * norm(node.inputs[0])**(-1),
+                node.inputs[0],
+                scalar_A=True,
+                scalar_B=False
+            )
+        ]
 
 
 class SumOp(Op):
@@ -429,7 +449,13 @@ class SumOp(Op):
     def vjp(self, node, output_grad):
         if node.axis != None:
             raise NotImplementedError
-        return [mul(output_grad, oneslike(node.inputs[0]), True, False)]
+        return [
+            mul(
+                output_grad, oneslike(node.inputs[0]),
+                scalar_A=True,
+                scalar_B=False
+            )
+        ]
 
 
 class TransposeOp(Op):
@@ -589,7 +615,12 @@ class Executor:
 
 
 def vjps_map(output_node, node_list, input_vector):
-    # a map from node to a list of vjp contributions from each output node
+    """
+    Return:
+        a map mapping input nodes to their vjp contributions.
+        node_to_output_grad[node] = [\frac{node}{input_vector}]
+    Used in source generation.
+    """
     node_to_output_grads_list = {}
     # Special note on initializing vjp of output_node as oneslike(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
@@ -634,12 +665,12 @@ def vjps(output_node, node_list, input_vector):
     return grad_node_list
 
 
-def gradients(output_node, node_list):
-    return vjps(output_node, node_list, oneslike(output_node))
-
-
 def gradients_map(output_node, node_list):
     return vjps_map(output_node, node_list, oneslike(output_node))
+
+
+def gradients(output_node, node_list):
+    return vjps(output_node, node_list, oneslike(output_node))
 
 
 def hvp(output_node, node_list, vector_list):

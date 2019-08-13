@@ -26,7 +26,7 @@ def CPD_gradient_descent(size, rank, learning_rate):
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
 
-        for i in range(1000):
+        for i in range(100):
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
                 feed_dict={A: A_val, B: B_val, C: C_val})
             A_val -= learning_rate * grad_A_val
@@ -35,7 +35,7 @@ def CPD_gradient_descent(size, rank, learning_rate):
             print('At iteration ' + str(i) + ', the loss is: ' + str(loss_val))
 
 
-def CPD_newton(size, rank, learning_rate):
+def CPD_newton(size, rank):
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -64,15 +64,6 @@ def CPD_newton(size, rank, learning_rate):
         executor_grads = ad.Executor([loss] + grads)
         executor_Hvps = ad.Executor(Hvps)
 
-        # source code generation
-        # from source import SourceToSource
-        # StS = SourceToSource()
-        # StS.hvp(
-        #     loss, [
-        #         A, B, C], [
-        #         v_A, v_B, v_C], file=open(
-        #         "example_hvp.py", "w"))
-
         for i in range(100):
 
             def hess_fn(v):
@@ -80,10 +71,6 @@ def CPD_newton(size, rank, learning_rate):
                     feed_dict={A: A_val, B: B_val, C: C_val,
                                input_tensor: input_tensor_val,
                                v_A: v[0], v_B: v[1], v_C: v[2]})
-            # import example_hvp
-            # def hess_fn(v):
-            # return example_hvp.hvp([A_val, B_val, C_val, input_tensor_val,
-            # v[0], v[1], v[2]])
 
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
                 feed_dict={A: A_val, B: B_val, C: C_val, input_tensor: input_tensor_val})
@@ -95,7 +82,7 @@ def CPD_newton(size, rank, learning_rate):
                     grad_B_val,
                     grad_C_val],
                 error_tol=1e-9,
-                max_iters=25)
+                max_iters=250)
 
             A_val -= delta[0]
             B_val -= delta[1]
@@ -105,4 +92,4 @@ def CPD_newton(size, rank, learning_rate):
 
 if __name__ == "__main__":
     # CPD_gradient_descent(size=20, rank=5, learning_rate=1e-3)
-    CPD_newton(size=2, rank=1, learning_rate=1e-3)
+    CPD_newton(size=20, rank=5)

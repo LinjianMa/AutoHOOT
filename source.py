@@ -8,10 +8,29 @@ def invert_dict(d):
 
 class SourceToSource():
     """Class to generate the source code
-    TODO: Const typed numpy array input is not supported here.
+    Example usage:
+        ```
+        StS = SourceToSource()
+        StS.forward(y, file=open("example_forward.py", "w"))
+        StS.gradients(y, [x], file=open("example_grad.py", "w"))
+        StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
+        ```
     """
-
     def __init__(self):
+        """Instance variables
+            self.mid_name: middle variable names.
+            self.input_index: index of the function input.
+                e.g. x = input[input_index].
+                after each assignment, input_index++ for the
+                next assignment.
+            self.forward_to_grad_map: a map mapping forward nodes to their grad nodes.
+            self.grad_to_forward_map: a map mapping grad nodes to forward nodes.
+            self.forward_to_hvp_map: a map mapping input nodes (forward+grad).
+                to their hvp nodes
+            self.hvp_to_forward_map: a map mapping hvp nodes
+                to their input nodes (forward+grad).
+            self.file: output file name.
+        """
         self.mid_name = '_a'
         self.input_index = 0
         self.forward_to_grad_map = {}
@@ -37,22 +56,32 @@ class SourceToSource():
             return self.mid_name[:-1]
 
     def _assign_mid_variable(self, node):
+        """Assign a middle variable.
+            e.g. _a = T.transpose(x)
+        """
         self._print_to_file(
             f'    {self.mid_name} = {node.op.s2s_name(node.inputs, node)}')
         node.name = f'{self.mid_name}'
         self._assign_next_midname()
 
     def _assign_init_variable(self, node):
+        """Assign an init variable.
+            e.g. x = inputs[0]
+        """
         self._print_to_file(f'    {node.name} = inputs[{self.input_index}]')
         self.input_index += 1
 
     def _assign_grad_variable(self, node):
+        """Assign a gradient variable.
+            e.g. _grad_a = T.dot(_grad_b, _g)
+        """
         forward_node = self.grad_to_forward_map[node]
         self._print_to_file(
             f'    _grad{forward_node.name} = {node.op.s2s_name(node.inputs, node)}')
         node.name = f'_grad{forward_node.name}'
 
     def _sub_forward(self, output_node):
+        """Forward pass subroutine"""
         topo_order = find_topo_sort([output_node])
         self._print_to_file(f'\n    # forward pass starts')
         for node in topo_order:
@@ -62,6 +91,7 @@ class SourceToSource():
                 self._assign_mid_variable(node)
 
     def _sub_gradients(self, output_node, node_list):
+        """Gradient pass subroutine."""
         self._sub_forward(output_node)
         self._print_to_file(f'\n    # backward pass starts')
 
@@ -79,6 +109,7 @@ class SourceToSource():
                     self._assign_grad_variable(node)
 
     def _sub_gTv(self, vector_list):
+        """Subroutine of g and v inner product."""
         self._print_to_file(f'\n    # inner product of g and v starts')
         for node in vector_list:
             self._assign_init_variable(node)
@@ -95,6 +126,7 @@ class SourceToSource():
         return inner_product_node
 
     def _sub_hvp(self, inner_product_node, node_list):
+        """Subroutine of hvp."""
         self._print_to_file(
             f'\n    # backward pass of inner product of g and v starts')
         self.forward_to_hvp_map = ad.gradients_map(
@@ -113,22 +145,26 @@ class SourceToSource():
                     node.name = f'_grad2{forward_node.name}'
 
     def forward(self, output_node, file=None):
+        """Forward pass source code generation."""
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
         self._print_to_file('import backend as T\n')
         self._print_to_file(f'def forward(inputs):')
         self._sub_forward(output_node)
+        # return expression
         self._print_to_file(f'    return {self._get_prev_midname()}')
         self.file.flush()
 
     def gradients(self, output_node, node_list, file=None):
+        """Gradients source code generation."""
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
         self._print_to_file('import backend as T\n')
         self._print_to_file(f'def gradients(inputs):')
         self._sub_gradients(output_node, node_list)
+        # return expression
         returned_grad_names = self.forward_to_grad_map[node_list[0]].name
         for node in node_list[1:]:
             returned_grad_names = returned_grad_names + \
@@ -137,16 +173,16 @@ class SourceToSource():
         self.file.flush()
 
     def hvp(self, output_node, node_list, vector_list, file=None):
+        """Hvp source code generation."""
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
         self._print_to_file('import backend as T\n')
         self._print_to_file(f'def hvp(inputs):')
         self._sub_gradients(output_node, node_list)
-
         inner_product_node = self._sub_gTv(vector_list)
         self._sub_hvp(inner_product_node, node_list)
-
+        # return expression
         returned_hvp_names = self.forward_to_hvp_map[node_list[0]].name
         for node in node_list[1:]:
             returned_hvp_names = returned_hvp_names + \
