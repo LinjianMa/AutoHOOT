@@ -142,8 +142,8 @@ class AddOp(Op):
         new_node.name = "(%s+%s)" % (node_A.name, node_B.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
-        """function used for source generation"""
+    def s2s_expr(self, inputs, node):
+        """source_to_source expression: used for source generation"""
         assert len(inputs) == 2
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
 
@@ -167,7 +167,7 @@ class AddByConstOp(Op):
         new_node.name = "(%s+%s)" % (node_A.name, str(const_val))
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s + %s)" % (inputs[0].name, node.const_attr)
 
@@ -188,7 +188,7 @@ class SubOp(Op):
         new_node.name = "(%s-%s)" % (node_A.name, node_B.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
@@ -210,7 +210,7 @@ class SubByConstOp(Op):
         new_node.name = "(%s-%s)" % (node_A.name, str(const_val))
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s - %s)" % (inputs[0].name, node.const_attr)
 
@@ -239,7 +239,7 @@ class MulOp(Op):
         new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
@@ -248,6 +248,10 @@ class MulOp(Op):
         assert len(input_vals) == 2
         if node.scalar_A is False and node.scalar_B is False:
             assert input_vals[0].shape == input_vals[1].shape
+        if node.scalar_A:
+            assert input_vals[0].shape == ()
+        if node.scalar_B:
+            assert input_vals[1].shape == ()
         return input_vals[0] * input_vals[1]
 
     def vjp(self, node, output_grad):
@@ -277,7 +281,7 @@ class MulByConstOp(Op):
         new_node.name = "(%s*%s)" % (node_A.name, str(const_val))
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s * %s)" % (inputs[0].name, node.const_attr)
 
@@ -299,7 +303,7 @@ class PowerOp(Op):
         new_node.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.power(%s, %s)" % (inputs[0].name, node.const_attr)
 
@@ -334,7 +338,7 @@ class MatMulOp(Op):
         new_node.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
 
@@ -376,7 +380,7 @@ class EinsumOp(Op):
                                               node_B.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts, inputs[0].name, inputs[1].name)
 
@@ -407,7 +411,7 @@ class NormOp(Op):
         new_node.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.norm(%s, %s, %s)" % (inputs[0].name, node.order, node.axis)
 
@@ -437,7 +441,7 @@ class SumOp(Op):
         new_node.name = "T.sum(%s, %s)" % (node.name, axis)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.sum(%s, %s)" % (inputs[0].name, node.axis)
 
@@ -465,7 +469,7 @@ class TransposeOp(Op):
         new_node.name = "T.transpose(%s)" % (node.name)
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.transpose(%s)" % (inputs[0].name)
 
@@ -503,7 +507,7 @@ class ZerosLikeOp(Op):
         new_node.name = "T.zeros_like(%s)" % node_A.name
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.zeros_like(%s)" % (inputs[0].name)
 
@@ -524,7 +528,7 @@ class OnesLikeOp(Op):
         new_node.name = "T.ones_like(%s)" % node_A.name
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.ones_like(%s)" % (inputs[0].name)
 
@@ -545,7 +549,7 @@ class NegativeOp(Op):
         new_node.name = "(-%s)" % node_A.name
         return new_node
 
-    def s2s_name(self, inputs, node):
+    def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(-%s)" % (inputs[0].name)
 

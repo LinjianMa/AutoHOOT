@@ -52,11 +52,11 @@ def sum_node_list(node_list):
 def inner_product(vector_list, gradient_list):
     assert len(vector_list) == len(gradient_list)
     assert len(vector_list) >= 1
-    inner_product_node = ad.sum(vector_list[0] * gradient_list[0])
-    for i in range(1, len(vector_list)):
-        inner_product_node = inner_product_node + ad.sum(
-            vector_list[i] * gradient_list[i])
-    return inner_product_node
+    inner_product_nodes = [
+        ad.sum(v * g) for v, g in zip(vector_list, gradient_list)
+    ]
+    sum_node = sum_node_list(inner_product_nodes)
+    return sum_node
 
 
 #####################################################
@@ -69,9 +69,10 @@ def group_minus(xs, ys):
     return [x - y for (x, y) in zip(xs, ys)]
 
 
-def group_add(xs, ys):
+def inplace_group_add(xs, ys):
     assert len(xs) == len(ys)
-    return [x + y for (x, y) in zip(xs, ys)]
+    for x, y in zip(xs, ys):
+        x += y
 
 
 def group_negative(xs):
@@ -104,8 +105,8 @@ def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     while True:
         Ap = hess_fn(p)
         alpha = r_k_norm / group_dot(p, Ap)
-        x0 = group_add(x0, group_product(alpha, p))
-        r = group_add(r, group_product(alpha, Ap))
+        inplace_group_add(x0, group_product(alpha, p))
+        inplace_group_add(r, group_product(alpha, Ap))
         r_kplus1_norm = group_dot(r, r)
         beta = r_kplus1_norm / r_k_norm
         r_k_norm = r_kplus1_norm

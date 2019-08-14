@@ -587,19 +587,6 @@ def test_hvp2():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
 
-        StS = SourceToSource()
-        StS.forward(y, file=open("example_forward.py", "w"))
-        StS.gradients(y, [x], file=open("example_grad.py", "w"))
-        StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
-
-        import example_forward, example_grad, example_hvp
-        y_val_s2s = example_forward.forward([x_val, H_val])
-        grad_x_val_s2s, = example_grad.gradients([x_val, H_val])
-        Hv_val_s2s, = example_hvp.hvp([x_val, H_val, v_val])
-        assert T.array_equal(y_val_s2s, expected_yval)
-        assert T.array_equal(grad_x_val_s2s, expected_grad_x_val)
-        assert T.array_equal(Hv_val_s2s, expected_hv_val)
-
 
 def test_cpd_grad():
     from tensors.synthetic_tensors import init_rand_3d
