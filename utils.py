@@ -1,5 +1,7 @@
 from functools import reduce
 import re
+import autodiff as ad
+import backend as T
 
 ##############################
 ####### Helper Methods #######
@@ -45,3 +47,74 @@ def sum_node_list(node_list):
     from operator import add
     from functools import reduce
     return reduce(add, node_list)
+
+
+def inner_product(vector_list, gradient_list):
+    assert len(vector_list) == len(gradient_list)
+    assert len(vector_list) >= 1
+    inner_product_nodes = [
+        ad.sum(v * g) for v, g in zip(vector_list, gradient_list)
+    ]
+    sum_node = sum_node_list(inner_product_nodes)
+    return sum_node
+
+
+#####################################################
+####### Helper Methods for Conjugate gradient #######
+#####################################################
+
+
+def group_minus(xs, ys):
+    assert len(xs) == len(ys)
+    return [x - y for (x, y) in zip(xs, ys)]
+
+
+def inplace_group_add(xs, ys):
+    assert len(xs) == len(ys)
+    for x, y in zip(xs, ys):
+        x += y
+
+
+def group_negative(xs):
+    return [-x for x in xs]
+
+
+def group_dot(xs, ys):
+    assert len(xs) == len(ys)
+    return sum([T.sum(x * y) for (x, y) in zip(xs, ys)])
+
+
+def group_product(alpha, xs):
+    return [alpha * x for x in xs]
+
+
+def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
+    '''
+        This solves the following problem:
+        hess_fn(x) = grad
+        return: (x)
+    '''
+    if not x0:
+        x0 = [T.ones(grad.shape) for grad in grads]
+    hvps = hess_fn(x0)
+    r = group_minus(hvps, grads)
+    p = group_negative(r)
+    r_k_norm = group_dot(r, r)
+
+    i = 0
+    while True:
+        Ap = hess_fn(p)
+        alpha = r_k_norm / group_dot(p, Ap)
+        inplace_group_add(x0, group_product(alpha, p))
+        inplace_group_add(r, group_product(alpha, Ap))
+        r_kplus1_norm = group_dot(r, r)
+        beta = r_kplus1_norm / r_k_norm
+        r_k_norm = r_kplus1_norm
+        if float(r_kplus1_norm) < error_tol:
+            break
+        p = group_minus(group_product(beta, p), r)
+        if i > max_iters:
+            print(f'CG max iter reached.')
+            break
+        i += 1
+    return x0

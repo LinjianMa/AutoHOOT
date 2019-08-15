@@ -1,7 +1,7 @@
 import numpy as np
 import backend as T
 from functools import reduce
-from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list
+from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
 
 
 class Node(object):
@@ -142,6 +142,11 @@ class AddOp(Op):
         new_node.name = "(%s+%s)" % (node_A.name, node_B.name)
         return new_node
 
+    def s2s_expr(self, inputs, node):
+        """source_to_source expression: used for source generation"""
+        assert len(inputs) == 2
+        return "(%s + %s)" % (inputs[0].name, inputs[1].name)
+
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
         assert len(input_vals) == 2
@@ -162,6 +167,10 @@ class AddByConstOp(Op):
         new_node.name = "(%s+%s)" % (node_A.name, str(const_val))
         return new_node
 
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "(%s + %s)" % (inputs[0].name, node.const_attr)
+
     def compute(self, node, input_vals):
         """Given values of input node, return result of element-wise addition."""
         assert len(input_vals) == 1
@@ -178,6 +187,10 @@ class SubOp(Op):
         new_node.inputs = [node_A, node_B]
         new_node.name = "(%s-%s)" % (node_A.name, node_B.name)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 2
+        return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -197,6 +210,10 @@ class SubByConstOp(Op):
         new_node.name = "(%s-%s)" % (node_A.name, str(const_val))
         return new_node
 
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "(%s - %s)" % (inputs[0].name, node.const_attr)
+
     def compute(self, node, input_vals):
         """Given values of input node, return result of element-wise addition."""
         assert len(input_vals) == 1
@@ -208,19 +225,51 @@ class SubByConstOp(Op):
 
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
-    def __call__(self, node_A, node_B):
+    def __call__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+        """
+        if one of the input node is a scalar rather than a tensor:
+            e.g. 5 * [[1,2],[3,4]],
+        set scalar_A / scalar_B to be True.
+        It will affect the vjp expression.
+        """
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
-        new_node.name = "(%s*%s)" % (node_A.name, node_B.name)
+        new_node.scalar_A = scalar_A
+        new_node.scalar_B = scalar_B
+        new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 2
+        return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise multiplication."""
         assert len(input_vals) == 2
+        if node.scalar_A is False and node.scalar_B is False:
+            assert input_vals[0].shape == input_vals[1].shape
+        if node.scalar_A:
+            assert input_vals[0].shape == ()
+        if node.scalar_B:
+            assert input_vals[1].shape == ()
         return input_vals[0] * input_vals[1]
 
     def vjp(self, node, output_grad):
-        return [output_grad * node.inputs[1], output_grad * node.inputs[0]]
+        if node.scalar_A is False and node.scalar_B is True:
+            return [
+                mul(output_grad, node.inputs[1], False, True),
+                sum(output_grad * node.inputs[0])
+            ]
+        elif node.scalar_A is True and node.scalar_B is False:
+            return [
+                sum(output_grad * node.inputs[1]),
+                mul(output_grad, node.inputs[0], False, True)
+            ]
+        else:
+            return [
+                output_grad * node.inputs[1],
+                output_grad * node.inputs[0],
+            ]
 
 
 class MulByConstOp(Op):
@@ -231,6 +280,10 @@ class MulByConstOp(Op):
         new_node.inputs = [node_A]
         new_node.name = "(%s*%s)" % (node_A.name, str(const_val))
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "(%s * %s)" % (inputs[0].name, node.const_attr)
 
     def compute(self, node, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
@@ -247,8 +300,12 @@ class PowerOp(Op):
         new_node = Op.__call__(self)
         new_node.const_attr = const_val
         new_node.inputs = [node_A]
-        new_node.name = "(%s**%s)" % (node_A.name, str(const_val))
+        new_node.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.power(%s, %s)" % (inputs[0].name, node.const_attr)
 
     def compute(self, node, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
@@ -278,8 +335,12 @@ class MatMulOp(Op):
         """
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
-        new_node.name = "MatMul(%s,%s)" % (node_A.name, node_B.name)
+        new_node.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 2
+        return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -315,9 +376,13 @@ class EinsumOp(Op):
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
         new_node.inputs = [node_A, node_B]
-        new_node.name = "einsum(%s,%s,%s)" % (subscripts, node_A.name,
+        new_node.name = "T.einsum('%s', %s, %s)" % (subscripts, node_A.name,
                                               node_B.name)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 2
+        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts, inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -343,8 +408,12 @@ class NormOp(Op):
         new_node.order = order
         new_node.axis = axis
         new_node.inputs = [node]
-        new_node.name = "norm(%s,%s,%s)" % (node.name, order, axis)
+        new_node.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.norm(%s, %s, %s)" % (inputs[0].name, node.order, node.axis)
 
     def compute(self, node, input_vals):
         assert len(input_vals) == 1
@@ -354,7 +423,14 @@ class NormOp(Op):
     def vjp(self, node, output_grad):
         if node.axis is not None or node.order != 2:
             raise NotImplementedError
-        return [output_grad * norm(node.inputs[0])**(-1) * node.inputs[0]]
+        return [
+            mul(
+                output_grad * norm(node.inputs[0])**(-1),
+                node.inputs[0],
+                scalar_A=True,
+                scalar_B=False
+            )
+        ]
 
 
 class SumOp(Op):
@@ -362,8 +438,12 @@ class SumOp(Op):
         new_node = Op.__call__(self)
         new_node.axis = axis
         new_node.inputs = [node]
-        new_node.name = "sum(%s,%s)" % (node.name, axis)
+        new_node.name = "T.sum(%s, %s)" % (node.name, axis)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.sum(%s, %s)" % (inputs[0].name, node.axis)
 
     def compute(self, node, input_vals):
         assert len(input_vals) == 1
@@ -373,15 +453,25 @@ class SumOp(Op):
     def vjp(self, node, output_grad):
         if node.axis != None:
             raise NotImplementedError
-        return [output_grad * oneslike(node.inputs[0])]
+        return [
+            mul(
+                output_grad, oneslike(node.inputs[0]),
+                scalar_A=True,
+                scalar_B=False
+            )
+        ]
 
 
 class TransposeOp(Op):
     def __call__(self, node):
         new_node = Op.__call__(self)
         new_node.inputs = [node]
-        new_node.name = "%s.T" % (node.name)
+        new_node.name = "T.transpose(%s)" % (node.name)
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.transpose(%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         assert len(input_vals) == 1
@@ -414,8 +504,12 @@ class ZerosLikeOp(Op):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
-        new_node.name = "Zeroslike(%s)" % node_A.name
+        new_node.name = "T.zeros_like(%s)" % node_A.name
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.zeros_like(%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
@@ -431,8 +525,12 @@ class OnesLikeOp(Op):
         """Creates a node that represents a T.ones array of same shape as node_A."""
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
-        new_node.name = "Oneslike(%s)" % node_A.name
+        new_node.name = "T.ones_like(%s)" % node_A.name
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.ones_like(%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
@@ -450,6 +548,10 @@ class NegativeOp(Op):
         new_node.inputs = [node_A]
         new_node.name = "(-%s)" % node_A.name
         return new_node
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "(-%s)" % (inputs[0].name)
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
@@ -475,7 +577,7 @@ negative = NegativeOp()
 power = PowerOp()
 einsum = EinsumOp()
 norm = NormOp()
-Sum = SumOp()
+sum = SumOp()
 transpose = TransposeOp()
 
 
@@ -516,21 +618,13 @@ class Executor:
         return node_val_results
 
 
-def vjps(output_node, node_list, input_vector):
-    """Take vector-jacobian product of output node with respect to each node in node_list.
-
-    Parameters
-    ----------
-    output_node: output node that we are taking derivative of.
-    node_list: list of nodes that we are taking derivative wrt.
-
-    Returns
-    -------
-    A list of vjp values, one for each node in node_list respectively.
-
+def vjps_map(output_node, node_list, input_vector):
     """
-
-    # a map from node to a list of vjp contributions from each output node
+    Return:
+        a map mapping input nodes to their vjp contributions.
+        node_to_output_grad[node] = [\frac{node}{input_vector}]
+    Used in source generation.
+    """
     node_to_output_grads_list = {}
     # Special note on initializing vjp of output_node as oneslike(output_node):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
@@ -553,28 +647,40 @@ def vjps(output_node, node_list, input_vector):
                 node_to_output_grads_list[input] = [input_vjp]
             else:
                 node_to_output_grads_list[input].append(input_vjp)
+    return node_to_output_grad
 
+
+def vjps(output_node, node_list, input_vector):
+    """Take vector-jacobian product of output node with respect to each node in node_list.
+
+    Parameters
+    ----------
+    output_node: output node that we are taking derivative of.
+    node_list: list of nodes that we are taking derivative wrt.
+
+    Returns
+    -------
+    A list of vjp values, one for each node in node_list respectively.
+
+    """
+    node_to_output_grad = vjps_map(output_node, node_list, input_vector)
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
 
 
+def gradients_map(output_node, node_list):
+    return vjps_map(output_node, node_list, oneslike(output_node))
+
+
 def gradients(output_node, node_list):
     return vjps(output_node, node_list, oneslike(output_node))
+
 
 def hvp(output_node, node_list, vector_list):
     """
     Hessian-Vector Product
     """
-    def inner_product(vector_list, gradient_list):
-        assert len(vector_list) == len(gradient_list)
-        assert len(vector_list) >= 1
-        inner_product_node = Sum(vector_list[0] * gradient_list[0])
-        for i in range(1, len(vector_list)):
-            inner_product_node = inner_product_node + Sum(
-                vector_list[i] * gradient_list[i])
-        return inner_product_node
-
     gradient_list = gradients(output_node, node_list)
     g_v_inner_product = inner_product(vector_list, gradient_list)
 
