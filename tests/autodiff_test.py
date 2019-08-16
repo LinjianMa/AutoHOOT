@@ -4,7 +4,6 @@ import backend as T
 from source import SourceToSource
 
 BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
 
 
 def test_identity():
