@@ -355,13 +355,13 @@ class MatMulOp(Op):
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
         grad_A = matmul(output_grad, transpose(node.inputs[1]))
-        grad_B = matmul(transpose(node.inputs[0]), output_grad)            
+        grad_B = matmul(transpose(node.inputs[0]), output_grad)
         return [grad_A, grad_B]
 
 
 class EinsumOp(Op):
     """Op to perform einstein summation for two nodes."""
-    def __call__(self, subscripts, node_A, node_B):
+    def __call__(self, subscripts, node_A, node_B=None):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
@@ -375,31 +375,38 @@ class EinsumOp(Op):
         """
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
-        new_node.inputs = [node_A, node_B]
-        new_node.name = "T.einsum('%s', %s, %s)" % (subscripts, node_A.name,
-                                              node_B.name)
+        if node_B is None:
+            new_node.inputs = [node_A]
+            new_node.name = "T.einsum('%s', %s)" % (subscripts, node_A.name)
+        else:
+            new_node.inputs = [node_A, node_B]
+            new_node.name = "T.einsum('%s', %s, %s)" % (
+                subscripts, node_A.name, node_B.name)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
-        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts, inputs[0].name, inputs[1].name)
+        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts,
+                                           inputs[0].name, inputs[1].name)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
-        assert len(input_vals) == 2
-        assert T.is_tensor(input_vals[0])
-        assert T.is_tensor(input_vals[1])
-        return T.einsum(node.einsum_subscripts, input_vals[0], input_vals[1])
+        for val in input_vals:
+            assert T.is_tensor(val)
+        return T.einsum(node.einsum_subscripts, *input_vals)
 
     def vjp(self, node, output_grad):
-        subscripts_dl = einsum_grad_subscripts(node.einsum_subscripts,
-                                               left=True)
-        subscripts_dr = einsum_grad_subscripts(node.einsum_subscripts,
-                                               left=False)
-        return [
-            einsum(subscripts_dl, output_grad, node.inputs[1]),
-            einsum(subscripts_dr, node.inputs[0], output_grad)
-        ]
+        if len(node.inputs) == 2:
+            subscripts_dl = einsum_grad_subscripts(node.einsum_subscripts,
+                                                   left=True)
+            subscripts_dr = einsum_grad_subscripts(node.einsum_subscripts,
+                                                   left=False)
+            return [
+                einsum(subscripts_dl, output_grad, node.inputs[1]),
+                einsum(subscripts_dr, node.inputs[0], output_grad)
+            ]
+        if len(node.inputs) == 1:
+            return [einsum(node.einsum_subscripts, output_grad)]
 
 
 class NormOp(Op):
@@ -424,12 +431,10 @@ class NormOp(Op):
         if node.axis is not None or node.order != 2:
             raise NotImplementedError
         return [
-            mul(
-                output_grad * norm(node.inputs[0])**(-1),
+            mul(output_grad * norm(node.inputs[0])**(-1),
                 node.inputs[0],
                 scalar_A=True,
-                scalar_B=False
-            )
+                scalar_B=False)
         ]
 
 
@@ -454,11 +459,10 @@ class SumOp(Op):
         if node.axis != None:
             raise NotImplementedError
         return [
-            mul(
-                output_grad, oneslike(node.inputs[0]),
+            mul(output_grad,
+                oneslike(node.inputs[0]),
                 scalar_A=True,
-                scalar_B=False
-            )
+                scalar_B=False)
         ]
 
 
@@ -685,4 +689,3 @@ def hvp(output_node, node_list, vector_list):
     g_v_inner_product = inner_product(vector_list, gradient_list)
 
     return gradients(g_v_inner_product, node_list)
-
