@@ -547,6 +547,27 @@ def test_inner_product():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
+def test_inner_product_einsum():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        x_inner = ad.einsum('i,i->', x, x)
+
+        grad_x, = ad.gradients(x_inner, [x])
+
+        executor = ad.Executor([x_inner, grad_x])
+        x_val = T.tensor([1., 2., 3.])  # 1x3
+
+        y_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_yval = T.norm(x_val)**2
+        expected_grad_x_val = 2 * x_val
+
+        assert isinstance(x_inner, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
 def test_inner_product_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
