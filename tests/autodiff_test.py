@@ -478,6 +478,54 @@ def test_transpose():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
+def test_transpose_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x = ad.Variable(name="x")
+        y = ad.einsum("ij->ji", x)
+
+        grad_x, = ad.gradients(y, [x])
+
+        executor = ad.Executor([y, grad_x])
+        x_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+
+        y_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_yval = T.transpose(x_val)
+        expected_grad_x_val = T.ones_like(x_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
+def test_tensor_transpose_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x = ad.Variable(name="x")
+        y = ad.einsum("kij->jik", x)
+
+        v = ad.Variable(name="v")
+        v_val = T.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])  # 2 x 2 x 2
+        grad_x, = ad.vjps(y, [x], v)
+
+        executor = ad.Executor([y, grad_x])
+        x_val = T.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])  # 2 x 2 x 2
+
+        y_val, grad_x_val = executor.run(feed_dict={x: x_val, v: v_val})
+
+        expected_yval = T.einsum("kij->jik", x_val)
+        expected_grad_x_val = T.einsum("kij->jik", v_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
 def test_inner_product():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -491,11 +539,32 @@ def test_inner_product():
 
         y_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
-        expected_yval = T.norm(x_val) ** 2
+        expected_yval = T.norm(x_val)**2
         expected_grad_x_val = 2 * x_val
 
         assert isinstance(x_inner, ad.Node)
         assert T.array_equal(y_val[0][0], expected_yval)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
+def test_inner_product_einsum():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        x_inner = ad.einsum('i,i->', x, x)
+
+        grad_x, = ad.gradients(x_inner, [x])
+
+        executor = ad.Executor([x_inner, grad_x])
+        x_val = T.tensor([1., 2., 3.])  # 1x3
+
+        y_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_yval = T.norm(x_val)**2
+        expected_grad_x_val = 2 * x_val
+
+        assert isinstance(x_inner, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
@@ -608,25 +677,34 @@ def test_cpd_grad():
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
 
-        loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
-            feed_dict={A: A_val, B: B_val, C: C_val})
+        loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(feed_dict={
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
 
         expected_contract_A_B = T.einsum("ia,ja->ija", A_val, B_val)
-        expected_output_tensor = T.einsum("ija,ka->ijk", expected_contract_A_B, C_val)
+        expected_output_tensor = T.einsum("ija,ka->ijk", expected_contract_A_B,
+                                          C_val)
         expected_residual = expected_output_tensor - input_tensor_val
         expected_norm_error = T.norm(expected_residual)
         expected_loss = expected_norm_error * expected_norm_error
 
-        expected_contract_residual_A = 2*T.einsum("ijk,ia->ajk", expected_residual, A_val)
-        expected_contract_residual_B = 2*T.einsum("ijk,ja->iak", expected_residual, B_val)
-        expected_contract_residual_C = 2*T.einsum("ijk,ka->ija", expected_residual, C_val)
+        expected_contract_residual_A = 2 * T.einsum("ijk,ia->ajk",
+                                                    expected_residual, A_val)
+        expected_contract_residual_B = 2 * T.einsum("ijk,ja->iak",
+                                                    expected_residual, B_val)
+        expected_contract_residual_C = 2 * T.einsum("ijk,ka->ija",
+                                                    expected_residual, C_val)
 
-        expected_grad_A = T.einsum("iak,ka->ia", expected_contract_residual_B, C_val)
-        expected_grad_B = T.einsum("ajk,ka->ja", expected_contract_residual_A, C_val)
-        expected_grad_C = T.einsum("ajk,ja->ka", expected_contract_residual_A, B_val)
+        expected_grad_A = T.einsum("iak,ka->ia", expected_contract_residual_B,
+                                   C_val)
+        expected_grad_B = T.einsum("ajk,ka->ja", expected_contract_residual_A,
+                                   C_val)
+        expected_grad_C = T.einsum("ajk,ja->ka", expected_contract_residual_A,
+                                   B_val)
 
         assert T.array_equal(loss_val, expected_loss)
-        assert T.norm(grad_A_val-expected_grad_A) < 1e-8
-        assert T.norm(grad_B_val-expected_grad_B) < 1e-8
-        assert T.norm(grad_C_val-expected_grad_C) < 1e-8
-
+        assert T.norm(grad_A_val - expected_grad_A) < 1e-8
+        assert T.norm(grad_B_val - expected_grad_B) < 1e-8
+        assert T.norm(grad_C_val - expected_grad_C) < 1e-8
