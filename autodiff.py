@@ -517,7 +517,7 @@ class ZerosLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns zeros_like of the same shape as input."""
-        return T.zeros(input_vals[0].shape)
+        return T.zeros_like(input_vals[0])
 
     def vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
@@ -538,7 +538,7 @@ class OnesLikeOp(Op):
 
     def compute(self, node, input_vals):
         """Returns ones_like of the same shape as input."""
-        return T.ones(input_vals[0].shape)
+        return T.ones_like(input_vals[0])
 
     def vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
