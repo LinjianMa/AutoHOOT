@@ -24,6 +24,8 @@ class CTFBackend(Backend):
 
     @staticmethod
     def shape(tensor):
+        if isinstance(tensor, float):
+            return ()
         return tensor.shape
 
     @staticmethod
@@ -72,12 +74,15 @@ class CTFBackend(Backend):
 
     @staticmethod
     def ones_like(tensor):
-        return ctf.ones(tensor.shape)
+        return ctf.ones(CTFBackend.shape(tensor))
+
+    @staticmethod
+    def zeros_like(tensor):
+        return ctf.zeros(CTFBackend.shape(tensor))
 
 
 for name in ['reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros',
-             'zeros_like', 'eye', 'abs', 'dot', 'einsum',
-             'sum']:
+             'eye', 'abs', 'dot', 'einsum', 'sum']:
     CTFBackend.register_method(name, getattr(ctf, name))
 
 for name in ['random', 'seed']:
