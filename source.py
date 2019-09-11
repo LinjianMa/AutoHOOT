@@ -82,9 +82,9 @@ class SourceToSource():
             f'_grad{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}')
         node.name = f'_grad{forward_node.name}'
 
-    def _sub_forward(self, output_node):
+    def _sub_forward(self, output_node_list):
         """Forward pass subroutine"""
-        topo_order = find_topo_sort([output_node])
+        topo_order = find_topo_sort(output_node_list)
         self._print_to_file(f'\n{INDENT}# forward pass starts')
         for node in topo_order:
             if len(node.inputs) == 0:
@@ -94,7 +94,7 @@ class SourceToSource():
 
     def _sub_gradients(self, output_node, node_list):
         """Gradient pass subroutine."""
-        self._sub_forward(output_node)
+        self._sub_forward([output_node])
         self._print_to_file(f'\n{INDENT}# backward pass starts')
 
         self.forward_to_grad_map = ad.gradients_map(output_node, node_list)
@@ -146,16 +146,20 @@ class SourceToSource():
                         f'_grad2{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}')
                     node.name = f'_grad2{forward_node.name}'
 
-    def forward(self, output_node, file=None):
-        """Forward pass source code generation."""
+    def forward(self, output_node_list, file=None, function_name='forward'):
+        """Forward pass source code generation.
+        function_name: the output function name
+        """
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
         self._print_to_file(f'import backend as T\n')
-        self._print_to_file(f'def forward(inputs):')
-        self._sub_forward(output_node)
+        self._print_to_file(f'def {function_name}(inputs):')
+        self._sub_forward(output_node_list)
         # return expression
-        self._print_to_file_w_indent(f'return {output_node.name}')
+        returned_names = ",".join(
+            [node.name for node in output_node_list])
+        self._print_to_file_w_indent(f'return [{returned_names}]')
         self.file.flush()
 
     def gradients(self, output_node, node_list, file=None):
