@@ -661,6 +661,7 @@ def vjps(output_node, node_list, input_vector):
     ----------
     output_node: output node that we are taking derivative of.
     node_list: list of nodes that we are taking derivative wrt.
+    input_vector: input vector in the vjps.
 
     Returns
     -------
@@ -671,6 +672,43 @@ def vjps(output_node, node_list, input_vector):
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
+
+
+def jvps(output_node, node_list, input_vector_list):
+    """Take jacobian-vector product of output node with respect to each node in node_list.
+    Reference: https://j-towns.github.io/2017/06/12/A-new-trick.html
+
+    Parameters
+    ----------
+    output_node: output node that we are taking derivative of.
+    node_list: list of nodes that we are taking derivative wrt.
+    input_vector_list: list of input vectors in the jvps
+
+    Returns
+    -------
+    A list of jvp values, one for each node in node_list respectively.
+
+    """
+    assert(len(node_list) == len(input_vector_list))
+    list_length = len(node_list)
+    # u is the intermediate variable for the first vjps pass
+    u = oneslike(output_node)
+    vjp_list = vjps(output_node, node_list, u)
+    assert(len(vjp_list) == list_length)
+    # g_u is the transpose of vjp_list, used for the next vjps pass
+    g_u = [transpose(vjp_list[i]) for i in range(list_length)]
+    vjp_g = [vjps(g_u[i], [u], input_vector_list[i])[0] for i in range(list_length)]
+    vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
+    return sum_node_list(vjp_g_transpose)
+
+
+def jtjvps(output_node, node_list, input_vector_list):
+    """
+    Operator for the Gauss-Newton cg step:
+    return J^T @ J @ v, where J is the Jacobian matrix
+    """
+    jvp_result = jvps(output_node, node_list, input_vector_list)
+    return vjps(output_node, node_list, jvp_result)
 
 
 def gradients_map(output_node, node_list):

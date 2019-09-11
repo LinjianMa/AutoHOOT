@@ -568,6 +568,88 @@ def test_inner_product_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
+def test_vjps():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        A = ad.Variable(name="A")
+        v = ad.Variable(name="v")
+        y = A @ x
+
+        vjp_x, = ad.vjps(y, [x], v)
+
+        executor = ad.Executor([y, vjp_x])
+        x_val = T.tensor([1., 2.])  # 1x3
+        A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
+        v_val = T.tensor([1, 2, 3])
+
+        y_val, vjp_x_val = executor.run(feed_dict={x: x_val, A: A_val, v: v_val})
+
+        expected_yval = A_val @ x_val
+        expected_vjp_x_val = v_val @ A_val
+
+        assert isinstance(vjp_x, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(vjp_x_val, expected_vjp_x_val)
+
+
+def test_jvps():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x1 = ad.Variable(name="x1")
+        A1 = ad.Variable(name="A1")
+        x2 = ad.Variable(name="x2")
+        A2 = ad.Variable(name="A2")
+        v1 = ad.Variable(name="v1")
+        v2 = ad.Variable(name="v2")
+        y = A1 @ x1 + A2 @ x2
+
+        vjp_x = ad.jvps(y, [x1, x2], [v1, v2])
+
+        executor = ad.Executor([y, vjp_x])
+        x1_val = T.tensor([1., 2.])
+        A1_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
+        v1_val = T.tensor([3., 4.])
+        x2_val = T.tensor([1., 2.])
+        A2_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
+        v2_val = T.tensor([3., 4.])
+
+        y_val, vjp_x_val = executor.run(feed_dict={x1: x1_val, A1: A1_val, v1: v1_val,
+                                                   x2: x2_val, A2: A2_val, v2: v2_val})
+
+        expected_yval = A1_val @ x1_val + A2_val @ x2_val
+        expected_vjp_x_val = A1_val @ v1_val + A2_val @ v2_val
+
+        assert isinstance(vjp_x, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(vjp_x_val, expected_vjp_x_val)
+
+
+def test_jtjvps():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x")
+        A = ad.Variable(name="A")
+        v = ad.Variable(name="v")
+        y = A @ x
+
+        jtjvp_x, = ad.jtjvps(y, [x], [v])
+
+        executor = ad.Executor([y, jtjvp_x])
+        x_val = T.tensor([1., 2.])
+        A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
+        v_val = T.tensor([3, 4])
+
+        y_val, jtjvp_x_val = executor.run(feed_dict={x: x_val, A: A_val, v: v_val})
+
+        expected_yval = A_val @ x_val
+        expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
+
+        assert isinstance(jtjvp_x, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(jtjvp_x_val, expected_jtjvp_x_val)
+
+
 def test_inner_product_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
