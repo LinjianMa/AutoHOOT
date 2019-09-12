@@ -361,13 +361,29 @@ class MatMulOp(Op):
 
 class EinsumOp(Op):
     """Op to perform einstein summation for two nodes."""
-    def __call__(self, subscripts, node_A, node_B=None):
+    def _name_generator(self, subscripts, names):
+        """Generate the einsum name for arbitary number of var names.
+
+        Parameters
+        ----------
+        names: list of strings
+
+        Returns
+        -------
+        Returns a einsum expression.
+
+        """
+        name = f"T.einsum('{subscripts}',"
+        name += ",".join(names)
+        name += ")"
+        return name
+
+    def __call__(self, subscripts, *nodes):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
         ----------
-        node_A: lhs of einsum
-        node_B: rhs of einsum
+        nodes: arbitary number of nodes
 
         Returns
         -------
@@ -375,19 +391,15 @@ class EinsumOp(Op):
         """
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
-        if node_B is None:
-            new_node.inputs = [node_A]
-            new_node.name = "T.einsum('%s', %s)" % (subscripts, node_A.name)
-        else:
-            new_node.inputs = [node_A, node_B]
-            new_node.name = "T.einsum('%s', %s, %s)" % (
-                subscripts, node_A.name, node_B.name)
+        new_node.inputs = list(nodes)
+        node_names = [node.name for node in nodes]
+        new_node.name = self._name_generator(subscripts, node_names)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
-        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts,
-                                           inputs[0].name, inputs[1].name)
+        input_names = [inputvar.name for inputvar in inputs]
+        return self._name_generator(node.einsum_subscripts, input_names)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
