@@ -2,6 +2,7 @@ import numpy as np
 import backend as T
 from functools import reduce
 from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from numpy.core.einsumfunc import _parse_einsum_input
 
 
 class Node(object):
@@ -407,16 +408,42 @@ class EinsumOp(Op):
             assert T.is_tensor(val)
         return T.einsum(node.einsum_subscripts, *input_vals)
 
+    def grad_einsum(self, argnum_wrt, node, output_grad):
+        """
+
+        Parameters
+        ----------
+        argnum_wrt: The node that is taken gradient w.r.t
+
+        Returns
+        -------
+        Returns a einsum node.
+        
+        """
+        in_subs, out_subs, _ = _parse_einsum_input(
+            (node.einsum_subscripts, *node.inputs))
+        in_subs_list = in_subs.split(',')
+
+        op_num = argnum_wrt
+        subs_wrt = in_subs_list[op_num]
+
+        rest_of_ops = node.inputs[:op_num] + node.inputs[op_num + 1:]
+
+        rest_of_subs = in_subs_list[:op_num] + in_subs_list[op_num + 1:]
+        # This is non naked sum version first.
+        new_input_subs = ','.join([out_subs] + rest_of_subs)
+        new_operands = (output_grad, ) + tuple(rest_of_ops)
+        new_subscripts = new_input_subs + '->' + subs_wrt
+        return einsum(new_subscripts, *new_operands)
+
     def vjp(self, node, output_grad):
-        if len(node.inputs) == 2:
-            subscripts_dl = einsum_grad_subscripts(node.einsum_subscripts,
-                                                   left=True)
-            subscripts_dr = einsum_grad_subscripts(node.einsum_subscripts,
-                                                   left=False)
-            return [
-                einsum(subscripts_dl, output_grad, node.inputs[1]),
-                einsum(subscripts_dr, node.inputs[0], output_grad)
+
+        if len(node.inputs) > 1:
+            grad_einsums = [
+                self.grad_einsum(i, node, output_grad)
+                for i in range(len(node.inputs))
             ]
+            return grad_einsums
         if len(node.inputs) == 1:
             return [einsum(node.einsum_subscripts, output_grad)]
 

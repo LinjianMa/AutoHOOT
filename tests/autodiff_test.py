@@ -408,6 +408,45 @@ def test_einsum():
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
 
 
+def test_einsum_3op():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x2 = ad.Variable(name="x2")
+        x3 = ad.Variable(name="x3")
+        x4 = ad.Variable(name="x3")
+        y = ad.einsum('ik,kj,jl->il', x2, x3, x4)
+
+        grad_x2, grad_x3, grad_x4 = ad.gradients(y, [x2, x3, x4])
+
+        executor = ad.Executor([y, grad_x2, grad_x3, grad_x4])
+        x2_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        x3_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
+        x4_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+
+        y_val, grad_x2_val, grad_x3_val, grad_x4_val = executor.run(feed_dict={
+            x2: x2_val,
+            x3: x3_val,
+            x4: x4_val
+        })
+
+        expected_yval = T.dot(T.dot(x2_val, x3_val), x4_val)
+        expected_grad_x2_val = T.einsum("il, kj, jl->ik",
+                                        T.ones_like(expected_yval), x3_val,
+                                        x4_val)
+        expected_grad_x3_val = T.einsum("ik, il, jl->kj", x2_val,
+                                        T.ones_like(expected_yval), x4_val)
+        expected_grad_x4_val = T.einsum("ik, kj, il->jl", x2_val, x3_val,
+                                        T.ones_like(expected_yval))
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_yval)
+        assert T.array_equal(grad_x2_val, expected_grad_x2_val)
+        assert T.array_equal(grad_x3_val, expected_grad_x3_val)
+        assert T.array_equal(grad_x4_val, expected_grad_x4_val)
+
+
 def test_norm():
 
     for datatype in BACKEND_TYPES:
