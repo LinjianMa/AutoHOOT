@@ -2,6 +2,7 @@ import numpy as np
 import backend as T
 from functools import reduce
 from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from numpy.core.einsumfunc import _parse_einsum_input
 
 
 class Node(object):
@@ -361,13 +362,29 @@ class MatMulOp(Op):
 
 class EinsumOp(Op):
     """Op to perform einstein summation for two nodes."""
-    def __call__(self, subscripts, node_A, node_B=None):
+    def _name_generator(self, subscripts, names):
+        """Generate the einsum name for arbitary number of var names.
+
+        Parameters
+        ----------
+        names: list of strings
+
+        Returns
+        -------
+        Returns a einsum expression.
+
+        """
+        name = f"T.einsum('{subscripts}',"
+        name += ",".join(names)
+        name += ")"
+        return name
+
+    def __call__(self, subscripts, *nodes):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
         ----------
-        node_A: lhs of einsum
-        node_B: rhs of einsum
+        nodes: arbitary number of nodes
 
         Returns
         -------
@@ -375,19 +392,15 @@ class EinsumOp(Op):
         """
         new_node = Op.__call__(self)
         new_node.einsum_subscripts = subscripts
-        if node_B is None:
-            new_node.inputs = [node_A]
-            new_node.name = "T.einsum('%s', %s)" % (subscripts, node_A.name)
-        else:
-            new_node.inputs = [node_A, node_B]
-            new_node.name = "T.einsum('%s', %s, %s)" % (
-                subscripts, node_A.name, node_B.name)
+        new_node.inputs = list(nodes)
+        node_names = [node.name for node in nodes]
+        new_node.name = self._name_generator(subscripts, node_names)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
-        return "T.einsum('%s', %s, %s)" % (node.einsum_subscripts,
-                                           inputs[0].name, inputs[1].name)
+        input_names = [inputvar.name for inputvar in inputs]
+        return self._name_generator(node.einsum_subscripts, input_names)
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -395,16 +408,42 @@ class EinsumOp(Op):
             assert T.is_tensor(val)
         return T.einsum(node.einsum_subscripts, *input_vals)
 
+    def grad_einsum(self, argnum_wrt, node, output_grad):
+        """
+
+        Parameters
+        ----------
+        argnum_wrt: The node that is taken gradient w.r.t
+
+        Returns
+        -------
+        Returns a einsum node.
+        
+        """
+        in_subs, out_subs, _ = _parse_einsum_input(
+            (node.einsum_subscripts, *node.inputs))
+        in_subs_list = in_subs.split(',')
+
+        op_num = argnum_wrt
+        subs_wrt = in_subs_list[op_num]
+
+        rest_of_ops = node.inputs[:op_num] + node.inputs[op_num + 1:]
+
+        rest_of_subs = in_subs_list[:op_num] + in_subs_list[op_num + 1:]
+        # This is non naked sum version first.
+        new_input_subs = ','.join([out_subs] + rest_of_subs)
+        new_operands = (output_grad, ) + tuple(rest_of_ops)
+        new_subscripts = new_input_subs + '->' + subs_wrt
+        return einsum(new_subscripts, *new_operands)
+
     def vjp(self, node, output_grad):
-        if len(node.inputs) == 2:
-            subscripts_dl = einsum_grad_subscripts(node.einsum_subscripts,
-                                                   left=True)
-            subscripts_dr = einsum_grad_subscripts(node.einsum_subscripts,
-                                                   left=False)
-            return [
-                einsum(subscripts_dl, output_grad, node.inputs[1]),
-                einsum(subscripts_dr, node.inputs[0], output_grad)
+
+        if len(node.inputs) > 1:
+            grad_einsums = [
+                self.grad_einsum(i, node, output_grad)
+                for i in range(len(node.inputs))
             ]
+            return grad_einsums
         if len(node.inputs) == 1:
             return [einsum(node.einsum_subscripts, output_grad)]
 
