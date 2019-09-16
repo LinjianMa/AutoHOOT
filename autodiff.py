@@ -691,13 +691,13 @@ def jvps(output_node, node_list, input_vector_list):
     """
     assert(len(node_list) == len(input_vector_list))
     list_length = len(node_list)
-    # u is the intermediate variable for the first vjps pass
-    u = oneslike(output_node)
-    vjp_list = vjps(output_node, node_list, u)
+    # v is the intermediate variable for the first vjps pass
+    v = oneslike(output_node)
+    vjp_list = vjps(output_node, node_list, v)
     assert(len(vjp_list) == list_length)
     # g_u is the transpose of vjp_list, used for the next vjps pass
     g_u = [transpose(vjp_list[i]) for i in range(list_length)]
-    vjp_g = [vjps(g_u[i], [u], input_vector_list[i])[0] for i in range(list_length)]
+    vjp_g = [vjps(g_u[i], [v], input_vector_list[i])[0] for i in range(list_length)]
     vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
     return sum_node_list(vjp_g_transpose)
 
@@ -716,6 +716,7 @@ def gradients_map(output_node, node_list):
 
 
 def gradients(output_node, node_list):
+    # TODO: currently this function only supports the case when output_node is a scalar
     return vjps(output_node, node_list, oneslike(output_node))
 
 
