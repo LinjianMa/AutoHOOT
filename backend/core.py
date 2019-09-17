@@ -463,7 +463,7 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
-    def einsum(subscripts, operand1, operand2):
+    def einsum(subscripts, *operands):
         """einstein summation
         """
         raise NotImplementedError

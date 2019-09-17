@@ -398,7 +398,6 @@ class EinsumOp(Op):
         return new_node
 
     def s2s_expr(self, inputs, node):
-        assert len(inputs) == 2
         input_names = [inputvar.name for inputvar in inputs]
         return self._name_generator(node.einsum_subscripts, input_names)
 
@@ -713,7 +712,7 @@ def vjps(output_node, node_list, input_vector):
     return grad_node_list
 
 
-def jvps(output_node, node_list, input_vector_list):
+def jvps(output_node, node_list, vector_list):
     """Take jacobian-vector product of output node with respect to each node in node_list.
     Reference: https://j-towns.github.io/2017/06/12/A-new-trick.html
 
@@ -721,32 +720,37 @@ def jvps(output_node, node_list, input_vector_list):
     ----------
     output_node: output node that we are taking derivative of.
     node_list: list of nodes that we are taking derivative wrt.
-    input_vector_list: list of input vectors in the jvps
+    vector_list: list of input vectors in the jvps
 
     Returns
     -------
     A list of jvp values, one for each node in node_list respectively.
 
     """
-    assert(len(node_list) == len(input_vector_list))
+    assert(len(node_list) == len(vector_list))
     list_length = len(node_list)
     # v is the intermediate variable for the first vjps pass
     v = oneslike(output_node)
     vjp_list = vjps(output_node, node_list, v)
     assert(len(vjp_list) == list_length)
     # g_u is the transpose of vjp_list, used for the next vjps pass
-    g_u = [transpose(vjp_list[i]) for i in range(list_length)]
-    vjp_g = [vjps(g_u[i], [v], input_vector_list[i])[0] for i in range(list_length)]
-    vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
+    # g_u = [transpose(vjp_list[i]) for i in range(list_length)]
+    # vjp_g = [vjps(g_u[i], [v], vector_list[i])[0] for i in range(list_length)]
+    # vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
+    # return sum_node_list(vjp_g_transpose)
+    # TODO: explain why transpose is unnecessary
+    g_u = [vjp_list[i] for i in range(list_length)]
+    vjp_g = [vjps(g_u[i], [v], vector_list[i])[0] for i in range(list_length)]
+    vjp_g_transpose = [vjp_g[i] for i in range(list_length)]
     return sum_node_list(vjp_g_transpose)
 
 
-def jtjvps(output_node, node_list, input_vector_list):
+def jtjvps(output_node, node_list, vector_list):
     """
     Operator for the Gauss-Newton cg step:
     return J^T @ J @ v, where J is the Jacobian matrix
     """
-    jvp_result = jvps(output_node, node_list, input_vector_list)
+    jvp_result = jvps(output_node, node_list, vector_list)
     return vjps(output_node, node_list, jvp_result)
 
 

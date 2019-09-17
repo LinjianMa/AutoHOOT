@@ -790,8 +790,7 @@ def test_cpd_grad():
         B = ad.Variable(name='B')
         C = ad.Variable(name='C')
 
-        contract_A_B = ad.einsum("ia,ja->ija", A, B)
-        output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
+        output_tensor = ad.einsum("ia,ja,ka->ijk", A, B, C)
         norm_error = ad.norm(output_tensor - input_tensor_val)
         loss = norm_error * norm_error
 
@@ -804,8 +803,7 @@ def test_cpd_grad():
             C: C_val
         })
 
-        expected_contract_A_B = T.einsum("ia,ja->ija", A_val, B_val)
-        expected_output_tensor = T.einsum("ija,ka->ijk", expected_contract_A_B,
+        expected_output_tensor = T.einsum("ia,ja,ka->ijk", A_val, B_val,
                                           C_val)
         expected_residual = expected_output_tensor - input_tensor_val
         expected_norm_error = T.norm(expected_residual)
