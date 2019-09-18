@@ -703,7 +703,9 @@ def vjps(output_node, node_list, input_vector):
 
     Returns
     -------
+    mathematically, it is calculating (v^T @ J)^T
     A list of vjp values, one for each node in node_list respectively.
+    The returned list shapes are the same as the node_list shapes.
 
     """
     node_to_output_grad = vjps_map(output_node, node_list, input_vector)
@@ -715,6 +717,10 @@ def vjps(output_node, node_list, input_vector):
 def jvps(output_node, node_list, vector_list):
     """Take jacobian-vector product of output node with respect to each node in node_list.
     Reference: https://j-towns.github.io/2017/06/12/A-new-trick.html
+    Note: we can achieve jvps by two vjps.
+    Mathematically:
+    g(v) = vjps(v) = (v^T @ J)^T
+    (vector^T @ vjps(g(v)))^T = (vector^T @ J^T)^T = J @ vector
 
     Parameters
     ----------
@@ -731,11 +737,9 @@ def jvps(output_node, node_list, vector_list):
     list_length = len(node_list)
     # v is the intermediate variable for the first vjps pass
     v = oneslike(output_node)
-    vjp_list = vjps(output_node, node_list, v)
-    assert(len(vjp_list) == list_length)
-
-    g_u = [vjp_list[i] for i in range(list_length)]
-    vjp_g = [vjps(g_u[i], [v], vector_list[i])[0] for i in range(list_length)]
+    g_v = vjps(output_node, node_list, v)
+    assert(len(g_v) == list_length)
+    vjp_g = [vjps(g_v[i], [v], vector_list[i])[0] for i in range(list_length)]
     return sum_node_list(vjp_g)
 
 
