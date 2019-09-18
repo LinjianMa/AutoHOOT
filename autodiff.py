@@ -733,16 +733,10 @@ def jvps(output_node, node_list, vector_list):
     v = oneslike(output_node)
     vjp_list = vjps(output_node, node_list, v)
     assert(len(vjp_list) == list_length)
-    # g_u is the transpose of vjp_list, used for the next vjps pass
-    # g_u = [transpose(vjp_list[i]) for i in range(list_length)]
-    # vjp_g = [vjps(g_u[i], [v], vector_list[i])[0] for i in range(list_length)]
-    # vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
-    # return sum_node_list(vjp_g_transpose)
-    # TODO: explain why transpose is unnecessary
+
     g_u = [vjp_list[i] for i in range(list_length)]
     vjp_g = [vjps(g_u[i], [v], vector_list[i])[0] for i in range(list_length)]
-    vjp_g_transpose = [vjp_g[i] for i in range(list_length)]
-    return sum_node_list(vjp_g_transpose)
+    return sum_node_list(vjp_g)
 
 
 def jtjvps(output_node, node_list, vector_list):

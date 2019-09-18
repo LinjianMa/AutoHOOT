@@ -154,6 +154,7 @@ def fast_block_diag_precondition(X, P):
     return ret
 
 
+# TODO: this class now only supports numpy.
 class cp_nls_optimizer():
     def __init__(self, input_tensor, A, cg_tol=1e-3):
         self.input_tensor = input_tensor
@@ -162,6 +163,7 @@ class cp_nls_optimizer():
         self.cg_tol = cg_tol
         self.atol = 0
         self.total_iters = 0
+        self.total_cg_time = 0.
         self.num = 0
 
     def step(self, hess_fn, grads, regularization):
@@ -181,14 +183,15 @@ class cp_nls_optimizer():
         self.total_iters += counter
 
         self.atol = self.num * list_vecnorm(delta)
-        print("cg iterations: ", counter)
-        print("total cg iterations: ", self.total_iters)
+        print(f"cg iterations: {counter}")
+        print(f"total cg iterations: {self.total_iters}")
+        print(f"total cg time: {self.total_cg_time}")
 
         self.A[0] += delta[0]
         self.A[1] += delta[1]
         self.A[2] += delta[2]
 
-        return self.A
+        return self.A, self.total_cg_time
 
     def compute_block_diag_preconditioner(self, regularization):
         P = []
@@ -244,5 +247,6 @@ class cp_nls_optimizer():
             counter += 1
 
         end = time.time()
-        print("cg took: ", end - start)
+        print(f"cg took: {end - start}")
+        self.total_cg_time += end - start
         return x, counter

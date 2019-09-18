@@ -9,7 +9,7 @@ import time
 BACKEND_TYPES = ['numpy']
 
 
-def CPD_gradient_descent(size, rank, learning_rate):
+def cpd_gradient_descent(size, rank, learning_rate):
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -38,10 +38,10 @@ def CPD_gradient_descent(size, rank, learning_rate):
             A_val -= learning_rate * grad_A_val
             B_val -= learning_rate * grad_B_val
             C_val -= learning_rate * grad_C_val
-            print('At iteration ' + str(i) + ', the loss is: ' + str(loss_val))
+            print(f'At iteration {i} the loss is: {loss_val}')
 
 
-def CPD_NLS(size, rank, regularization=1e-7, cg_tol=1e-03):
+def cpd_nls(size, rank, regularization=1e-7, optimized=True):
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -70,35 +70,32 @@ def CPD_NLS(size, rank, regularization=1e-7, cg_tol=1e-03):
 
         executor_grads = ad.Executor([loss] + grads)
         executor_JtJvps = ad.Executor(JtJvps)
-
-        optimizer = cp_nls_optimizer(input_tensor, [A_val, B_val, C_val])
-
-        # from source import SourceToSource
-        # StS = SourceToSource()
-        # StS.forward(JtJvps, file=open("example_jtjvp.py", "w"), function_name='jtjvp')
+        optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
 
         regu_increase = False
         normT = T.norm(input_tensor_val)
-        time_all = 0.
+        time_all, fitness = 0., 0.
 
         for i in range(10):
 
             t0 = time.time()
 
-            from example_jtjvp import jtjvp
+            from examples.cpd_jtjvp_optimized import jtjvp
 
             def hess_fn(v):
-                # return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
-                return executor_JtJvps.run(
-                    feed_dict={
-                        A: A_val,
-                        B: B_val,
-                        C: C_val,
-                        input_tensor: input_tensor_val,
-                        v_A: v[0],
-                        v_B: v[1],
-                        v_C: v[2]
-                    })
+                if optimized:
+                    return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
+                else:
+                    return executor_JtJvps.run(
+                        feed_dict={
+                            A: A_val,
+                            B: B_val,
+                            C: C_val,
+                            input_tensor: input_tensor_val,
+                            v_A: v[0],
+                            v_B: v[1],
+                            v_C: v[2]
+                        })
 
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
                 feed_dict={
@@ -110,16 +107,16 @@ def CPD_NLS(size, rank, regularization=1e-7, cg_tol=1e-03):
 
             res = math.sqrt(loss_val)
             fitness = 1 - res / normT
-            print("[", i, "] Residual is", res, "fitness is: ", fitness)
-            print("Regularization is:", regularization)
+            print(f"[ {i} ] Residual is {res} fitness is: {fitness}")
+            print(f"Regularization is: {regularization}")
 
-            A_val, B_val, C_val = optimizer.step(
+            [A_val, B_val, C_val], total_cg_time = optimizer.step(
                 hess_fn=hess_fn,
                 grads=[grad_A_val / 2, grad_B_val / 2, grad_C_val / 2],
                 regularization=regularization)
 
             t1 = time.time()
-            print("[", i, "] Sweep took", t1 - t0, "seconds")
+            print(f"[ {i} ] Sweep took {t1 - t0} seconds")
             time_all += t1 - t0
 
             if regularization < 1e-07:
@@ -131,8 +128,21 @@ def CPD_NLS(size, rank, regularization=1e-7, cg_tol=1e-03):
             else:
                 regularization = regularization / 2
 
+        return total_cg_time, fitness
 
-def CPD_newton(size, rank):
+
+def cpd_nls_benchmark():
+    cg_time_ad, fitness_ad = cpd_nls(size=64, rank=10, optimized=False)
+    cg_time_ad_optimized, fitness_optimized = cpd_nls(size=64,
+                                                      rank=10,
+                                                      optimized=True)
+    assert (abs(fitness_ad - fitness_optimized) < 1e-5)
+    print(
+        f"time with AD is {cg_time_ad/cg_time_ad_optimized} times of the optimized implementation."
+    )
+
+
+def cpd_newton(size, rank):
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -191,10 +201,11 @@ def CPD_newton(size, rank):
             A_val -= delta[0]
             B_val -= delta[1]
             C_val -= delta[2]
-            print('At iteration ' + str(i) + ', the loss is: ' + str(loss_val))
+            print(f'At iteration {i} the loss is: {loss_val}')
 
 
 if __name__ == "__main__":
-    # CPD_gradient_descent(size=20, rank=5, learning_rate=1e-3)
-    CPD_NLS(size=64, rank=10)
-    # CPD_newton(size=20, rank=5)
+    # cpd_gradient_descent(size=20, rank=5, learning_rate=1e-3)
+    # cpd_NLS(size=64, rank=10, optimized=False)
+    # cpd_newton(size=20, rank=5)
+    cpd_nls_benchmark()
