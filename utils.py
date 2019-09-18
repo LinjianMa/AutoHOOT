@@ -92,6 +92,11 @@ def group_product(alpha, xs):
     return [alpha * x for x in xs]
 
 
+def group_vecnorm(xs):
+    s = sum([T.sum(x * x) for x in xs])
+    return s**0.5
+
+
 def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     '''
         This solves the following problem:
@@ -124,32 +129,21 @@ def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     return x0
 
 
-def list_vecnorm(list_A):
-    l = [i**2 for i in list_A]
-    s = 0
-    for i in range(len(l)):
-        s += np.sum(l[i])
-
-    return s**0.5
-
-
-def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
+def solve_tri(A, B, lower=True, from_left=True, trans_left=False):
     if not from_left:
-        B = B.T
-        A = A.T
-        llower = not lower
-        X = sla.solve_triangular(A, B, trans=transp_L, lower=llower)
-        return X.T
+        return sla.solve_triangular(A.T,
+                                    B.T,
+                                    trans=trans_left,
+                                    lower=not lower).T
     else:
-        return sla.solve_triangular(A, B, trans=transp_L, lower=lower)
+        return sla.solve_triangular(A, B, trans=trans_left, lower=lower)
 
 
 def fast_block_diag_precondition(X, P):
-    N = len(X)
     ret = []
-    for i in range(N):
-        Y = solve_tri(P[i], X[i], True, False, True)
-        Y = solve_tri(P[i], Y, True, False, False)
+    for i in range(len(X)):
+        Y = solve_tri(P[i], X[i], lower=True, from_left=False, trans_left=True)
+        Y = solve_tri(P[i], Y, lower=True, from_left=False, trans_left=False)
         ret.append(Y)
     return ret
 
@@ -182,7 +176,7 @@ class cp_nls_optimizer():
 
         self.total_iters += counter
 
-        self.atol = self.num * list_vecnorm(delta)
+        self.atol = self.num * group_vecnorm(delta)
         print(f"cg iterations: {counter}")
         print(f"total cg iterations: {self.total_iters}")
         print(f"total cg time: {self.total_cg_time}")
@@ -216,12 +210,12 @@ class cp_nls_optimizer():
         start = time.time()
 
         x = [T.zeros(A.shape) for A in grads]
-        tol = np.max([self.atol, self.cg_tol * list_vecnorm(grads)])
+        tol = np.max([self.atol, self.cg_tol * group_vecnorm(grads)])
         hvps = hess_fn(x)
         r = group_minus(
             group_negative(self.fast_hessian_contract(x, regularization,
                                                       hvps)), grads)
-        if list_vecnorm(r) < tol:
+        if group_vecnorm(r) < tol:
             return x, 0
         z = fast_block_diag_precondition(r, P)
         p = z
@@ -234,7 +228,7 @@ class cp_nls_optimizer():
             inplace_group_add(x, group_product(alpha, p))
             r_new = group_minus(r, group_product(alpha, mv))
 
-            if list_vecnorm(r_new) < tol:
+            if group_vecnorm(r_new) < tol:
                 counter += 1
                 end = time.time()
                 break
