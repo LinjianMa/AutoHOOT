@@ -129,6 +129,7 @@ def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     return x0
 
 
+# TODO: the wrapper needs to be refactored
 def solve_tri(A, B, lower=True, from_left=True, trans_left=False):
     if not from_left:
         return sla.solve_triangular(A.T,

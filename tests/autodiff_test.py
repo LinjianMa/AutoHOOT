@@ -550,7 +550,7 @@ def test_tensor_transpose_einsum():
 
         v = ad.Variable(name="v")
         v_val = T.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])  # 2 x 2 x 2
-        grad_x, = ad.vjps(y, [x], v)
+        grad_x, = ad.transposed_vjps(y, [x], v)
 
         executor = ad.Executor([y, grad_x])
         x_val = T.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])  # 2 x 2 x 2
@@ -615,21 +615,21 @@ def test_vjps():
         v = ad.Variable(name="v")
         y = A @ x
 
-        vjp_x, = ad.vjps(y, [x], v)
+        transposed_vjp_x, = ad.transposed_vjps(y, [x], v)
 
-        executor = ad.Executor([y, vjp_x])
+        executor = ad.Executor([y, transposed_vjp_x])
         x_val = T.tensor([1., 2.])  # 1x3
         A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
         v_val = T.tensor([1, 2, 3])
 
-        y_val, vjp_x_val = executor.run(feed_dict={x: x_val, A: A_val, v: v_val})
+        y_val, transposed_vjp_x_val = executor.run(feed_dict={x: x_val, A: A_val, v: v_val})
 
         expected_yval = A_val @ x_val
-        expected_vjp_x_val = v_val @ A_val
+        expected_transposed_vjp_x_val = v_val @ A_val
 
-        assert isinstance(vjp_x, ad.Node)
+        assert isinstance(transposed_vjp_x, ad.Node)
         assert T.array_equal(y_val, expected_yval)
-        assert T.array_equal(vjp_x_val, expected_vjp_x_val)
+        assert T.array_equal(transposed_vjp_x_val, expected_transposed_vjp_x_val)
 
 
 def test_jvps():
@@ -643,9 +643,9 @@ def test_jvps():
         v2 = ad.Variable(name="v2")
         y = A1 @ x1 + A2 @ x2
 
-        vjp_x = ad.jvps(y, [x1, x2], [v1, v2])
+        transposed_vjp_x = ad.jvps(y, [x1, x2], [v1, v2])
 
-        executor = ad.Executor([y, vjp_x])
+        executor = ad.Executor([y, transposed_vjp_x])
         x1_val = T.tensor([1., 2.])
         A1_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
         v1_val = T.tensor([3., 4.])
@@ -653,15 +653,15 @@ def test_jvps():
         A2_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
         v2_val = T.tensor([3., 4.])
 
-        y_val, vjp_x_val = executor.run(feed_dict={x1: x1_val, A1: A1_val, v1: v1_val,
+        y_val, transposed_vjp_x_val = executor.run(feed_dict={x1: x1_val, A1: A1_val, v1: v1_val,
                                                    x2: x2_val, A2: A2_val, v2: v2_val})
 
         expected_yval = A1_val @ x1_val + A2_val @ x2_val
-        expected_vjp_x_val = A1_val @ v1_val + A2_val @ v2_val
+        expected_transposed_vjp_x_val = A1_val @ v1_val + A2_val @ v2_val
 
-        assert isinstance(vjp_x, ad.Node)
+        assert isinstance(transposed_vjp_x, ad.Node)
         assert T.array_equal(y_val, expected_yval)
-        assert T.array_equal(vjp_x_val, expected_vjp_x_val)
+        assert T.array_equal(transposed_vjp_x_val, expected_transposed_vjp_x_val)
 
 
 def test_jtjvps():
