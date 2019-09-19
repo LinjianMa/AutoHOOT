@@ -462,8 +462,9 @@ class Backend(object):
         """
         raise NotImplementedError
 
+    # TODO: seems the arguments will not affect the function call. Need to investigate the reason.
     @staticmethod
-    def einsum(subscripts, operand1, operand2):
+    def einsum(subscripts, *operands):
         """einstein summation
         """
         raise NotImplementedError

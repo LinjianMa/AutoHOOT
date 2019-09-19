@@ -120,17 +120,17 @@ class Op(object):
         """
         raise NotImplementedError
 
-    def vjp(self, node, output_grad):
-        """Given value of output vector-jacobian product, compute vjp contributions to each input node.
+    def transposed_vjp(self, node, output_grad):
+        """Given value of output vector-jacobian product, compute transposed vjp contributions to each input node.
 
         Parameters
         ----------
-        node: node that performs the vjp.
-        output_grad: value of output vjp summed from children nodes' contributions
+        node: node that performs the transposed vjp.
+        output_grad: value of output transposed vjp summed from children nodes' contributions
 
         Returns
         -------
-        A list of vjp contributions to each input node respectively.
+        A list of transposed vjp contributions to each input node respectively.
         """
         raise NotImplementedError
 
@@ -155,7 +155,7 @@ class AddOp(Op):
         assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] + input_vals[1]
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [output_grad, output_grad]
 
 
@@ -177,7 +177,7 @@ class AddByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] + node.const_attr
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [output_grad]
 
 
@@ -198,7 +198,7 @@ class SubOp(Op):
         assert len(input_vals) == 2
         return input_vals[0] - input_vals[1]
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [output_grad, -output_grad]
 
 
@@ -220,7 +220,7 @@ class SubByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] - node.const_attr
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [output_grad]
 
 
@@ -255,7 +255,7 @@ class MulOp(Op):
             assert input_vals[1].shape == ()
         return input_vals[0] * input_vals[1]
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         if node.scalar_A is False and node.scalar_B is True:
             return [
                 mul(output_grad, node.inputs[1], False, True),
@@ -291,7 +291,7 @@ class MulByConstOp(Op):
         assert len(input_vals) == 1
         return input_vals[0] * node.const_attr
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [output_grad * node.const_attr]
 
 
@@ -313,7 +313,7 @@ class PowerOp(Op):
         assert len(input_vals) == 1
         return T.power(input_vals[0], node.const_attr)
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [
             output_grad * node.const_attr *
             power(node.inputs[0], node.const_attr - 1)
@@ -350,7 +350,7 @@ class MatMulOp(Op):
         assert T.is_tensor(input_vals[1])
         return T.dot(input_vals[0], input_vals[1])
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         """Given vjp of multiply node, return vjp contributions to each input.
 
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
@@ -398,7 +398,6 @@ class EinsumOp(Op):
         return new_node
 
     def s2s_expr(self, inputs, node):
-        assert len(inputs) == 2
         input_names = [inputvar.name for inputvar in inputs]
         return self._name_generator(node.einsum_subscripts, input_names)
 
@@ -436,7 +435,7 @@ class EinsumOp(Op):
         new_subscripts = new_input_subs + '->' + subs_wrt
         return einsum(new_subscripts, *new_operands)
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
 
         if len(node.inputs) > 1:
             grad_einsums = [
@@ -466,7 +465,7 @@ class NormOp(Op):
         assert T.is_tensor(input_vals[0])
         return T.norm(input_vals[0], node.order, node.axis)
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         if node.axis is not None or node.order != 2:
             raise NotImplementedError
         return [
@@ -494,7 +493,7 @@ class SumOp(Op):
         assert T.is_tensor(input_vals[0])
         return T.sum(input_vals[0], node.axis)
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         if node.axis != None:
             raise NotImplementedError
         return [
@@ -521,7 +520,7 @@ class TransposeOp(Op):
         assert T.is_tensor(input_vals[0])
         return T.transpose(input_vals[0])
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [transpose(output_grad)]
 
 
@@ -536,7 +535,7 @@ class PlaceholderOp(Op):
         """No compute function since node value is fed directly in Executor."""
         assert False, "placeholder values provided by feed_dict"
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         """No vjp function since node has no inputs."""
         return None
 
@@ -558,7 +557,7 @@ class ZerosLikeOp(Op):
         """Returns zeros_like of the same shape as input."""
         return T.zeros_like(input_vals[0])
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
 
 
@@ -579,7 +578,7 @@ class OnesLikeOp(Op):
         """Returns ones_like of the same shape as input."""
         return T.ones_like(input_vals[0])
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [zeroslike(node.inputs[0])]
 
 
@@ -601,7 +600,7 @@ class NegativeOp(Op):
         assert (T.is_tensor(input_vals[0]))
         return -input_vals[0]
 
-    def vjp(self, node, output_grad):
+    def transposed_vjp(self, node, output_grad):
         return [-output_grad]
 
 
@@ -661,7 +660,7 @@ class Executor:
         return node_val_results
 
 
-def vjps_map(output_node, node_list, input_vector):
+def transposed_vjps_map(output_node, node_list, input_vector):
     """
     Return:
         a map mapping input nodes to their vjp contributions.
@@ -682,18 +681,18 @@ def vjps_map(output_node, node_list, input_vector):
 
     for node in reverse_topo_order:
         assert node in node_to_output_grads_list
-        vjp = sum_node_list(node_to_output_grads_list[node])
-        node_to_output_grad[node] = vjp
+        transposed_vjp = sum_node_list(node_to_output_grads_list[node])
+        node_to_output_grad[node] = transposed_vjp
         for index, input in enumerate(node.inputs):
-            input_vjp = node.op.vjp(node, vjp)[index]
+            input_transposed_vjp = node.op.transposed_vjp(node, transposed_vjp)[index]
             if input not in node_to_output_grads_list:
-                node_to_output_grads_list[input] = [input_vjp]
+                node_to_output_grads_list[input] = [input_transposed_vjp]
             else:
-                node_to_output_grads_list[input].append(input_vjp)
+                node_to_output_grads_list[input].append(input_transposed_vjp)
     return node_to_output_grad
 
 
-def vjps(output_node, node_list, input_vector):
+def transposed_vjps(output_node, node_list, input_vector):
     """Take vector-jacobian product of output node with respect to each node in node_list.
 
     Parameters
@@ -704,59 +703,62 @@ def vjps(output_node, node_list, input_vector):
 
     Returns
     -------
+    mathematically, it is calculating (v^T @ J)^T
     A list of vjp values, one for each node in node_list respectively.
+    The returned list shapes are the same as the node_list shapes.
 
     """
-    node_to_output_grad = vjps_map(output_node, node_list, input_vector)
+    node_to_output_grad = transposed_vjps_map(output_node, node_list, input_vector)
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
 
 
-def jvps(output_node, node_list, input_vector_list):
+def jvps(output_node, node_list, vector_list):
     """Take jacobian-vector product of output node with respect to each node in node_list.
     Reference: https://j-towns.github.io/2017/06/12/A-new-trick.html
+    Note: we can achieve jvps by two vjps.
+    Mathematically:
+    g(v) = vjps(v) = (v^T @ J)^T
+    (vector^T @ vjps(g(v)))^T = (vector^T @ J^T)^T = J @ vector
 
     Parameters
     ----------
     output_node: output node that we are taking derivative of.
     node_list: list of nodes that we are taking derivative wrt.
-    input_vector_list: list of input vectors in the jvps
+    vector_list: list of input vectors in the jvps
 
     Returns
     -------
     A list of jvp values, one for each node in node_list respectively.
 
     """
-    assert(len(node_list) == len(input_vector_list))
+    assert(len(node_list) == len(vector_list))
     list_length = len(node_list)
     # v is the intermediate variable for the first vjps pass
     v = oneslike(output_node)
-    vjp_list = vjps(output_node, node_list, v)
-    assert(len(vjp_list) == list_length)
-    # g_u is the transpose of vjp_list, used for the next vjps pass
-    g_u = [transpose(vjp_list[i]) for i in range(list_length)]
-    vjp_g = [vjps(g_u[i], [v], input_vector_list[i])[0] for i in range(list_length)]
-    vjp_g_transpose = [transpose(vjp_g[i]) for i in range(list_length)]
-    return sum_node_list(vjp_g_transpose)
+    g_v = transposed_vjps(output_node, node_list, v)
+    assert(len(g_v) == list_length)
+    transposed_vjp_g = [transposed_vjps(g_v[i], [v], vector_list[i])[0] for i in range(list_length)]
+    return sum_node_list(transposed_vjp_g)
 
 
-def jtjvps(output_node, node_list, input_vector_list):
+def jtjvps(output_node, node_list, vector_list):
     """
     Operator for the Gauss-Newton cg step:
     return J^T @ J @ v, where J is the Jacobian matrix
     """
-    jvp_result = jvps(output_node, node_list, input_vector_list)
-    return vjps(output_node, node_list, jvp_result)
+    jvp_result = jvps(output_node, node_list, vector_list)
+    return transposed_vjps(output_node, node_list, jvp_result)
 
 
 def gradients_map(output_node, node_list):
-    return vjps_map(output_node, node_list, oneslike(output_node))
+    return transposed_vjps_map(output_node, node_list, oneslike(output_node))
 
 
 def gradients(output_node, node_list):
     # TODO: currently this function only supports the case when output_node is a scalar
-    return vjps(output_node, node_list, oneslike(output_node))
+    return transposed_vjps(output_node, node_list, oneslike(output_node))
 
 
 def hvp(output_node, node_list, vector_list):
