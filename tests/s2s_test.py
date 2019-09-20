@@ -8,19 +8,19 @@ BACKEND_TYPES = ['numpy', 'ctf']
 def test_s2s_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
-        x = ad.Variable(name="x")
-        H = ad.Variable(name="H")
-        v = ad.Variable(name="v")
-        y = ad.transpose(x) @ H @ x
+        x = ad.Variable(name="x", shape=[3, 1])
+        H = ad.Variable(name="H", shape=[3, 3])
+        v = ad.Variable(name="v", shape=[3, 1])
+        y = ad.sum(ad.transpose(x) @ H @ x)
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
 
-        x_val = T.tensor([[1.], [2.], [3]])  # 2x1
-        v_val = T.tensor([[1.], [2.], [3]])  # 2x1
-        H_val = T.tensor([[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]])  # 2x2
+        x_val = T.tensor([[1.], [2.], [3]])  # 3x1
+        v_val = T.tensor([[1.], [2.], [3]])  # 3x1
+        H_val = T.tensor([[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]])  # 3x3
 
-        expected_yval = T.transpose(x_val) @ H_val @ x_val
+        expected_yval = T.sum(T.transpose(x_val) @ H_val @ x_val)
         expected_grad_x_val = 2 * H_val @ x_val
         expected_hv_val = T.tensor([[4.], [8.], [12.]])
 
@@ -43,9 +43,9 @@ def test_s2s_hvp():
 def test_s2s_jtjvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
-        x = ad.Variable(name="x")
-        A = ad.Variable(name="A")
-        v = ad.Variable(name="v")
+        x = ad.Variable(name="x", shape=[2])
+        A = ad.Variable(name="A", shape=[3, 2])
+        v = ad.Variable(name="v", shape=[2])
         y = A @ x
 
         jtjvp_x, = ad.jtjvps(y, [x], [v])
@@ -59,11 +59,12 @@ def test_s2s_jtjvp():
         expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
 
         StS = SourceToSource()
-        StS.forward([jtjvp_x], file=open("example_jtjvp.py", "w"), function_name='jtjvp')
+        StS.forward([jtjvp_x],
+                    file=open("example_jtjvp.py", "w"),
+                    function_name='jtjvp')
 
         import example_jtjvp
         jtjvp_x_val_s2s, = example_jtjvp.jtjvp([A_val, v_val])
 
         assert isinstance(jtjvp_x, ad.Node)
         assert T.array_equal(jtjvp_x_val_s2s, expected_jtjvp_x_val)
-

@@ -16,9 +16,9 @@ def cpd_gradient_descent(size, rank, learning_rate):
 
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
-        A = ad.Variable(name='A')
-        B = ad.Variable(name='B')
-        C = ad.Variable(name='C')
+        A = ad.Variable(name='A', shape=[size, rank])
+        B = ad.Variable(name='B', shape=[size, rank])
+        C = ad.Variable(name='C', shape=[size, rank])
 
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
@@ -49,13 +49,14 @@ def cpd_nls(size, rank, regularization=1e-7, optimized=True):
 
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
-        A = ad.Variable(name='A')
-        B = ad.Variable(name='B')
-        C = ad.Variable(name='C')
-        input_tensor = ad.Variable(name='input_tensor')
-        v_A = ad.Variable(name="v_A")
-        v_B = ad.Variable(name="v_B")
-        v_C = ad.Variable(name="v_C")
+        A = ad.Variable(name='A', shape=[size, rank])
+        B = ad.Variable(name='B', shape=[size, rank])
+        C = ad.Variable(name='C', shape=[size, rank])
+        input_tensor = ad.Variable(name='input_tensor',
+                                   shape=[size, size, size])
+        v_A = ad.Variable(name="v_A", shape=[size, rank])
+        v_B = ad.Variable(name="v_B", shape=[size, rank])
+        v_C = ad.Variable(name="v_C", shape=[size, rank])
 
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
@@ -149,13 +150,14 @@ def cpd_newton(size, rank):
 
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
-        A = ad.Variable(name='A')
-        B = ad.Variable(name='B')
-        C = ad.Variable(name='C')
-        input_tensor = ad.Variable(name='input_tensor')
-        v_A = ad.Variable(name="v_A")
-        v_B = ad.Variable(name="v_B")
-        v_C = ad.Variable(name="v_C")
+        A = ad.Variable(name='A', shape=[size, rank])
+        B = ad.Variable(name='B', shape=[size, rank])
+        C = ad.Variable(name='C', shape=[size, rank])
+        input_tensor = ad.Variable(name='input_tensor',
+                                   shape=[size, size, size])
+        v_A = ad.Variable(name="v_A", shape=[size, rank])
+        v_B = ad.Variable(name="v_B", shape=[size, rank])
+        v_C = ad.Variable(name="v_C", shape=[size, rank])
 
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)

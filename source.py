@@ -19,7 +19,6 @@ class SourceToSource():
         StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
         ```
     """
-
     def __init__(self):
         """Instance variables
             self.mid_name: middle variable names.
@@ -79,7 +78,8 @@ class SourceToSource():
         """
         forward_node = self.grad_to_forward_map[node]
         self._print_to_file_w_indent(
-            f'_grad{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}')
+            f'_grad{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}'
+        )
         node.name = f'_grad{forward_node.name}'
 
     def _sub_forward(self, output_node_list):
@@ -99,8 +99,9 @@ class SourceToSource():
 
         self.forward_to_grad_map = ad.gradients_map(output_node, node_list)
         self.grad_to_forward_map = invert_dict(self.forward_to_grad_map)
-        self.gradient_list = [self.forward_to_grad_map[node]
-                              for node in node_list]
+        self.gradient_list = [
+            self.forward_to_grad_map[node] for node in node_list
+        ]
         self.topo_order_gradients = find_topo_sort(self.gradient_list)
 
         for node in self.topo_order_gradients:
@@ -123,7 +124,8 @@ class SourceToSource():
                     node not in vector_list:
                 self._assign_mid_variable(node)
         self._print_to_file_w_indent(
-            f'_gTv = {inner_product_node.op.s2s_expr(inner_product_node.inputs, inner_product_node)}')
+            f'_gTv = {inner_product_node.op.s2s_expr(inner_product_node.inputs, inner_product_node)}'
+        )
         inner_product_node.name = '_gTv'
         return inner_product_node
 
@@ -131,8 +133,8 @@ class SourceToSource():
         """Subroutine of hvp."""
         self._print_to_file(
             f'\n{INDENT}# backward pass of inner product of g and v starts')
-        self.forward_to_hvp_map = ad.gradients_map(
-            inner_product_node, node_list)
+        self.forward_to_hvp_map = ad.gradients_map(inner_product_node,
+                                                   node_list)
         self.hvp_to_forward_map = invert_dict(self.forward_to_hvp_map)
         hvp_nodes = [self.forward_to_hvp_map[node] for node in node_list]
         topo_order_hvps = find_topo_sort(hvp_nodes)
@@ -143,7 +145,8 @@ class SourceToSource():
                 else:
                     forward_node = self.hvp_to_forward_map[node]
                     self._print_to_file_w_indent(
-                        f'_grad2{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}')
+                        f'_grad2{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}'
+                    )
                     node.name = f'_grad2{forward_node.name}'
 
     def forward(self, output_node_list, file=None, function_name='forward'):
@@ -157,8 +160,7 @@ class SourceToSource():
         self._print_to_file(f'def {function_name}(inputs):')
         self._sub_forward(output_node_list)
         # return expression
-        returned_names = ",".join(
-            [node.name for node in output_node_list])
+        returned_names = ",".join([node.name for node in output_node_list])
         self._print_to_file_w_indent(f'return [{returned_names}]')
         self.file.flush()
 
