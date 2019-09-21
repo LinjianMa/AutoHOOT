@@ -462,9 +462,13 @@ class Backend(object):
         """
         raise NotImplementedError
 
-    # TODO: seems the arguments will not affect the function call. Need to investigate the reason.
+    # It's worth noticing that type enforcement won't work here.
+    # This is b/c the __signature__ object for a function is not enforced
+    # when passed into a function. __signature__ is purely for introspection.
+    # So the argspecs here are useless.
+
     @staticmethod
-    def einsum(subscripts, *operands):
+    def einsum():
         """einstein summation
         """
         raise NotImplementedError
@@ -586,8 +590,7 @@ class Backend(object):
         if len(matrices) < 2:
             raise ValueError(
                 'kr requires a list of at least 2 matrices, but {} '
-                'given.'.format(
-                    len(matrices)))
+                'given.'.format(len(matrices)))
 
         n_col = self.shape(matrices[0])[1]
         for i, e in enumerate(matrices[1:]):
@@ -634,8 +637,8 @@ class Backend(object):
         """
         # Check that matrix is... a matrix!
         if self.ndim(matrix) != 2:
-            raise ValueError('matrix be a matrix. matrix.ndim is %d != 2'
-                             % self.ndim(matrix))
+            raise ValueError('matrix be a matrix. matrix.ndim is %d != 2' %
+                             self.ndim(matrix))
 
         ctx = self.context(matrix)
         is_numpy = isinstance(matrix, np.ndarray)
@@ -657,8 +660,7 @@ class Backend(object):
                 warnings.warn(
                     ('Trying to compute SVD with n_eigenvecs={0}, which '
                      'is larger than max(matrix.shape)={1}. Setting '
-                     'n_eigenvecs to {1}').format(
-                        n_eigenvecs, max_dim))
+                     'n_eigenvecs to {1}').format(n_eigenvecs, max_dim))
                 n_eigenvecs = max_dim
 
             if n_eigenvecs is None or n_eigenvecs > min_dim:
@@ -673,15 +675,17 @@ class Backend(object):
             # We can perform a partial SVD
             # First choose whether to use X * X.T or X.T *X
             if dim_1 < dim_2:
-                S, U = scipy.sparse.linalg.eigsh(
-                    np.dot(matrix, matrix.T.conj()), k=n_eigenvecs, which='LM'
-                )
+                S, U = scipy.sparse.linalg.eigsh(np.dot(
+                    matrix, matrix.T.conj()),
+                                                 k=n_eigenvecs,
+                                                 which='LM')
                 S = np.sqrt(S)
                 V = np.dot(matrix.T.conj(), U * 1 / S[None, :])
             else:
-                S, V = scipy.sparse.linalg.eigsh(
-                    np.dot(matrix.T.conj(), matrix), k=n_eigenvecs, which='LM'
-                )
+                S, V = scipy.sparse.linalg.eigsh(np.dot(
+                    matrix.T.conj(), matrix),
+                                                 k=n_eigenvecs,
+                                                 which='LM')
                 S = np.sqrt(S)
                 U = np.dot(matrix, V) * 1 / S[None, :]
 
