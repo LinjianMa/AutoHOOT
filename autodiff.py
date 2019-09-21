@@ -92,7 +92,7 @@ def Variable(name, shape=None):
     placeholder_node = placeholder()
     placeholder_node.name = name
     placeholder_node.shape = shape
-    assert (shape != None)
+    assert shape != None
     return placeholder_node
 
 
@@ -453,9 +453,13 @@ class EinsumOp(Op):
         in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
         if out_subs == '':
             return [1]
-        in_subs_list = list(in_subs)
-        while ',' in in_subs_list:
-            in_subs_list.remove(',')
+        in_subs_split = in_subs.split(',')
+        in_subs_list = []
+        for i in in_subs_split:
+            if i is not '':
+                in_subs_list = in_subs_list + list(i)
+            else:
+                in_subs_list = in_subs_list + ['']
         out_subs_list = list(out_subs)
         out_shape = []
         for out_sub in out_subs_list:
@@ -515,8 +519,7 @@ class NormOp(Op):
         if axis == None:
             new_node.shape = [1]
         else:
-            remaining_axis = list(set(node.shape) - set(axis)).sort()
-            new_node.shape = [node.shape[i] for i in remaining_axis]
+            raise NotImplementedError
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -548,8 +551,7 @@ class SumOp(Op):
         if axis == None:
             new_node.shape = [1]
         else:
-            remaining_axis = list(set(node.shape) - set(axis)).sort()
-            new_node.shape = [node.shape[i] for i in remaining_axis]
+            raise NotImplementedError
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -577,6 +579,7 @@ class TransposeOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node]
         new_node.name = "T.transpose(%s)" % (node.name)
+        assert len(node.shape) <= 2
         if len(node.shape) == 2:
             new_node.shape = [node.shape[1], node.shape[0]]
         else:
@@ -810,12 +813,12 @@ def jvps(output_node, node_list, vector_list):
     A list of jvp values, one for each node in node_list respectively.
 
     """
-    assert (len(node_list) == len(vector_list))
+    assert len(node_list) == len(vector_list)
     list_length = len(node_list)
     # v is the intermediate variable for the first vjps pass
     v = oneslike(output_node)
     g_v = transposed_vjps(output_node, node_list, v)
-    assert (len(g_v) == list_length)
+    assert len(g_v) == list_length
     transposed_vjp_g = [
         transposed_vjps(g_v[i], [v], vector_list[i])[0]
         for i in range(list_length)
@@ -847,8 +850,11 @@ def gradients(output_node, node_list):
         Therefore, this function CANNOT be used to calculate the gradients
         when output_node is not a scalar.
     """
-    assert (output_node.shape == [1])
-    return transposed_vjps(output_node, node_list, oneslike(output_node))
+    assert output_node.shape == [1]
+    ret_nodes = transposed_vjps(output_node, node_list, oneslike(output_node))
+    for (ret_node, node) in zip(ret_nodes, node_list):
+        assert ret_node.shape == node.shape
+    return ret_nodes
 
 
 def hvp(output_node, node_list, vector_list):
