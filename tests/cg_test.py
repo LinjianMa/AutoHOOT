@@ -21,4 +21,4 @@ def test_HinverseG():
 
         error_tol = 1e-9
         x, = conjugate_gradient(hess_fn, [b], error_tol)
-        assert(T.norm(T.abs(A @ x - b)) <= 1e-4)
+        assert (T.norm(T.abs(A @ x - b)) <= 1e-4)

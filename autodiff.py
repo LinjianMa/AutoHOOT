@@ -23,6 +23,7 @@ class Node(object):
         self.op = None
         self.const_attr = None
         self.name = ""
+        self.shape = None
 
     def __neg__(self):
         return negative(self)
@@ -84,12 +85,14 @@ class Node(object):
     __repr__ = __str__
 
 
-def Variable(name):
+def Variable(name, shape=None):
     """User defined variables in an expression.
         e.g. x = Variable(name = "x")
     """
     placeholder_node = placeholder()
     placeholder_node.name = name
+    placeholder_node.shape = shape
+    assert shape != None
     return placeholder_node
 
 
@@ -138,9 +141,11 @@ class Op(object):
 class AddOp(Op):
     """Op to element-wise add two nodes."""
     def __call__(self, node_A, node_B):
+        assert node_A.shape == node_B.shape
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
         new_node.name = "(%s+%s)" % (node_A.name, node_B.name)
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -166,6 +171,7 @@ class AddByConstOp(Op):
         new_node.const_attr = const_val
         new_node.inputs = [node_A]
         new_node.name = "(%s+%s)" % (node_A.name, str(const_val))
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -184,9 +190,11 @@ class AddByConstOp(Op):
 class SubOp(Op):
     """Op to element-wise subtract two nodes."""
     def __call__(self, node_A, node_B):
+        assert node_A.shape == node_B.shape
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
         new_node.name = "(%s-%s)" % (node_A.name, node_B.name)
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -209,6 +217,7 @@ class SubByConstOp(Op):
         new_node.const_attr = const_val
         new_node.inputs = [node_A]
         new_node.name = "(%s-%s)" % (node_A.name, str(const_val))
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -238,6 +247,13 @@ class MulOp(Op):
         new_node.scalar_A = scalar_A
         new_node.scalar_B = scalar_B
         new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
+        if scalar_A:
+            new_node.shape = node_B.shape
+        elif scalar_B:
+            new_node.shape = node_A.shape
+        else:
+            assert node_A.shape == node_B.shape
+            new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -280,6 +296,7 @@ class MulByConstOp(Op):
         new_node.const_attr = const_val
         new_node.inputs = [node_A]
         new_node.name = "(%s*%s)" % (node_A.name, str(const_val))
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -302,6 +319,7 @@ class PowerOp(Op):
         new_node.const_attr = const_val
         new_node.inputs = [node_A]
         new_node.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -337,6 +355,26 @@ class MatMulOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
         new_node.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
+
+        # when both are matrices
+        if len(node_A.shape) == 2 and len(node_B.shape) == 2:
+            assert node_A.shape[1] == node_B.shape[0]
+            new_node.shape = [node_A.shape[0], node_B.shape[1]]
+        # vector matmul matrix
+        elif len(node_A.shape) == 1 and len(node_B.shape) == 2:
+            if node_A.shape[0] == node_B.shape[0]:
+                new_node.shape = [node_B.shape[1]]
+            # the case of outer product
+            elif node_B.shape[0] == 1:
+                new_node.shape = [node_A.shape[0], node_B.shape[1]]
+        # matrix matmul vector
+        elif len(node_A.shape) == 2 and len(node_B.shape) == 1:
+            assert node_A.shape[1] == node_B.shape[0]
+            new_node.shape = [node_A.shape[0]]
+        # inner product
+        else:
+            assert node_A.shape[0] == node_B.shape[0]
+            new_node.shape = [1]
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -395,6 +433,7 @@ class EinsumOp(Op):
         new_node.inputs = list(nodes)
         node_names = [node.name for node in nodes]
         new_node.name = self._name_generator(subscripts, node_names)
+        new_node.shape = self._output_shape(subscripts, nodes)
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -406,6 +445,29 @@ class EinsumOp(Op):
         for val in input_vals:
             assert T.is_tensor(val)
         return T.einsum(node.einsum_subscripts, *input_vals)
+
+    def _output_shape(self, subscripts, nodes):
+        in_shapes = []
+        for node in nodes:
+            in_shapes = in_shapes + node.shape
+        in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
+        if out_subs == '':
+            return [1]
+        in_subs_split = in_subs.split(',')
+        in_subs_list = []
+        for i in in_subs_split:
+            if i is not '':
+                in_subs_list = in_subs_list + list(i)
+            else:
+                in_subs_list = in_subs_list + ['']
+        out_subs_list = list(out_subs)
+        out_shape = []
+        for out_sub in out_subs_list:
+            for index, in_sub in enumerate(in_subs_list):
+                if out_sub == in_sub:
+                    out_shape.append(in_shapes[index])
+                    break
+        return out_shape
 
     def grad_einsum(self, argnum_wrt, node, output_grad):
         """
@@ -454,6 +516,10 @@ class NormOp(Op):
         new_node.axis = axis
         new_node.inputs = [node]
         new_node.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
+        if axis == None:
+            new_node.shape = [1]
+        else:
+            raise NotImplementedError
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -482,6 +548,10 @@ class SumOp(Op):
         new_node.axis = axis
         new_node.inputs = [node]
         new_node.name = "T.sum(%s, %s)" % (node.name, axis)
+        if axis == None:
+            new_node.shape = [1]
+        else:
+            raise NotImplementedError
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -509,6 +579,11 @@ class TransposeOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node]
         new_node.name = "T.transpose(%s)" % (node.name)
+        assert len(node.shape) <= 2
+        if len(node.shape) == 2:
+            new_node.shape = [node.shape[1], node.shape[0]]
+        else:
+            new_node.shape = [1, node.shape[0]]
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -547,6 +622,7 @@ class ZerosLikeOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
         new_node.name = "T.zeros_like(%s)" % node_A.name
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -568,6 +644,7 @@ class OnesLikeOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
         new_node.name = "T.ones_like(%s)" % node_A.name
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -589,6 +666,7 @@ class NegativeOp(Op):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A]
         new_node.name = "(-%s)" % node_A.name
+        new_node.shape = node_A.shape
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -684,7 +762,8 @@ def transposed_vjps_map(output_node, node_list, input_vector):
         transposed_vjp = sum_node_list(node_to_output_grads_list[node])
         node_to_output_grad[node] = transposed_vjp
         for index, input in enumerate(node.inputs):
-            input_transposed_vjp = node.op.transposed_vjp(node, transposed_vjp)[index]
+            input_transposed_vjp = node.op.transposed_vjp(
+                node, transposed_vjp)[index]
             if input not in node_to_output_grads_list:
                 node_to_output_grads_list[input] = [input_transposed_vjp]
             else:
@@ -708,7 +787,8 @@ def transposed_vjps(output_node, node_list, input_vector):
     The returned list shapes are the same as the node_list shapes.
 
     """
-    node_to_output_grad = transposed_vjps_map(output_node, node_list, input_vector)
+    node_to_output_grad = transposed_vjps_map(output_node, node_list,
+                                              input_vector)
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
@@ -733,13 +813,16 @@ def jvps(output_node, node_list, vector_list):
     A list of jvp values, one for each node in node_list respectively.
 
     """
-    assert(len(node_list) == len(vector_list))
+    assert len(node_list) == len(vector_list)
     list_length = len(node_list)
     # v is the intermediate variable for the first vjps pass
     v = oneslike(output_node)
     g_v = transposed_vjps(output_node, node_list, v)
-    assert(len(g_v) == list_length)
-    transposed_vjp_g = [transposed_vjps(g_v[i], [v], vector_list[i])[0] for i in range(list_length)]
+    assert len(g_v) == list_length
+    transposed_vjp_g = [
+        transposed_vjps(g_v[i], [v], vector_list[i])[0]
+        for i in range(list_length)
+    ]
     return sum_node_list(transposed_vjp_g)
 
 
@@ -757,8 +840,21 @@ def gradients_map(output_node, node_list):
 
 
 def gradients(output_node, node_list):
-    # TODO: currently this function only supports the case when output_node is a scalar
-    return transposed_vjps(output_node, node_list, oneslike(output_node))
+    """ NOTE: currently this function only supports the case
+        when output_node is a scalar.
+        In our implementation, we are actually returning the
+        transposed_vjps where the vector is oneslike(output_node)
+        for this function.
+        Mathematically, it is equal to the gradients
+        ONLY WHEN the output is a scalar.
+        Therefore, this function CANNOT be used to calculate the gradients
+        when output_node is not a scalar.
+    """
+    assert output_node.shape == [1]
+    ret_nodes = transposed_vjps(output_node, node_list, oneslike(output_node))
+    for (ret_node, node) in zip(ret_nodes, node_list):
+        assert ret_node.shape == node.shape
+    return ret_nodes
 
 
 def hvp(output_node, node_list, vector_list):
