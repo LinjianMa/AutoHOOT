@@ -81,10 +81,11 @@ class CTFBackend(Backend):
         return ctf.zeros(CTFBackend.shape(tensor))
 
 
-for name in ['reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros',
-             'eye', 'abs', 'dot', 'einsum', 'sum']:
+for name in [
+        'reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros', 'eye', 'abs',
+        'dot', 'einsum', 'sum'
+]:
     CTFBackend.register_method(name, getattr(ctf, name))
 
 for name in ['random', 'seed']:
     CTFBackend.register_method(name, getattr(ctf.random, name))
-

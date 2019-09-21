@@ -13,8 +13,7 @@ from contextlib import contextmanager
 import inspect
 
 _DEFAULT_BACKEND = 'numpy'
-_KNOWN_BACKENDS = {'numpy': 'NumpyBackend',
-                   'ctf': 'CTFBackend'}
+_KNOWN_BACKENDS = {'numpy': 'NumpyBackend', 'ctf': 'CTFBackend'}
 
 _LOADED_BACKENDS = {}
 _LOCAL_STATE = threading.local()
@@ -28,8 +27,10 @@ def initialize_backend():
     """
     backend_name = os.environ.get('TENSORLY_BACKEND', _DEFAULT_BACKEND)
     if backend_name not in _KNOWN_BACKENDS:
-        msg = ("TENSORLY_BACKEND should be one of {}, got {}. Defaulting to {}'").format(
-            ', '.join(map(repr, _KNOWN_BACKENDS)), backend_name, _DEFAULT_BACKEND)
+        msg = (
+            "TENSORLY_BACKEND should be one of {}, got {}. Defaulting to {}'"
+        ).format(', '.join(map(repr, _KNOWN_BACKENDS)), backend_name,
+                 _DEFAULT_BACKEND)
         warnings.warn(msg, UserWarning)
         backend_name = _DEFAULT_BACKEND
 
@@ -146,14 +147,15 @@ def override_module_dispatch(module_name, getter_fun, dir_fun):
 
         class BackendAttributeModuleType(types.ModuleType):
             """A module type to dispatch backend generic attributes."""
-
             def __getattr__(self, key):
                 return getter_fun(key)
 
             def __dir__(self):
                 out = set(super().__dir__())
-                out.update({k for k in dir(_LOCAL_STATE.backend)
-                            if not k.startswith('_')})
+                out.update({
+                    k
+                    for k in dir(_LOCAL_STATE.backend) if not k.startswith('_')
+                })
                 return list(out)
 
         sys.modules[module_name].__class__ = BackendAttributeModuleType
@@ -169,8 +171,10 @@ def dispatch(method):
     # We don't use `functools.wraps` here because some of the dispatched
     # methods include the backend (`self`) as a parameter. Instead we manually
     # copy over the needed information, and filter the signature for `self`.
-    for attr in ['__module__', '__name__', '__qualname__', '__doc__',
-                 '__annotations__']:
+    for attr in [
+            '__module__', '__name__', '__qualname__', '__doc__',
+            '__annotations__'
+    ]:
         try:
             setattr(inner, attr, getattr(method, attr))
         except AttributeError:
@@ -230,9 +234,6 @@ einsum = dispatch(Backend.einsum)
 random = dispatch(Backend.random)
 seed = dispatch(Backend.seed)
 
-
 # Initialise the backend to the default one
 initialize_backend()
-override_module_dispatch(__name__,
-                         _get_backend_method,
-                         _get_backend_dir)
+override_module_dispatch(__name__, _get_backend_method, _get_backend_dir)
