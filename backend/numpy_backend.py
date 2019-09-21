@@ -65,19 +65,20 @@ class NumpyBackend(Backend):
         operation = source + '->' + target + common_dim
 
         if weights is not None:
-            matrices = [m if i else m *
-                        self.reshape(weights, (1, -
-                                               1)) for i, m in enumerate(matrices)]
+            matrices = [
+                m if i else m * self.reshape(weights, (1, -1))
+                for i, m in enumerate(matrices)
+            ]
 
         return np.einsum(operation, *matrices).reshape((-1, n_columns)) * mask
 
 
-for name in ['reshape', 'moveaxis', 'where', 'copy', 'transpose',
-             'arange', 'ones', 'ones_like', 'zeros',
-             'zeros_like', 'eye', 'kron', 'concatenate', 'max', 'min',
-             'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt', 'argmin',
-             'argmax', 'stack', 'conj', 'array_equal', 'power',
-             'einsum']:
+for name in [
+        'reshape', 'moveaxis', 'where', 'copy', 'transpose', 'arange', 'ones',
+        'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
+        'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
+        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power', 'einsum'
+]:
     NumpyBackend.register_method(name, getattr(np, name))
 
 for name in ['solve', 'qr']:
