@@ -138,14 +138,29 @@ class Op(object):
         raise NotImplementedError
 
 
+class AddNode(Node):
+    """A node that add two node together"""
+    def __init__(self, node_A, node_B):
+        assert node_A.shape == node_B.shape
+        self.inputs = [node_A, node_B]
+        self.name = "(%s+%s)" % (node_A.name, node_B.name)
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Compute the value of the self node given the input_vals"""
+        assert len(input_vals) == 2
+        # Don't allow broadcast.
+        assert input_vals[0].shape == input_vals[1].shape
+        return input_vals[0] + input_vals[1]
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad, output_grad]
+
+
 class AddOp(Op):
     """Op to element-wise add two nodes."""
     def __call__(self, node_A, node_B):
-        assert node_A.shape == node_B.shape
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A, node_B]
-        new_node.name = "(%s+%s)" % (node_A.name, node_B.name)
-        new_node.shape = node_A.shape
+        new_node = AddNode(node_A, node_B)
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -153,84 +168,131 @@ class AddOp(Op):
         assert len(inputs) == 2
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
 
-    def compute(self, node, input_vals):
-        """Given values of two input nodes, return result of element-wise addition."""
-        assert len(input_vals) == 2
-        # Don't allow broadcast.
-        assert input_vals[0].shape == input_vals[1].shape
-        return input_vals[0] + input_vals[1]
 
-    def transposed_vjp(self, node, output_grad):
-        return [output_grad, output_grad]
+class AddByConstNode(Node):
+    """Node to element-wise add a nodes by a constant."""
+    def __init__(self, node_A, const_val):
+        self.const_attr = const_val
+        self.inputs = [node_A]
+        self.name = "(%s+%s)" % (node_A.name, str(const_val))
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Given values of input node, return result of element-wise addition."""
+        assert len(input_vals) == 1
+        return input_vals[0] + self.const_attr
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad]
 
 
 class AddByConstOp(Op):
     """Op to element-wise add a nodes by a constant."""
     def __call__(self, node_A, const_val):
-        new_node = Op.__call__(self)
-        new_node.const_attr = const_val
-        new_node.inputs = [node_A]
-        new_node.name = "(%s+%s)" % (node_A.name, str(const_val))
-        new_node.shape = node_A.shape
+        new_node = AddByConstNode(node_A, const_val)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s + %s)" % (inputs[0].name, node.const_attr)
 
-    def compute(self, node, input_vals):
-        """Given values of input node, return result of element-wise addition."""
-        assert len(input_vals) == 1
-        return input_vals[0] + node.const_attr
 
-    def transposed_vjp(self, node, output_grad):
-        return [output_grad]
+class SubNode(Node):
+    """Node to element-wise subtract two nodes."""
+    def __init__(self, node_A, node_B):
+        assert node_A.shape == node_B.shape
+        self.inputs = [node_A, node_B]
+        self.name = "(%s-%s)" % (node_A.name, node_B.name)
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Given values of two input nodes, return result of element-wise addition."""
+        assert len(input_vals) == 2
+        return input_vals[0] - input_vals[1]
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad, -output_grad]
 
 
 class SubOp(Op):
     """Op to element-wise subtract two nodes."""
     def __call__(self, node_A, node_B):
-        assert node_A.shape == node_B.shape
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A, node_B]
-        new_node.name = "(%s-%s)" % (node_A.name, node_B.name)
-        new_node.shape = node_A.shape
+        new_node = SubNode(node_A, node_B)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
-    def compute(self, node, input_vals):
-        """Given values of two input nodes, return result of element-wise addition."""
-        assert len(input_vals) == 2
-        return input_vals[0] - input_vals[1]
 
-    def transposed_vjp(self, node, output_grad):
-        return [output_grad, -output_grad]
+class SubByConstNode(Node):
+    """Node to element-wise add a nodes by a constant."""
+    def __init__(self, node_A, const_val):
+        self.const_attr = const_val
+        self.inputs = [node_A]
+        self.name = "(%s-%s)" % (node_A.name, str(const_val))
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Given values of input node, return result of element-wise addition."""
+        assert len(input_vals) == 1
+        return input_vals[0] - self.const_attr
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad]
 
 
 class SubByConstOp(Op):
     """Op to element-wise add a nodes by a constant."""
     def __call__(self, node_A, const_val):
-        new_node = Op.__call__(self)
-        new_node.const_attr = const_val
-        new_node.inputs = [node_A]
-        new_node.name = "(%s-%s)" % (node_A.name, str(const_val))
-        new_node.shape = node_A.shape
-        return new_node
+        return SubByConstNode(node_A, const_val)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s - %s)" % (inputs[0].name, node.const_attr)
 
-    def compute(self, node, input_vals):
-        """Given values of input node, return result of element-wise addition."""
-        assert len(input_vals) == 1
-        return input_vals[0] - node.const_attr
 
-    def transposed_vjp(self, node, output_grad):
-        return [output_grad]
+class MulNode(Node):
+    def __init__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+        self.inputs = [node_A, node_B]
+        self.scalar_A = scalar_A
+        self.scalar_B = scalar_B
+        self.name = "(%s * %s)" % (node_A.name, node_B.name)
+        if scalar_A:
+            self.shape = node_B.shape
+        elif scalar_B:
+            self.shape = node_A.shape
+        else:
+            assert node_A.shape == node_B.shape
+            self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Given values of two input nodes, return result of element-wise multiplication."""
+        assert len(input_vals) == 2
+        if self.scalar_A is False and self.scalar_B is False:
+            assert input_vals[0].shape == input_vals[1].shape
+        if self.scalar_A:
+            assert input_vals[0].shape == ()
+        if self.scalar_B:
+            assert input_vals[1].shape == ()
+        return input_vals[0] * input_vals[1]
+
+    def transposed_vjp(self, output_grad):
+        if self.scalar_A is False and self.scalar_B is True:
+            return [
+                mul(output_grad, self.inputs[1], False, True),
+                sum(output_grad * self.inputs[0])
+            ]
+        elif self.scalar_A is True and self.scalar_B is False:
+            return [
+                sum(output_grad * self.inputs[1]),
+                mul(output_grad, self.inputs[0], False, True)
+            ]
+        else:
+            return [
+                output_grad * self.inputs[1],
+                output_grad * self.inputs[0],
+            ]
 
 
 class MulOp(Op):
@@ -242,100 +304,123 @@ class MulOp(Op):
         set scalar_A / scalar_B to be True.
         It will affect the vjp expression.
         """
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A, node_B]
-        new_node.scalar_A = scalar_A
-        new_node.scalar_B = scalar_B
-        new_node.name = "(%s * %s)" % (node_A.name, node_B.name)
-        if scalar_A:
-            new_node.shape = node_B.shape
-        elif scalar_B:
-            new_node.shape = node_A.shape
-        else:
-            assert node_A.shape == node_B.shape
-            new_node.shape = node_A.shape
+        new_node = MulNode(node_A, node_B, scalar_A, scalar_B)
         return new_node
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
-    def compute(self, node, input_vals):
-        """Given values of two input nodes, return result of element-wise multiplication."""
-        assert len(input_vals) == 2
-        if node.scalar_A is False and node.scalar_B is False:
-            assert input_vals[0].shape == input_vals[1].shape
-        if node.scalar_A:
-            assert input_vals[0].shape == ()
-        if node.scalar_B:
-            assert input_vals[1].shape == ()
-        return input_vals[0] * input_vals[1]
 
-    def transposed_vjp(self, node, output_grad):
-        if node.scalar_A is False and node.scalar_B is True:
-            return [
-                mul(output_grad, node.inputs[1], False, True),
-                sum(output_grad * node.inputs[0])
-            ]
-        elif node.scalar_A is True and node.scalar_B is False:
-            return [
-                sum(output_grad * node.inputs[1]),
-                mul(output_grad, node.inputs[0], False, True)
-            ]
-        else:
-            return [
-                output_grad * node.inputs[1],
-                output_grad * node.inputs[0],
-            ]
+class MulByConstNode(Node):
+    """Op to element-wise multiply a nodes by a constant."""
+    def __init__(self, node_A, const_val):
+        self.const_attr = const_val
+        self.inputs = [node_A]
+        self.name = "(%s*%s)" % (node_A.name, str(const_val))
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Given values of input node, return result of element-wise multiplication."""
+        assert len(input_vals) == 1
+        return input_vals[0] * self.const_attr
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad * self.const_attr]
 
 
 class MulByConstOp(Op):
     """Op to element-wise multiply a nodes by a constant."""
     def __call__(self, node_A, const_val):
-        new_node = Op.__call__(self)
-        new_node.const_attr = const_val
-        new_node.inputs = [node_A]
-        new_node.name = "(%s*%s)" % (node_A.name, str(const_val))
-        new_node.shape = node_A.shape
-        return new_node
+        return MulByConstNode(node_A, const_val)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "(%s * %s)" % (inputs[0].name, node.const_attr)
 
-    def compute(self, node, input_vals):
+
+class PowerNode(Node):
+    """Op to element-wise power a nodes by a constant."""
+    def __init__(self, node_A, const_val):
+        self.const_attr = const_val
+        self.inputs = [node_A]
+        self.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
         assert len(input_vals) == 1
-        return input_vals[0] * node.const_attr
+        return T.power(input_vals[0], self.const_attr)
 
-    def transposed_vjp(self, node, output_grad):
-        return [output_grad * node.const_attr]
+    def transposed_vjp(self, output_grad):
+        return [
+            output_grad * self.const_attr *
+            power(self.inputs[0], self.const_attr - 1)
+        ]
 
 
 class PowerOp(Op):
     """Op to element-wise power a nodes by a constant."""
     def __call__(self, node_A, const_val):
-        new_node = Op.__call__(self)
-        new_node.const_attr = const_val
-        new_node.inputs = [node_A]
-        new_node.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
-        new_node.shape = node_A.shape
-        return new_node
+        return PowerNode(node_A, const_val)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.power(%s, %s)" % (inputs[0].name, node.const_attr)
 
-    def compute(self, node, input_vals):
-        """Given values of input node, return result of element-wise multiplication."""
-        assert len(input_vals) == 1
-        return T.power(input_vals[0], node.const_attr)
 
-    def transposed_vjp(self, node, output_grad):
-        return [
-            output_grad * node.const_attr *
-            power(node.inputs[0], node.const_attr - 1)
-        ]
+class MatMulNode(Node):
+    """Op to matrix multiply two nodes."""
+    def __init__(self, node_A, node_B):
+        """Create a new node that is the result a matrix multiple of two input nodes.
+
+        Parameters
+        ----------
+        node_A: lhs of matrix multiply
+        node_B: rhs of matrix multiply
+
+        Returns
+        -------
+        Returns a node that is the result a matrix multiple of two input nodes.
+        """
+        self.inputs = [node_A, node_B]
+        self.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
+
+        # when both are matrices
+        if len(node_A.shape) == 2 and len(node_B.shape) == 2:
+            assert node_A.shape[1] == node_B.shape[0]
+            self.shape = [node_A.shape[0], node_B.shape[1]]
+        # vector matmul matrix
+        elif len(node_A.shape) == 1 and len(node_B.shape) == 2:
+            if node_A.shape[0] == node_B.shape[0]:
+                self.shape = [node_B.shape[1]]
+            # the case of outer product
+            elif node_B.shape[0] == 1:
+                self.shape = [node_A.shape[0], node_B.shape[1]]
+        # matrix matmul vector
+        elif len(node_A.shape) == 2 and len(node_B.shape) == 1:
+            assert node_A.shape[1] == node_B.shape[0]
+            self.shape = [node_A.shape[0]]
+        # inner product
+        else:
+            assert node_A.shape[0] == node_B.shape[0]
+            self.shape = [1]
+
+    def compute(self, input_vals):
+        """Given values of input selfs, return result of matrix multiplication."""
+        assert len(input_vals) == 2
+        assert T.is_tensor(input_vals[0])
+        assert T.is_tensor(input_vals[1])
+        return T.dot(input_vals[0], input_vals[1])
+
+    def transposed_vjp(self, output_grad):
+        """Given vjp of multiply self, return vjp contributions to each input.
+
+        Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
+        """
+        grad_A = matmul(output_grad, transpose(self.inputs[1]))
+        grad_B = matmul(transpose(self.inputs[0]), output_grad)
+        return [grad_A, grad_B]
 
 
 class MatMulOp(Op):
@@ -352,54 +437,17 @@ class MatMulOp(Op):
         -------
         Returns a node that is the result a matrix multiple of two input nodes.
         """
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A, node_B]
-        new_node.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
-
-        # when both are matrices
-        if len(node_A.shape) == 2 and len(node_B.shape) == 2:
-            assert node_A.shape[1] == node_B.shape[0]
-            new_node.shape = [node_A.shape[0], node_B.shape[1]]
-        # vector matmul matrix
-        elif len(node_A.shape) == 1 and len(node_B.shape) == 2:
-            if node_A.shape[0] == node_B.shape[0]:
-                new_node.shape = [node_B.shape[1]]
-            # the case of outer product
-            elif node_B.shape[0] == 1:
-                new_node.shape = [node_A.shape[0], node_B.shape[1]]
-        # matrix matmul vector
-        elif len(node_A.shape) == 2 and len(node_B.shape) == 1:
-            assert node_A.shape[1] == node_B.shape[0]
-            new_node.shape = [node_A.shape[0]]
-        # inner product
-        else:
-            assert node_A.shape[0] == node_B.shape[0]
-            new_node.shape = [1]
-        return new_node
+        return MatMulNode(node_A, node_B)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 2
         return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
 
-    def compute(self, node, input_vals):
-        """Given values of input nodes, return result of matrix multiplication."""
-        assert len(input_vals) == 2
-        assert T.is_tensor(input_vals[0])
-        assert T.is_tensor(input_vals[1])
-        return T.dot(input_vals[0], input_vals[1])
 
-    def transposed_vjp(self, node, output_grad):
-        """Given vjp of multiply node, return vjp contributions to each input.
-
-        Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
-        """
-        grad_A = matmul(output_grad, transpose(node.inputs[1]))
-        grad_B = matmul(transpose(node.inputs[0]), output_grad)
-        return [grad_A, grad_B]
-
-
-class EinsumOp(Op):
+class EinsumNode(Node):
     """Op to perform einstein summation for two nodes."""
+
+    # TODO(yejiayu): Mark function staticmethod and change callsite.
     def _name_generator(self, subscripts, names):
         """Generate the einsum name for arbitary number of var names.
 
@@ -417,7 +465,7 @@ class EinsumOp(Op):
         name += ")"
         return name
 
-    def __call__(self, subscripts, *nodes):
+    def __init__(self, subscripts, *nodes):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
@@ -428,23 +476,17 @@ class EinsumOp(Op):
         -------
         Returns a node that is the result of einsum.
         """
-        new_node = Op.__call__(self)
-        new_node.einsum_subscripts = subscripts
-        new_node.inputs = list(nodes)
+        self.einsum_subscripts = subscripts
+        self.inputs = list(nodes)
         node_names = [node.name for node in nodes]
-        new_node.name = self._name_generator(subscripts, node_names)
-        new_node.shape = self._output_shape(subscripts, nodes)
-        return new_node
+        self.name = self._name_generator(subscripts, node_names)
+        self.shape = self._output_shape(subscripts, nodes)
 
-    def s2s_expr(self, inputs, node):
-        input_names = [inputvar.name for inputvar in inputs]
-        return self._name_generator(node.einsum_subscripts, input_names)
-
-    def compute(self, node, input_vals):
+    def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
-        return T.einsum(node.einsum_subscripts, *input_vals)
+        return T.einsum(self.einsum_subscripts, *input_vals)
 
     def _output_shape(self, subscripts, nodes):
         in_shapes = []
@@ -497,46 +539,94 @@ class EinsumOp(Op):
         new_subscripts = new_input_subs + '->' + subs_wrt
         return einsum(new_subscripts, *new_operands)
 
-    def transposed_vjp(self, node, output_grad):
+    def transposed_vjp(self, output_grad):
 
-        if len(node.inputs) > 1:
+        if len(self.inputs) > 1:
             grad_einsums = [
-                self.grad_einsum(i, node, output_grad)
-                for i in range(len(node.inputs))
+                self.grad_einsum(i, self, output_grad)
+                for i in range(len(self.inputs))
             ]
             return grad_einsums
-        if len(node.inputs) == 1:
-            return [einsum(node.einsum_subscripts, output_grad)]
+        if len(self.inputs) == 1:
+            return [einsum(self.einsum_subscripts, output_grad)]
+
+
+class EinsumOp(Op):
+    def __call__(self, subscripts, *nodes):
+        """Create a new node that is the result a matrix multiple of two input nodes.
+
+        Parameters
+        ----------
+        nodes: arbitary number of nodes
+
+        Returns
+        -------
+        Returns a node that is the result of einsum.
+        """
+        return EinsumNode(subscripts, *nodes)
+
+    def s2s_expr(self, inputs, node):
+        input_names = [inputvar.name for inputvar in inputs]
+        return self._name_generator(node.einsum_subscripts, input_names)
+
+
+class NormNode(Node):
+    def __init__(self, node, order=2, axis=None):
+        self.order = order
+        self.axis = axis
+        self.inputs = [node]
+        self.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
+        if axis == None:
+            self.shape = [1]
+        else:
+            raise NotImplementedError
+
+    def compute(self, input_vals):
+        assert len(input_vals) == 1
+        assert T.is_tensor(input_vals[0])
+        return T.norm(input_vals[0], self.order, self.axis)
+
+    def transposed_vjp(self, output_grad):
+        if self.axis is not None or self.order != 2:
+            raise NotImplementedError
+        return [
+            mul(output_grad * norm(self.inputs[0])**(-1),
+                self.inputs[0],
+                scalar_A=True,
+                scalar_B=False)
+        ]
 
 
 class NormOp(Op):
     def __call__(self, node, order=2, axis=None):
-        new_node = Op.__call__(self)
-        new_node.order = order
-        new_node.axis = axis
-        new_node.inputs = [node]
-        new_node.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
-        if axis == None:
-            new_node.shape = [1]
-        else:
-            raise NotImplementedError
-        return new_node
+        return NormNode(node, order, axis)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.norm(%s, %s, %s)" % (inputs[0].name, node.order, node.axis)
 
-    def compute(self, node, input_vals):
+
+class SumNode(Node):
+    def __init__(self, node, axis=None):
+        self.axis = axis
+        self.inputs = [node]
+        self.name = "T.sum(%s, %s)" % (node.name, axis)
+        if axis == None:
+            self.shape = [1]
+        else:
+            raise NotImplementedError
+
+    def compute(self, input_vals):
         assert len(input_vals) == 1
         assert T.is_tensor(input_vals[0])
-        return T.norm(input_vals[0], node.order, node.axis)
+        return T.sum(input_vals[0], self.axis)
 
-    def transposed_vjp(self, node, output_grad):
-        if node.axis is not None or node.order != 2:
+    def transposed_vjp(self, output_grad):
+        if self.axis != None:
             raise NotImplementedError
         return [
-            mul(output_grad * norm(node.inputs[0])**(-1),
-                node.inputs[0],
+            mul(output_grad,
+                oneslike(self.inputs[0]),
                 scalar_A=True,
                 scalar_B=False)
         ]
@@ -544,14 +634,7 @@ class NormOp(Op):
 
 class SumOp(Op):
     def __call__(self, node, axis=None):
-        new_node = Op.__call__(self)
-        new_node.axis = axis
-        new_node.inputs = [node]
-        new_node.name = "T.sum(%s, %s)" % (node.name, axis)
-        if axis == None:
-            new_node.shape = [1]
-        else:
-            raise NotImplementedError
+        new_node = SumNode(node, axis)
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -574,29 +657,32 @@ class SumOp(Op):
         ]
 
 
-class TransposeOp(Op):
-    def __call__(self, node):
-        new_node = Op.__call__(self)
-        new_node.inputs = [node]
-        new_node.name = "T.transpose(%s)" % (node.name)
+class TransposeNode(Node):
+    def __init__(self, node):
+        self.inputs = [node]
+        self.name = "T.transpose(%s)" % (node.name)
         assert len(node.shape) <= 2
         if len(node.shape) == 2:
-            new_node.shape = [node.shape[1], node.shape[0]]
+            self.shape = [node.shape[1], node.shape[0]]
         else:
-            new_node.shape = [1, node.shape[0]]
-        return new_node
+            self.shape = [1, node.shape[0]]
 
-    def s2s_expr(self, inputs, node):
-        assert len(inputs) == 1
-        return "T.transpose(%s)" % (inputs[0].name)
-
-    def compute(self, node, input_vals):
+    def compute(self, input_vals):
         assert len(input_vals) == 1
         assert T.is_tensor(input_vals[0])
         return T.transpose(input_vals[0])
 
-    def transposed_vjp(self, node, output_grad):
+    def transposed_vjp(self, output_grad):
         return [transpose(output_grad)]
+
+
+class TransposeOp(Op):
+    def __call__(self, node):
+        return TransposeNode(node)
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "T.transpose(%s)" % (inputs[0].name)
 
 
 class PlaceholderOp(Op):
@@ -615,36 +701,52 @@ class PlaceholderOp(Op):
         return None
 
 
+class ZerosLikeNode(Node):
+    """Op that represents a constant T.zeros_like."""
+    def __init__(self, node_A):
+        """Creates a node that represents a T.zeros array of same shape as node_A."""
+        self.inputs = [node_A]
+        self.name = "T.zeros_like(%s)" % node_A.name
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Returns zeros_like of the same shape as input."""
+        return T.zeros_like(input_vals[0])
+
+    def transposed_vjp(self, output_grad):
+        return [zeroslike(self.inputs[0])]
+
+
 class ZerosLikeOp(Op):
     """Op that represents a constant T.zeros_like."""
     def __call__(self, node_A):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A]
-        new_node.name = "T.zeros_like(%s)" % node_A.name
-        new_node.shape = node_A.shape
-        return new_node
+        return ZerosLikeNode(node_A)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
         return "T.zeros_like(%s)" % (inputs[0].name)
 
-    def compute(self, node, input_vals):
-        """Returns zeros_like of the same shape as input."""
-        return T.zeros_like(input_vals[0])
 
-    def transposed_vjp(self, node, output_grad):
-        return [zeroslike(node.inputs[0])]
+class OnesLikeNode(Node):
+    def __init__(self, node_A):
+        self.inputs = [node_A]
+        self.name = "T.ones_like(%s)" % node_A.name
+        self.shape = node_A.shape
+
+    def compute(self, input_vals):
+        """Returns ones_like of the same shape as input."""
+        return T.ones_like(input_vals[0])
+
+    def transposed_vjp(self, output_grad):
+        return [zeroslike(self.inputs[0])]
 
 
 class OnesLikeOp(Op):
     """Op that represents a constant T.ones_like."""
     def __call__(self, node_A):
         """Creates a node that represents a T.ones array of same shape as node_A."""
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A]
-        new_node.name = "T.ones_like(%s)" % node_A.name
-        new_node.shape = node_A.shape
+        new_node = OnesLikeNode(node_A)
         return new_node
 
     def s2s_expr(self, inputs, node):
@@ -659,15 +761,32 @@ class OnesLikeOp(Op):
         return [zeroslike(node.inputs[0])]
 
 
+class NegativeNode(Node):
+    """Node that represents negating the input node"""
+    def __init__(self, node_A):
+        """Creates a node that negates node_A."""
+        self.inputs = [node_A]
+        self.name = "(-%s)" % node_A.name
+        self.shape = node_A.shape
+
+    def s2s_expr(self, inputs, node):
+        assert len(inputs) == 1
+        return "(-%s)" % (inputs[0].name)
+
+    def compute(self, input_vals):
+        """Returns ones_like of the same shape as input."""
+        assert (T.is_tensor(input_vals[0]))
+        return -input_vals[0]
+
+    def transposed_vjp(self, output_grad):
+        return [-output_grad]
+
+
 class NegativeOp(Op):
-    """Op that represents a constant T.ones_like."""
+    """Op that represents negating the input node"""
     def __call__(self, node_A):
-        """Creates a node that represents a T.ones array of same shape as node_A."""
-        new_node = Op.__call__(self)
-        new_node.inputs = [node_A]
-        new_node.name = "(-%s)" % node_A.name
-        new_node.shape = node_A.shape
-        return new_node
+        """Creates a node that negates node_A."""
+        return NegativeNode(node_A)
 
     def s2s_expr(self, inputs, node):
         assert len(inputs) == 1
@@ -728,7 +847,7 @@ class Executor:
         for node in topo_order:
             if node not in node_to_val_map:
                 input_vals = [node_to_val_map[val] for val in node.inputs]
-                result = node.op.compute(node, input_vals)
+                result = node.compute(input_vals)
                 node_to_val_map[node] = result
 
         # Collect node values.
@@ -762,8 +881,7 @@ def transposed_vjps_map(output_node, node_list, input_vector):
         transposed_vjp = sum_node_list(node_to_output_grads_list[node])
         node_to_output_grad[node] = transposed_vjp
         for index, input in enumerate(node.inputs):
-            input_transposed_vjp = node.op.transposed_vjp(
-                node, transposed_vjp)[index]
+            input_transposed_vjp = node.transposed_vjp(transposed_vjp)[index]
             if input not in node_to_output_grads_list:
                 node_to_output_grads_list[input] = [input_transposed_vjp]
             else:
