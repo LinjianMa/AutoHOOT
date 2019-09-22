@@ -140,6 +140,10 @@ class Op(object):
 
 class AddNode(Node):
     """A node that add two node together"""
+    @staticmethod
+    def create(*args, **kwargs):
+        return AddNode(*args, **kwargs)
+
     def __init__(self, node_A, node_B):
         assert node_A.shape == node_B.shape
         self.inputs = [node_A, node_B]
@@ -162,15 +166,12 @@ class AddNode(Node):
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
 
 
-class AddOp(Op):
-    """Op to element-wise add two nodes."""
-    def __call__(self, node_A, node_B):
-        new_node = AddNode(node_A, node_B)
-        return new_node
-
-
 class AddByConstNode(Node):
     """Node to element-wise add a nodes by a constant."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return AddByConstNode(*args, **kwargs)
+
     def __init__(self, node_A, const_val):
         self.const_attr = const_val
         self.inputs = [node_A]
@@ -190,15 +191,12 @@ class AddByConstNode(Node):
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
 
 
-class AddByConstOp(Op):
-    """Op to element-wise add a nodes by a constant."""
-    def __call__(self, node_A, const_val):
-        new_node = AddByConstNode(node_A, const_val)
-        return new_node
-
-
 class SubNode(Node):
     """Node to element-wise subtract two nodes."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return SubNode(*args, **kwargs)
+
     def __init__(self, node_A, node_B):
         assert node_A.shape == node_B.shape
         self.inputs = [node_A, node_B]
@@ -218,15 +216,12 @@ class SubNode(Node):
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
 
-class SubOp(Op):
-    """Op to element-wise subtract two nodes."""
-    def __call__(self, node_A, node_B):
-        new_node = SubNode(node_A, node_B)
-        return new_node
-
-
 class SubByConstNode(Node):
     """Node to element-wise add a nodes by a constant."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return SubByConstNode(*args, **kwargs)
+
     def __init__(self, node_A, const_val):
         self.const_attr = const_val
         self.inputs = [node_A]
@@ -246,13 +241,11 @@ class SubByConstNode(Node):
         return "(%s - %s)" % (inputs[0].name, self.const_attr)
 
 
-class SubByConstOp(Op):
-    """Op to element-wise add a nodes by a constant."""
-    def __call__(self, node_A, const_val):
-        return SubByConstNode(node_A, const_val)
-
-
 class MulNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return MulNode(*args, **kwargs)
+
     def __init__(self, node_A, node_B, scalar_A=False, scalar_B=False):
         self.inputs = [node_A, node_B]
         self.scalar_A = scalar_A
@@ -299,21 +292,12 @@ class MulNode(Node):
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
 
-class MulOp(Op):
-    """Op to element-wise multiply two nodes."""
-    def __call__(self, node_A, node_B, scalar_A=False, scalar_B=False):
-        """
-        if one of the input node is a scalar rather than a tensor:
-            e.g. 5 * [[1,2],[3,4]],
-        set scalar_A / scalar_B to be True.
-        It will affect the vjp expression.
-        """
-        new_node = MulNode(node_A, node_B, scalar_A, scalar_B)
-        return new_node
-
-
 class MulByConstNode(Node):
-    """Op to element-wise multiply a nodes by a constant."""
+    """Node to element-wise multiply a nodes by a constant."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return MulByConstNode(*args, **kwargs)
+
     def __init__(self, node_A, const_val):
         self.const_attr = const_val
         self.inputs = [node_A]
@@ -333,14 +317,12 @@ class MulByConstNode(Node):
         return "(%s * %s)" % (inputs[0].name, self.const_attr)
 
 
-class MulByConstOp(Op):
-    """Op to element-wise multiply a nodes by a constant."""
-    def __call__(self, node_A, const_val):
-        return MulByConstNode(node_A, const_val)
-
-
 class PowerNode(Node):
-    """Op to element-wise power a nodes by a constant."""
+    """Node to element-wise power a nodes by a constant."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return PowerNode(*args, **kwargs)
+
     def __init__(self, node_A, const_val):
         self.const_attr = const_val
         self.inputs = [node_A]
@@ -363,14 +345,12 @@ class PowerNode(Node):
         return "T.power(%s, %s)" % (inputs[0].name, self.const_attr)
 
 
-class PowerOp(Op):
-    """Op to element-wise power a nodes by a constant."""
-    def __call__(self, node_A, const_val):
-        return PowerNode(node_A, const_val)
-
-
 class MatMulNode(Node):
-    """Op to matrix multiply two nodes."""
+    """Node to matrix multiply two nodes."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return MatMulNode(*args, **kwargs)
+
     def __init__(self, node_A, node_B):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
@@ -427,25 +407,11 @@ class MatMulNode(Node):
         return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
 
 
-class MatMulOp(Op):
-    """Op to matrix multiply two nodes."""
-    def __call__(self, node_A, node_B):
-        """Create a new node that is the result a matrix multiple of two input nodes.
-
-        Parameters
-        ----------
-        node_A: lhs of matrix multiply
-        node_B: rhs of matrix multiply
-
-        Returns
-        -------
-        Returns a node that is the result a matrix multiple of two input nodes.
-        """
-        return MatMulNode(node_A, node_B)
-
-
 class EinsumNode(Node):
-    """Op to perform einstein summation for two nodes."""
+    """Node to perform einstein summation for two nodes."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return EinsumNode(*args, **kwargs)
 
     # TODO(yejiayu): Mark function staticmethod and change callsite.
     def _name_generator(self, subscripts, names):
@@ -555,22 +521,11 @@ class EinsumNode(Node):
         return self._name_generator(self.einsum_subscripts, input_names)
 
 
-class EinsumOp(Op):
-    def __call__(self, subscripts, *nodes):
-        """Create a new node that is the result a matrix multiple of two input nodes.
-
-        Parameters
-        ----------
-        nodes: arbitary number of nodes
-
-        Returns
-        -------
-        Returns a node that is the result of einsum.
-        """
-        return EinsumNode(subscripts, *nodes)
-
-
 class NormNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return NormNode(*args, **kwargs)
+
     def __init__(self, node, order=2, axis=None):
         self.order = order
         self.axis = axis
@@ -601,12 +556,11 @@ class NormNode(Node):
         return "T.norm(%s, %s, %s)" % (inputs[0].name, self.order, self.axis)
 
 
-class NormOp(Op):
-    def __call__(self, node, order=2, axis=None):
-        return NormNode(node, order, axis)
-
-
 class SumNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return SumNode(*args, **kwargs)
+
     def __init__(self, node, axis=None):
         self.axis = axis
         self.inputs = [node]
@@ -636,13 +590,11 @@ class SumNode(Node):
         return "T.sum(%s, %s)" % (inputs[0].name, self.axis)
 
 
-class SumOp(Op):
-    def __call__(self, node, axis=None):
-        new_node = SumNode(node, axis)
-        return new_node
-
-
 class TransposeNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return TransposeNode(*args, **kwargs)
+
     def __init__(self, node):
         self.inputs = [node]
         self.name = "T.transpose(%s)" % (node.name)
@@ -665,11 +617,6 @@ class TransposeNode(Node):
         return "T.transpose(%s)" % (inputs[0].name)
 
 
-class TransposeOp(Op):
-    def __call__(self, node):
-        return TransposeNode(node)
-
-
 class PlaceholderOp(Op):
     """Op to feed value to a nodes."""
     def __call__(self):
@@ -688,6 +635,10 @@ class PlaceholderOp(Op):
 
 class ZerosLikeNode(Node):
     """Op that represents a constant T.zeros_like."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return ZerosLikeNode(*args, **kwargs)
+
     def __init__(self, node_A):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
         self.inputs = [node_A]
@@ -706,14 +657,11 @@ class ZerosLikeNode(Node):
         return "T.zeros_like(%s)" % (inputs[0].name)
 
 
-class ZerosLikeOp(Op):
-    """Op that represents a constant T.zeros_like."""
-    def __call__(self, node_A):
-        """Creates a node that represents a T.zeros array of same shape as node_A."""
-        return ZerosLikeNode(node_A)
-
-
 class OnesLikeNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return OnesLikeNode(*args, **kwargs)
+
     def __init__(self, node_A):
         self.inputs = [node_A]
         self.name = "T.ones_like(%s)" % node_A.name
@@ -731,16 +679,12 @@ class OnesLikeNode(Node):
         return "T.ones_like(%s)" % (inputs[0].name)
 
 
-class OnesLikeOp(Op):
-    """Op that represents a constant T.ones_like."""
-    def __call__(self, node_A):
-        """Creates a node that represents a T.ones array of same shape as node_A."""
-        new_node = OnesLikeNode(node_A)
-        return new_node
-
-
 class NegativeNode(Node):
     """Node that represents negating the input node"""
+    @staticmethod
+    def create(*args, **kwargs):
+        return NegativeNode(*args, **kwargs)
+
     def __init__(self, node_A):
         """Creates a node that negates node_A."""
         self.inputs = [node_A]
@@ -760,42 +704,23 @@ class NegativeNode(Node):
         return [-output_grad]
 
 
-class NegativeOp(Op):
-    """Op that represents negating the input node"""
-    def __call__(self, node_A):
-        """Creates a node that negates node_A."""
-        return NegativeNode(node_A)
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 1
-        return "(-%s)" % (inputs[0].name)
-
-    def compute(self, node, input_vals):
-        """Returns ones_like of the same shape as input."""
-        assert (T.is_tensor(input_vals[0]))
-        return -input_vals[0]
-
-    def transposed_vjp(self, node, output_grad):
-        return [-output_grad]
-
-
 # Create global singletons of operators.
-add = AddOp()
-mul = MulOp()
-sub = SubOp()
-add_byconst = AddByConstOp()
-mul_byconst = MulByConstOp()
-sub_byconst = SubByConstOp()
-matmul = MatMulOp()
+add = AddNode.create
+mul = MulNode.create
+sub = SubNode.create
+add_byconst = AddByConstNode.create
+mul_byconst = MulByConstNode.create
+sub_byconst = SubByConstNode.create
+matmul = MatMulNode.create
 placeholder = PlaceholderOp()
-oneslike = OnesLikeOp()
-zeroslike = ZerosLikeOp()
-negative = NegativeOp()
-power = PowerOp()
-einsum = EinsumOp()
-norm = NormOp()
-sum = SumOp()
-transpose = TransposeOp()
+oneslike = OnesLikeNode.create
+zeroslike = ZerosLikeNode.create
+negative = NegativeNode.create
+power = PowerNode.create
+einsum = EinsumNode.create
+norm = NormNode.create
+sum = SumNode.create
+transpose = TransposeNode.create
 
 
 class Executor:
