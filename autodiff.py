@@ -89,53 +89,11 @@ def Variable(name, shape=None):
     """User defined variables in an expression.
         e.g. x = Variable(name = "x")
     """
-    placeholder_node = placeholder()
+    placeholder_node = Node()
     placeholder_node.name = name
     placeholder_node.shape = shape
     assert shape != None
     return placeholder_node
-
-
-class Op(object):
-    """Op represents operations performed on nodes."""
-    def __call__(self):
-        """Create a new node and associate the op object with the node.
-
-        Returns
-        -------
-        The new node object.
-        """
-        new_node = Node()
-        new_node.op = self
-        return new_node
-
-    def compute(self, node, input_vals):
-        """Given values of input nodes, compute the output value.
-
-        Parameters
-        ----------
-        node: node that performs the compute.
-        input_vals: values of input nodes.
-
-        Returns
-        -------
-        An output value of the node.
-        """
-        raise NotImplementedError
-
-    def transposed_vjp(self, node, output_grad):
-        """Given value of output vector-jacobian product, compute transposed vjp contributions to each input node.
-
-        Parameters
-        ----------
-        node: node that performs the transposed vjp.
-        output_grad: value of output transposed vjp summed from children nodes' contributions
-
-        Returns
-        -------
-        A list of transposed vjp contributions to each input node respectively.
-        """
-        raise NotImplementedError
 
 
 class AddNode(Node):
@@ -617,22 +575,6 @@ class TransposeNode(Node):
         return "T.transpose(%s)" % (inputs[0].name)
 
 
-class PlaceholderOp(Op):
-    """Op to feed value to a nodes."""
-    def __call__(self):
-        """Creates a variable node."""
-        new_node = Op.__call__(self)
-        return new_node
-
-    def compute(self, node, input_vals):
-        """No compute function since node value is fed directly in Executor."""
-        assert False, "placeholder values provided by feed_dict"
-
-    def transposed_vjp(self, node, output_grad):
-        """No vjp function since node has no inputs."""
-        return None
-
-
 class ZerosLikeNode(Node):
     """Op that represents a constant T.zeros_like."""
     @staticmethod
@@ -712,7 +654,6 @@ add_byconst = AddByConstNode.create
 mul_byconst = MulByConstNode.create
 sub_byconst = SubByConstNode.create
 matmul = MatMulNode.create
-placeholder = PlaceholderOp()
 oneslike = OnesLikeNode.create
 zeroslike = ZerosLikeNode.create
 negative = NegativeNode.create
