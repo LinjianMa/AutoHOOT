@@ -85,6 +85,36 @@ class Node(object):
     __repr__ = __str__
 
 
+class OpNode(Node):
+    """Op represents operations performed on nodes."""
+    def compute(self, node, input_vals):
+        """Given values of input nodes, compute the output value.
+        Parameters
+        ----------
+        node: node that performs the compute.
+        input_vals: values of input nodes.
+        Returns
+        -------
+        An output value of the node.
+        """
+        raise NotImplementedError
+
+    def transposed_vjp(self, node, output_grad):
+        """Given value of output vector-jacobian product, compute transposed vjp contributions to each input node.
+        Parameters
+        ----------
+        node: node that performs the transposed vjp.
+        output_grad: value of output transposed vjp summed from children nodes' contributions
+        Returns
+        -------
+        A list of transposed vjp contributions to each input node respectively.
+        """
+        raise NotImplementedError
+
+    def s2s_expr(self, inputs):
+        raise NotImplementedError
+
+
 def Variable(name, shape=None):
     """User defined variables in an expression.
         e.g. x = Variable(name = "x")
@@ -96,7 +126,7 @@ def Variable(name, shape=None):
     return placeholder_node
 
 
-class AddNode(Node):
+class AddNode(OpNode):
     """A node that add two node together"""
     @staticmethod
     def create(*args, **kwargs):
@@ -124,7 +154,7 @@ class AddNode(Node):
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
 
 
-class AddByConstNode(Node):
+class AddByConstNode(OpNode):
     """Node to element-wise add a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
@@ -149,7 +179,7 @@ class AddByConstNode(Node):
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
 
 
-class SubNode(Node):
+class SubNode(OpNode):
     """Node to element-wise subtract two nodes."""
     @staticmethod
     def create(*args, **kwargs):
@@ -174,7 +204,7 @@ class SubNode(Node):
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
 
-class SubByConstNode(Node):
+class SubByConstNode(OpNode):
     """Node to element-wise add a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
@@ -199,7 +229,7 @@ class SubByConstNode(Node):
         return "(%s - %s)" % (inputs[0].name, self.const_attr)
 
 
-class MulNode(Node):
+class MulNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
         return MulNode(*args, **kwargs)
@@ -250,7 +280,7 @@ class MulNode(Node):
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
 
-class MulByConstNode(Node):
+class MulByConstNode(OpNode):
     """Node to element-wise multiply a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
@@ -275,7 +305,7 @@ class MulByConstNode(Node):
         return "(%s * %s)" % (inputs[0].name, self.const_attr)
 
 
-class PowerNode(Node):
+class PowerNode(OpNode):
     """Node to element-wise power a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
@@ -303,7 +333,7 @@ class PowerNode(Node):
         return "T.power(%s, %s)" % (inputs[0].name, self.const_attr)
 
 
-class MatMulNode(Node):
+class MatMulNode(OpNode):
     """Node to matrix multiply two nodes."""
     @staticmethod
     def create(*args, **kwargs):
@@ -365,7 +395,7 @@ class MatMulNode(Node):
         return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
 
 
-class EinsumNode(Node):
+class EinsumNode(OpNode):
     """Node to perform einstein summation for two nodes."""
     @staticmethod
     def create(*args, **kwargs):
@@ -479,7 +509,7 @@ class EinsumNode(Node):
         return self._name_generator(self.einsum_subscripts, input_names)
 
 
-class NormNode(Node):
+class NormNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
         return NormNode(*args, **kwargs)
@@ -514,7 +544,7 @@ class NormNode(Node):
         return "T.norm(%s, %s, %s)" % (inputs[0].name, self.order, self.axis)
 
 
-class SumNode(Node):
+class SumNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
         return SumNode(*args, **kwargs)
@@ -548,7 +578,7 @@ class SumNode(Node):
         return "T.sum(%s, %s)" % (inputs[0].name, self.axis)
 
 
-class TransposeNode(Node):
+class TransposeNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
         return TransposeNode(*args, **kwargs)
@@ -575,7 +605,7 @@ class TransposeNode(Node):
         return "T.transpose(%s)" % (inputs[0].name)
 
 
-class ZerosLikeNode(Node):
+class ZerosLikeNode(OpNode):
     """Op that represents a constant T.zeros_like."""
     @staticmethod
     def create(*args, **kwargs):
@@ -599,7 +629,7 @@ class ZerosLikeNode(Node):
         return "T.zeros_like(%s)" % (inputs[0].name)
 
 
-class OnesLikeNode(Node):
+class OnesLikeNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
         return OnesLikeNode(*args, **kwargs)
@@ -621,7 +651,7 @@ class OnesLikeNode(Node):
         return "T.ones_like(%s)" % (inputs[0].name)
 
 
-class NegativeNode(Node):
+class NegativeNode(OpNode):
     """Node that represents negating the input node"""
     @staticmethod
     def create(*args, **kwargs):
