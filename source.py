@@ -60,7 +60,7 @@ class SourceToSource():
             e.g. _a = T.transpose(x)
         """
         self._print_to_file_w_indent(
-            f'{self.mid_name} = {node.op.s2s_expr(node.inputs, node)}')
+            f'{self.mid_name} = {node.s2s_expr(node.inputs)}')
         node.name = f'{self.mid_name}'
         self._assign_next_midname()
 
@@ -78,8 +78,7 @@ class SourceToSource():
         """
         forward_node = self.grad_to_forward_map[node]
         self._print_to_file_w_indent(
-            f'_grad{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}'
-        )
+            f'_grad{forward_node.name} = {node.s2s_expr(node.inputs)}')
         node.name = f'_grad{forward_node.name}'
 
     def _sub_forward(self, output_node_list):
@@ -124,8 +123,7 @@ class SourceToSource():
                     node not in vector_list:
                 self._assign_mid_variable(node)
         self._print_to_file_w_indent(
-            f'_gTv = {inner_product_node.op.s2s_expr(inner_product_node.inputs, inner_product_node)}'
-        )
+            f'_gTv = {inner_product_node.s2s_expr(inner_product_node.inputs)}')
         inner_product_node.name = '_gTv'
         return inner_product_node
 
@@ -145,7 +143,7 @@ class SourceToSource():
                 else:
                     forward_node = self.hvp_to_forward_map[node]
                     self._print_to_file_w_indent(
-                        f'_grad2{forward_node.name} = {node.op.s2s_expr(node.inputs, node)}'
+                        f'_grad2{forward_node.name} = {node.s2s_expr(node.inputs)}'
                     )
                     node.name = f'_grad2{forward_node.name}'
 
