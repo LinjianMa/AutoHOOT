@@ -434,6 +434,7 @@ class EinsumNode(OpNode):
         self.inputs = list(nodes)
         node_names = [node.name for node in nodes]
         self.name = self._name_generator(subscripts, node_names)
+        self.subscripts = subscripts
         self.shape = self._output_shape(subscripts, nodes)
 
     def compute(self, input_vals):
