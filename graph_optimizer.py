@@ -3,6 +3,7 @@ import autodiff as ad
 import logging
 import copy
 from numpy.core.einsumfunc import _parse_einsum_input
+from utils import find_topo_sort
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -122,25 +123,30 @@ def fuse_einsums(output_node, input_nodes):
     # Assume output_node is einsum and their children are einsum of any number
     # of input nodes
     assert (isinstance(output_node, ad.EinsumNode))
-    for child in output_node.inputs:
-        assert (isinstance(child, ad.EinsumNode))
-    # redo the subscripts.
-    parent_in_subs, parent_out_subs, _ = _parse_einsum_input(
-        (output_node.subscripts, *output_node.inputs))
+
+    # Assume the graph is independent of others, while all are einsums.
+    # Assume input are variables.
+    for node in input_nodes:
+        assert (isinstance(node, ad.VariableNode))
+
+    # TODO: Get all the einsum nodes in the computation graph.
+    # Note that the order doesn't matter!
+    all_nodes = find_topo_sort([output_node])
+    einsum_nodes = list(
+        filter(lambda x: isinstance(x, ad.EinsumNode), all_nodes))
+
     # We first treat each literal as a different character, and then union.
     # Create a map
-    for node in [output_node, *output_node.inputs]:
-        node.literals = [node.name + str(i) for i in range(2)]
-    for node in input_nodes:
-        node.literals = [node.name + str(i) for i in range(2)]
+    for node in all_nodes:
+        node.literals = [node.name + str(i) for i in range(len(node.shape))]
 
     literal_names = []
-    for node in [output_node, *output_node.inputs, *input_nodes]:
+    for node in all_nodes:
         literal_names += node.literals
 
     # For any literal that are the same, get their pos and connect.
     uf = UF(literal_names)
-    for node in [output_node, *output_node.inputs]:
+    for node in einsum_nodes:
         cross_einsum_connect(uf, node)
 
     uf.assign()

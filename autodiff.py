@@ -115,15 +115,16 @@ class OpNode(Node):
         raise NotImplementedError
 
 
-def Variable(name, shape=None):
-    """User defined variables in an expression.
-        e.g. x = Variable(name = "x")
-    """
-    placeholder_node = Node()
-    placeholder_node.name = name
-    placeholder_node.shape = shape
-    assert shape != None
-    return placeholder_node
+class VariableNode(Node):
+    @staticmethod
+    def create(*args, **kwargs):
+        return VariableNode(*args, **kwargs)
+
+    def __init__(self, name, shape):
+        super().__init__()
+        self.name = name
+        self.shape = shape
+        assert shape != None
 
 
 class AddNode(OpNode):
@@ -678,6 +679,7 @@ class NegativeNode(OpNode):
 
 
 # Create global singletons of operators.
+Variable = VariableNode.create
 add = AddNode.create
 mul = MulNode.create
 sub = SubNode.create
