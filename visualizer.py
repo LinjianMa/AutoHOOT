@@ -3,6 +3,8 @@ import autodiff as ad
 import numpy as np
 from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
 
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# Specify the graph here.
 a1 = ad.Variable(name="a1", shape=[3, 2])
 a2 = ad.Variable(name="a2", shape=[2, 3])
 
@@ -15,6 +17,8 @@ y = ad.einsum('jl,ls->js', b1, b2)
 z = ad.einsum('ij, js->is', x, y)
 
 executor = ad.Executor([z])
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 topo_order = find_topo_sort(executor.eval_node_list)
 
 inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
@@ -35,3 +39,6 @@ for node in topo_order:
         dot.edge(node_i.name, node.name)
 
 print(dot.source)
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# Please visit a online digraph visualizer like
+# https://dreampuf.github.io/GraphvizOnline/
