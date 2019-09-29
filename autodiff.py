@@ -1,7 +1,9 @@
 import numpy as np
 import backend as T
+import copy
 from functools import reduce
 from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import IntGetter
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
@@ -20,10 +22,14 @@ class Node(object):
             self.name: node name for debugging purposes.
         """
         self.inputs = []
+        self.outputs = []  # Use for optimization purpose.
         self.op = None
         self.const_attr = None
         self.name = ""
         self.shape = None
+
+        # This is used for optimization when some nodes need to be cloned.
+        self.suffix_getter = IntGetter()
 
     def __neg__(self):
         return negative(self)
@@ -63,6 +69,13 @@ class Node(object):
     def __matmul__(self, other):
         return matmul(self, other)
 
+    def clone(self):
+        # Generate a new node with a different name.
+        # Should still be a clone node with proper compute/vjp.
+        new_node = copy.deepcopy(self)
+        new_node.name += self.suffix_getter.getint()
+        return new_node
+
     # TODOs:
     # def __div__(self, other): return anp.divide(  self, other)
     # def __mod__(self, other): return anp.mod(     self, other)
@@ -87,6 +100,9 @@ class Node(object):
 
 class OpNode(Node):
     """Op represents operations performed on nodes."""
+    def __init__(self):
+        super().__init__()
+
     def compute(self, node, input_vals):
         """Given values of input nodes, compute the output value.
         Parameters
@@ -134,6 +150,7 @@ class AddNode(OpNode):
 
     def __init__(self, node_A, node_B):
         assert node_A.shape == node_B.shape
+        super().__init__()
         self.inputs = [node_A, node_B]
         self.name = "(%s+%s)" % (node_A.name, node_B.name)
         self.shape = node_A.shape
@@ -161,6 +178,7 @@ class AddByConstNode(OpNode):
         return AddByConstNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):
+        super().__init__()
         self.const_attr = const_val
         self.inputs = [node_A]
         self.name = "(%s+%s)" % (node_A.name, str(const_val))
@@ -187,6 +205,7 @@ class SubNode(OpNode):
 
     def __init__(self, node_A, node_B):
         assert node_A.shape == node_B.shape
+        super().__init__()
         self.inputs = [node_A, node_B]
         self.name = "(%s-%s)" % (node_A.name, node_B.name)
         self.shape = node_A.shape
@@ -211,6 +230,7 @@ class SubByConstNode(OpNode):
         return SubByConstNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):
+        super().__init__()
         self.const_attr = const_val
         self.inputs = [node_A]
         self.name = "(%s-%s)" % (node_A.name, str(const_val))
@@ -235,6 +255,7 @@ class MulNode(OpNode):
         return MulNode(*args, **kwargs)
 
     def __init__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+        super().__init__()
         self.inputs = [node_A, node_B]
         self.scalar_A = scalar_A
         self.scalar_B = scalar_B
@@ -287,6 +308,7 @@ class MulByConstNode(OpNode):
         return MulByConstNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):
+        super().__init__()
         self.const_attr = const_val
         self.inputs = [node_A]
         self.name = "(%s*%s)" % (node_A.name, str(const_val))
@@ -312,6 +334,7 @@ class PowerNode(OpNode):
         return PowerNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):
+        super().__init__()
         self.const_attr = const_val
         self.inputs = [node_A]
         self.name = "T.power(%s, %s)" % (node_A.name, str(const_val))
@@ -351,6 +374,7 @@ class MatMulNode(OpNode):
         -------
         Returns a node that is the result a matrix multiple of two input nodes.
         """
+        super().__init__()
         self.inputs = [node_A, node_B]
         self.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
 
@@ -430,6 +454,7 @@ class EinsumNode(OpNode):
         -------
         Returns a node that is the result of einsum.
         """
+        super().__init__()
         self.einsum_subscripts = subscripts
         self.inputs = list(nodes)
         node_names = [node.name for node in nodes]
@@ -515,6 +540,7 @@ class NormNode(OpNode):
         return NormNode(*args, **kwargs)
 
     def __init__(self, node, order=2, axis=None):
+        super().__init__()
         self.order = order
         self.axis = axis
         self.inputs = [node]
@@ -550,6 +576,7 @@ class SumNode(OpNode):
         return SumNode(*args, **kwargs)
 
     def __init__(self, node, axis=None):
+        super().__init__()
         self.axis = axis
         self.inputs = [node]
         self.name = "T.sum(%s, %s)" % (node.name, axis)
@@ -584,6 +611,8 @@ class TransposeNode(OpNode):
         return TransposeNode(*args, **kwargs)
 
     def __init__(self, node):
+
+        super().__init__()
         self.inputs = [node]
         self.name = "T.transpose(%s)" % (node.name)
         assert len(node.shape) <= 2
@@ -613,6 +642,7 @@ class ZerosLikeNode(OpNode):
 
     def __init__(self, node_A):
         """Creates a node that represents a T.zeros array of same shape as node_A."""
+        super().__init__()
         self.inputs = [node_A]
         self.name = "T.zeros_like(%s)" % node_A.name
         self.shape = node_A.shape
@@ -635,6 +665,7 @@ class OnesLikeNode(OpNode):
         return OnesLikeNode(*args, **kwargs)
 
     def __init__(self, node_A):
+        super().__init__()
         self.inputs = [node_A]
         self.name = "T.ones_like(%s)" % node_A.name
         self.shape = node_A.shape
@@ -659,6 +690,7 @@ class NegativeNode(OpNode):
 
     def __init__(self, node_A):
         """Creates a node that negates node_A."""
+        super().__init__()
         self.inputs = [node_A]
         self.name = "(-%s)" % node_A.name
         self.shape = node_A.shape

@@ -7,9 +7,22 @@ import time
 import numpy as np
 import numpy.linalg as la
 
+
 ##############################
 ####### Helper Methods #######
 ##############################
+class IntGetter():
+    """ Return a int and increment"""
+    def __init__(self):
+        self.val = 0
+
+    def getint(self):
+        """
+            Returns an stringlized int. Increment after return.
+        """
+        previous_val = self.val
+        self.val = self.val + 1
+        return str(previous_val)
 
 
 def einsum_grad_subscripts(subscripts, left=True):
