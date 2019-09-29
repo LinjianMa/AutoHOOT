@@ -25,6 +25,20 @@ class IntGetter():
         return str(previous_val)
 
 
+class OutputInjectedMode:
+    def __init__(self, nodes):
+        self.nodes = nodes
+
+    def __enter__(self):
+        for n in self.nodes:
+            for n_i in n.inputs:
+                n_i.outputs.append(n)
+
+    def __exit__(self, type, value, traceback):
+        for n in self.nodes:
+            n.outputs = []
+
+
 def einsum_grad_subscripts(subscripts, left=True):
     match = re.search(r'^(.*),(.*)->(.*)', subscripts)
     if left:

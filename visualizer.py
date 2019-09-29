@@ -2,6 +2,7 @@ from graphviz import Digraph
 import autodiff as ad
 import numpy as np
 from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import OutputInjectedMode
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Specify the graph here.
@@ -22,23 +23,24 @@ executor = ad.Executor([z])
 topo_order = find_topo_sort(executor.eval_node_list)
 
 inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
-outputs = filter(lambda x: len(x.inputs) == 0, topo_order)
+with OutputInjectedMode(topo_order):
+    outputs = filter(lambda x: len(x.outputs) == 0, topo_order)
 
-dot = Digraph(comment='Poorman Computation Graph')
-with dot.subgraph() as s:
-    s.attr(rank='same')
-    for n in inputs:
-        s.node(n.name, color='blue')
-with dot.subgraph() as s:
-    s.attr(rank='same')
-    for n in outputs:
-        s.node(n.name, color='red')
-for node in topo_order:
-    dot.node(node.name, node.name)
-    for node_i in node.inputs:
-        dot.edge(node_i.name, node.name)
+    dot = Digraph(comment='Poorman Computation Graph')
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        for n in inputs:
+            s.node(n.name, color='blue')
+    with dot.subgraph() as s:
+        s.attr(rank='same')
+        for n in outputs:
+            s.node(n.name, color='red')
+    for node in topo_order:
+        dot.node(node.name, node.name)
+        for node_i in node.inputs:
+            dot.edge(node_i.name, node.name)
 
-print(dot.source)
+    print(dot.source)
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Please visit a online digraph visualizer like
 # https://dreampuf.github.io/GraphvizOnline/

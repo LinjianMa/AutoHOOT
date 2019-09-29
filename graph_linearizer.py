@@ -1,18 +1,4 @@
-from utils import find_topo_sort
-
-
-class OutputInjectedMode:
-    def __init__(self, nodes):
-        self.nodes = nodes
-
-    def __enter__(self):
-        for n in self.nodes:
-            for n_i in n.inputs:
-                n_i.outputs.append(n)
-
-    def __exit__(self, type, value, traceback):
-        for n in self.nodes:
-            n.outputs = []
+from utils import find_topo_sort, OutputInjectedMode
 
 
 def linearize(output_node, input_nodes):
