@@ -8,6 +8,7 @@ from visualizer import print_computation_graph
 from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy']
 
 
 def test_einsum():
@@ -171,7 +172,11 @@ def test_einsum_multiuse_auto_copy():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
+        print_computation_graph(output)
         out_new, input_nodes = linearize(output, [a, b])
+
+        print_computation_graph(out_new)
+
         a_new, b_new = input_nodes  # Here we keep track of the original input.
 
         # Need to manually find the to be fused nodes.
@@ -181,6 +186,7 @@ def test_einsum_multiuse_auto_copy():
         ]
 
         out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
+        print_computation_graph(out_new)
 
         executor = ad.Executor([out_new])
         # Should only run part of the graph.
@@ -190,6 +196,3 @@ def test_einsum_multiuse_auto_copy():
 
         assert T.array_equal(out_val, expected_outval)
         assert T.array_equal(out_new, expected_outval)
-
-
-test_einsum_multiuse_auto_copy()
