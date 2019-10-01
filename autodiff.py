@@ -71,10 +71,11 @@ class Node(object):
 
     def clone(self):
         # Generate a new node with a different name.
-        # Should still be a clone node with proper compute/vjp.
-        new_node = copy.deepcopy(self)
-        new_node.name += self.suffix_getter.getint()
-        return new_node
+        new_name = self.name + self.suffix_getter.getint()
+        return CloneNode(self, new_name)
+
+    def set_inputs(self, inputs):
+        self.inputs = inputs
 
     # TODOs:
     # def __div__(self, other): return anp.divide(  self, other)
@@ -141,6 +142,26 @@ class VariableNode(Node):
         self.name = name
         self.shape = shape
         assert shape != None
+
+
+# This is a straight through node.
+class CloneNode(OpNode):
+    @staticmethod
+    def create(*args, **kwargs):
+        return CloneNode(*args, **kwargs)
+
+    def __init__(self, node, name):
+        super().__init__()
+        self.name = name
+        self.shape = node.shape
+        self.inputs = [node]
+
+    def compute(self, input_vals):
+        assert len(input_vals) == 1
+        return input_vals[0]
+
+    def transposed_vjp(self, output_grad):
+        return [output_grad]
 
 
 class AddNode(OpNode):
@@ -457,11 +478,19 @@ class EinsumNode(OpNode):
         """
         super().__init__()
         self.einsum_subscripts = subscripts
-        self.inputs = list(nodes)
-        node_names = [node.name for node in nodes]
-        self.name = self._name_generator(subscripts, node_names)
+        self.set_inputs(*nodes)
         self.subscripts = subscripts
         self.shape = self._output_shape(subscripts, nodes)
+
+    def set_inputs(self, *nodes):
+        """
+            USED DURING OPTIMIZATION 
+            Inputs must be changed through this.
+            Name update is needed to ensure the correctness of the fuser.
+        """
+        self.inputs = list(nodes)
+        node_names = [node.name for node in nodes]
+        self.name = self._name_generator(self.einsum_subscripts, node_names)
 
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -755,7 +784,10 @@ class Executor:
         topo_order = find_topo_sort(self.eval_node_list)
         for node in topo_order:
             if node not in node_to_val_map:
+                print(f'run: {node}')
+                print(f'eval map: {node_to_val_map}')
                 input_vals = [node_to_val_map[val] for val in node.inputs]
+                print(f'input_vals: {input_vals}')
                 result = node.compute(input_vals)
                 node_to_val_map[node] = result
 

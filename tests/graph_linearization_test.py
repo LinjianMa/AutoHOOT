@@ -3,7 +3,6 @@ import backend as T
 from graph_linearizer import linearize
 
 BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
 
 
 def test_einsum_multiuse():
@@ -14,6 +13,18 @@ def test_einsum_multiuse():
         | \  |
         |  \ |
         |   C
+        |  / 
+        | /
+        output
+
+        will produce
+
+        An einsum graph like
+        A    B   inputs 
+        |\   |
+        | A1 |
+        |  \ |
+        A2  C
         |  / 
         | /
         output
@@ -46,6 +57,3 @@ def test_einsum_multiuse():
 
         assert T.array_equal(out_val, expected_outval)
         assert T.array_equal(out_new, expected_outval)
-
-
-test_einsum_multiuse()
