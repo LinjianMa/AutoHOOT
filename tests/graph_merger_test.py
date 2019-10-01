@@ -8,7 +8,6 @@ from visualizer import print_computation_graph
 from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
 
 
 def test_einsum():
@@ -93,7 +92,7 @@ def test_einsum_simple_rewrite():
 
 def test_einsum_multiuse():
     """
-        An einsum graph like
+        Test manual fuse.
         A    B   inputs 
         |\   |
         | \  |
@@ -142,7 +141,7 @@ def test_einsum_multiuse():
 
 def test_einsum_multiuse_auto_copy():
     """
-        An einsum graph like
+        Test autolinearization and auto fuse.
         A    B   inputs 
         |\   |
         | \  |
@@ -151,6 +150,8 @@ def test_einsum_multiuse_auto_copy():
         |  / 
         | /
         output
+
+        Next: we would need to autoprune.
     """
 
     for datatype in BACKEND_TYPES:
@@ -171,24 +172,19 @@ def test_einsum_multiuse_auto_copy():
 
         # New graph
         out_new, input_nodes = linearize(output, [a, b])
-        # Need to manually find the nodes.
+        a_new, b_new = input_nodes  # Here we keep track of the original input.
+
+        # Need to manually find the to be fused nodes.
         all_nodes = find_topo_sort([out_new])
         cloned_nodes = [
             tmp for tmp in all_nodes if isinstance(tmp, ad.CloneNode)
         ]
-        print(cloned_nodes)
 
         out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
-        a_new, a_copy_new, b_new = input_nodes
 
-        print_computation_graph(out_new)
         executor = ad.Executor([out_new])
         # Should only run part of the graph.
-        out_new, = executor.run(feed_dict={
-            a_new: a_val,
-            a_copy_new: a_val,
-            b_new: b_val
-        })
+        out_new, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
 
         expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
 
