@@ -47,13 +47,10 @@ def test_einsum_multiuse():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
-        out_new, input_nodes = linearize(output, [a, b])
+        out_new, input_nodes = linearize([output], [a, b])
         a_new, b_new = input_nodes
 
-        executor = ad.Executor([out_new])
-        out_new, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
+        executor = ad.Executor(out_new)
+        out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
 
-        expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
-
-        assert T.array_equal(out_val, expected_outval)
-        assert T.array_equal(out_new, expected_outval)
+        assert T.array_equal(out_val, out_new_val)

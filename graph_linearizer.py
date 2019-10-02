@@ -2,7 +2,7 @@ from utils import find_topo_sort, OutputInjectedMode
 from visualizer import print_computation_graph
 
 
-def linearize(output_node, input_nodes):
+def linearize(output_nodes, input_nodes):
     """
         Linearize a graph by adding clone nodes for computation optimization.
 
@@ -11,7 +11,9 @@ def linearize(output_node, input_nodes):
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
     # Note that
-    all_nodes = find_topo_sort([output_node])
+    assert len(output_nodes) > 0
+    assert len(input_nodes) > 0
+    all_nodes = find_topo_sort(output_nodes)
     # Inject outpus relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
@@ -23,4 +25,4 @@ def linearize(output_node, input_nodes):
                         for tmp in n_o.inputs
                     ])
 
-    return output_node, input_nodes
+    return output_nodes, input_nodes
