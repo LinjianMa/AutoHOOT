@@ -22,12 +22,16 @@ from utils import OutputInjectedMode
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
-def print_computation_graph(output_node):
-    topo_order = find_topo_sort([output_node])
+def print_computation_graph(output_node_list):
+    """
+        ouput_node_list: a list of output nodes.
+    """
+    assert len(output_node_list) > 0
+
+    topo_order = find_topo_sort(output_node_list)
 
     inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
     with OutputInjectedMode(topo_order):
-        outputs = [output_node]
 
         dot = Digraph(comment='Poorman Computation Graph')
         with dot.subgraph() as s:
@@ -36,7 +40,7 @@ def print_computation_graph(output_node):
                 s.node(n.name, color='blue')
         with dot.subgraph() as s:
             s.attr(rank='same')
-            for n in outputs:
+            for n in output_node_list:
                 s.node(n.name, color='red')
         for node in topo_order:
             dot.node(node.name, node.name)
