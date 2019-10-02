@@ -7,9 +7,36 @@ import time
 import numpy as np
 import numpy.linalg as la
 
+
 ##############################
 ####### Helper Methods #######
 ##############################
+class IntGetter():
+    """ Return a int and increment"""
+    def __init__(self):
+        self.val = 0
+
+    def getint(self):
+        """
+            Returns an stringlized int. Increment after return.
+        """
+        previous_val = self.val
+        self.val = self.val + 1
+        return str(previous_val)
+
+
+class OutputInjectedMode:
+    def __init__(self, nodes):
+        self.nodes = nodes
+
+    def __enter__(self):
+        for n in self.nodes:
+            for n_i in n.inputs:
+                n_i.outputs.append(n)
+
+    def __exit__(self, type, value, traceback):
+        for n in self.nodes:
+            n.outputs = []
 
 
 def einsum_grad_subscripts(subscripts, left=True):
@@ -20,8 +47,10 @@ def einsum_grad_subscripts(subscripts, left=True):
         return match.group(1) + ',' + match.group(3) + '->' + match.group(2)
 
 
-def find_topo_sort(node_list):
+def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
+
+    The input_node_list are used to stop. If ever met a input node, stop probing the graph.
 
     A simple algorithm is to do a post-order DFS traversal on the given nodes,
     going backwards based on input edges. Since a node is added to the ordering
@@ -32,17 +61,18 @@ def find_topo_sort(node_list):
     visited = set()
     topo_order = []
     for node in node_list:
-        topo_sort_dfs(node, visited, topo_order)
+        topo_sort_dfs(node, visited, topo_order, input_node_list)
     return topo_order
 
 
-def topo_sort_dfs(node, visited, topo_order):
+def topo_sort_dfs(node, visited, topo_order, input_node_list):
     """Post-order DFS"""
     if node in visited:
         return
     visited.add(node)
-    for n in node.inputs:
-        topo_sort_dfs(n, visited, topo_order)
+    if node not in input_node_list:
+        for n in node.inputs:
+            topo_sort_dfs(n, visited, topo_order, input_node_list)
     topo_order.append(node)
 
 

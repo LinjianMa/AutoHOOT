@@ -126,8 +126,8 @@ def fuse_einsums(output_node, input_nodes):
 
     # Assume the graph is independent of others, while all are einsums.
     # Assume input are variables.
-    for node in input_nodes:
-        assert (isinstance(node, ad.VariableNode))
+    # for node in input_nodes:
+    #     assert (isinstance(node, ad.VariableNode))
 
     # TODO: Get all the einsum nodes in the computation graph.
     # Note that the order doesn't matter!
