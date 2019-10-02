@@ -782,13 +782,9 @@ class Executor:
         # Traverse graph in topological sort order and compute values for all
         # nodes.
         topo_order = find_topo_sort(self.eval_node_list, feed_dict.keys())
-        print(topo_order)
         for node in topo_order:
             if node not in node_to_val_map:
-                print(f'run: {node}')
-                print(f'eval map: {node_to_val_map}')
                 input_vals = [node_to_val_map[val] for val in node.inputs]
-                print(f'input_vals: {input_vals}')
                 result = node.compute(input_vals)
                 node_to_val_map[node] = result
 
