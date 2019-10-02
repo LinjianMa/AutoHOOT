@@ -11,6 +11,36 @@ BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
 
 
+def test_einsum_simple_rewrite():
+    """
+        Rewrite the einsum expression.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a1 = ad.Variable(name="a1", shape=[3, 2])
+        a2 = ad.Variable(name="a2", shape=[2, 3])
+
+        x = ad.einsum('ik,kj->ij', a1, a2)
+
+        executor = ad.Executor([x])
+
+        a1_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        a2_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
+
+        x_val, = executor.run(feed_dict={a1: a1_val, a2: a2_val})
+
+        # New graph
+        x_new, input_nodes = fuse_einsums(x, [a1, a2])
+        a1_new, a2_new = input_nodes
+
+        executor = ad.Executor([x_new])
+        x_new_val, = executor.run(feed_dict={a1_new: a1_val, a2_new: a2_val})
+
+        assert T.array_equal(x_val, x_new_val)
+
+
 def test_einsum():
 
     for datatype in BACKEND_TYPES:
@@ -45,6 +75,7 @@ def test_einsum():
         # New graph
         z_new, input_nodes = fuse_einsums(z, [a1, a2, b1, b2])
         a1_new, a2_new, b1_new, b2_new = input_nodes
+        assert z_new.inputs == input_nodes
 
         executor = ad.Executor([z_new])
         z_new_val, = executor.run(feed_dict={
@@ -54,41 +85,7 @@ def test_einsum():
             b2_new: b2_val
         })
 
-        expected_zval = T.einsum('ik, kj, js, sl->il', a1_val, a2_val, b1_val,
-                                 b2_val)
-
-        assert T.array_equal(z_val, expected_zval)
-        assert T.array_equal(z_new_val, expected_zval)
-
-
-def test_einsum_simple_rewrite():
-
-    for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
-
-        a1 = ad.Variable(name="a1", shape=[3, 2])
-        a2 = ad.Variable(name="a2", shape=[2, 3])
-
-        x = ad.einsum('ik,kj->ij', a1, a2)
-
-        executor = ad.Executor([x])
-
-        a1_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        a2_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        x_val, = executor.run(feed_dict={a1: a1_val, a2: a2_val})
-
-        # New graph
-        x_new, input_nodes = fuse_einsums(x, [a1, a2])
-        a1_new, a2_new = input_nodes
-
-        executor = ad.Executor([x_new])
-        x_new, = executor.run(feed_dict={a1_new: a1_val, a2_new: a2_val})
-
-        expected_xval = T.einsum('ik, kj->ij', a1_val, a2_val)
-
-        assert T.array_equal(x_val, expected_xval)
-        assert T.array_equal(x_new, expected_xval)
+        assert T.array_equal(z_val, z_new_val)
 
 
 def test_einsum_multiuse():
@@ -126,18 +123,16 @@ def test_einsum_multiuse():
         # New graph
         out_new, input_nodes = fuse_einsums(output, [a, a_copy, b])
         a_new, a_copy_new, b_new = input_nodes
+        assert out_new.inputs == input_nodes
 
         executor = ad.Executor([out_new])
-        out_new, = executor.run(feed_dict={
+        out_new_val, = executor.run(feed_dict={
             a_new: a_val,
             a_copy_new: a_val,
             b_new: b_val
         })
 
-        expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
-
-        assert T.array_equal(out_val, expected_outval)
-        assert T.array_equal(out_new, expected_outval)
+        assert T.array_equal(out_val, out_new_val)
 
 
 def test_einsum_multiuse_auto_copy():
@@ -172,10 +167,7 @@ def test_einsum_multiuse_auto_copy():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
-        print_computation_graph(output)
         out_new, input_nodes = linearize(output, [a, b])
-
-        print_computation_graph(out_new)
 
         a_new, b_new = input_nodes  # Here we keep track of the original input.
 
@@ -186,13 +178,10 @@ def test_einsum_multiuse_auto_copy():
         ]
 
         out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
-        print_computation_graph(out_new)
+        assert out_new.inputs == input_nodes
 
         executor = ad.Executor([out_new])
         # Should only run part of the graph.
-        out_new, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
+        out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
 
-        expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
-
-        assert T.array_equal(out_val, expected_outval)
-        assert T.array_equal(out_new, expected_outval)
+        assert T.array_equal(out_val, out_new_val)
