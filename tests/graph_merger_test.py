@@ -167,17 +167,17 @@ def test_einsum_multiuse_auto_copy():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
-        out_new, input_nodes = linearize(output, [a, b])
+        out_new, input_nodes = linearize([output], [a, b])
 
         a_new, b_new = input_nodes  # Here we keep track of the original input.
 
         # Need to manually find the to be fused nodes.
-        all_nodes = find_topo_sort([out_new])
+        all_nodes = find_topo_sort(out_new)
         cloned_nodes = [
             tmp for tmp in all_nodes if isinstance(tmp, ad.CloneNode)
         ]
 
-        out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
+        out_new, input_nodes = fuse_einsums(*out_new, [*cloned_nodes, b])
         assert out_new.inputs == input_nodes
 
         executor = ad.Executor([out_new])
