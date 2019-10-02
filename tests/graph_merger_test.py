@@ -132,8 +132,6 @@ def test_einsum_multiuse():
             b_new: b_val
         })
 
-        expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
-
         assert T.array_equal(out_val, out_new_val)
 
 
@@ -169,10 +167,7 @@ def test_einsum_multiuse_auto_copy():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
-        print_computation_graph(output)
         out_new, input_nodes = linearize(output, [a, b])
-
-        print_computation_graph(out_new)
 
         a_new, b_new = input_nodes  # Here we keep track of the original input.
 
@@ -188,7 +183,5 @@ def test_einsum_multiuse_auto_copy():
         executor = ad.Executor([out_new])
         # Should only run part of the graph.
         out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
-
-        expected_outval = T.einsum('ac,ab,cd->bd', a_val, a_val, b_val)
 
         assert T.array_equal(out_val, out_new_val)
