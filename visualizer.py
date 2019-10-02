@@ -27,7 +27,7 @@ def print_computation_graph(output_node):
 
     inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
     with OutputInjectedMode(topo_order):
-        outputs = filter(lambda x: len(x.outputs) == 0, topo_order)
+        outputs = [output_node]
 
         dot = Digraph(comment='Poorman Computation Graph')
         with dot.subgraph() as s:
