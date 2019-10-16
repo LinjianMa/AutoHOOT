@@ -147,14 +147,34 @@ class SourceToSource():
                     )
                     node.name = f'_grad2{forward_node.name}'
 
-    def forward(self, output_node_list, file=None, function_name='forward'):
+    def _forward_head_print(self):
+        self._print_to_file(f'import backend as T\n')
+
+    def _jax_forward_head_print(self):
+        self._print_to_file(f'import jax.numpy as T\n')
+        self._print_to_file(f'from utils import jit_decorator\n')
+        self._print_to_file(f'@jit_decorator\n')
+
+    def forward(self,
+                output_node_list,
+                file=None,
+                function_name='forward',
+                backend='backend'):
         """Forward pass source code generation.
         function_name: the output function name
+        backend: backend or jax
         """
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
-        self._print_to_file(f'import backend as T\n')
+
+        if backend == 'backend':
+            self._forward_head_print()
+        elif backend == 'jax':
+            self._jax_forward_head_print()
+        else:
+            raise NotImplementedError
+
         self._print_to_file(f'def {function_name}(inputs):')
         self._sub_forward(output_node_list)
         # return expression
