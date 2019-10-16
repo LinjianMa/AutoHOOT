@@ -41,7 +41,11 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
-def cpd_nls(size, rank, regularization=1e-7, optimized=True):
+def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
+    """
+    mode: ad / optimized / jax
+    """
+    assert mode in {'ad', 'jax', 'optimized'}
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -69,6 +73,14 @@ def cpd_nls(size, rank, regularization=1e-7, optimized=True):
                            node_list=[A, B, C],
                            vector_list=[v_A, v_B, v_C])
 
+        if mode == 'jax':
+            from source import SourceToSource
+            StS = SourceToSource()
+            StS.forward(JtJvps,
+                        file=open("examples/jax_jtjvp.py", "w"),
+                        function_name='jtjvp',
+                        backend='jax')
+
         executor_grads = ad.Executor([loss] + grads)
         executor_JtJvps = ad.Executor(JtJvps)
         optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
@@ -81,12 +93,11 @@ def cpd_nls(size, rank, regularization=1e-7, optimized=True):
 
             t0 = time.time()
 
-            from examples.cpd_jtjvp_optimized import jtjvp
-
             def hess_fn(v):
-                if optimized:
+                if mode == 'optimized':
+                    from examples.cpd_jtjvp_optimized import jtjvp
                     return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
-                else:
+                elif mode == 'ad':
                     return executor_JtJvps.run(
                         feed_dict={
                             A: A_val,
@@ -97,6 +108,9 @@ def cpd_nls(size, rank, regularization=1e-7, optimized=True):
                             v_B: v[1],
                             v_C: v[2]
                         })
+                elif mode == 'jax':
+                    from examples.jax_jtjvp import jtjvp
+                    return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
 
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
                 feed_dict={
@@ -133,13 +147,20 @@ def cpd_nls(size, rank, regularization=1e-7, optimized=True):
 
 
 def cpd_nls_benchmark():
-    cg_time_ad, fitness_ad = cpd_nls(size=64, rank=10, optimized=False)
-    cg_time_ad_optimized, fitness_optimized = cpd_nls(size=64,
-                                                      rank=10,
-                                                      optimized=True)
-    assert (abs(fitness_ad - fitness_optimized) < 1e-5)
+    cg_time_ad, fitness_ad = cpd_nls(size=64, rank=10, mode='ad')
+    cg_time_optimized, fitness_optimized = cpd_nls(size=64,
+                                                   rank=10,
+                                                   mode='optimized')
+    cg_time_jax, fitness_jax = cpd_nls(size=64, rank=10, mode='jax')
+
+    assert (abs(fitness_ad - fitness_optimized) < 1e-3)
+    assert (abs(fitness_jax - fitness_optimized) < 1e-3)
+
     print(
-        f"time with AD is {cg_time_ad/cg_time_ad_optimized} times of the optimized implementation."
+        f"time with AD is [{cg_time_ad/cg_time_optimized}] times of the optimized implementation."
+    )
+    print(
+        f"time with jax is [{cg_time_jax/cg_time_optimized}] times of the optimized implementation."
     )
 
 

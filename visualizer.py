@@ -18,7 +18,7 @@ from utils import OutputInjectedMode
 # z = ad.einsum('ij, js->is', x, y)
 #
 # executor = ad.Executor([z])
-# print_computation_graph(z)
+# print_computation_graph([z])
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
