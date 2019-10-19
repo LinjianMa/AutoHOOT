@@ -188,3 +188,42 @@ def test_einsum_multiuse_auto_copy():
         out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
 
         assert T.array_equal(out_val, out_new_val)
+
+
+def test_einsum_multitier():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        input_nodes1, zs1 = get_tree("set1")
+        input_nodes2, zs2 = get_tree("set2")
+        out1 = zs1 + zs2
+
+        input_nodes3, zs3 = get_tree("set3")
+        input_nodes4, zs4 = get_tree("set4")
+        out2 = zs3 + zs4
+        out = ad.einsum("ij, jk->ik", out1, out2)
+
+        executor = ad.Executor([out])
+        print_computation_graph([out])
+
+        # input_values = [
+        #     T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
+        #     T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
+        #     T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
+        #     T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
+        # ]
+        # z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
+
+        # # New graph
+        # z_new, input_nodes = fuse_einsums(z, input_nodes)
+        # assert z_new.inputs == input_nodes
+
+        # executor = ad.Executor([z_new])
+        # z_new_val, = executor.run(
+        #     feed_dict=dict(zip(input_nodes, input_values)))
+
+        # assert T.array_equal(z_val, z_new_val)
+
+
+test_einsum_multitier()

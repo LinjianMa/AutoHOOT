@@ -162,3 +162,15 @@ def fuse_einsums(output_node, input_nodes):
     output_node = ad.einsum(new_subscripts, *input_nodes)
 
     return output_node, input_nodes
+
+
+def find_sub_einsumtree(output_node, input_nodes):
+    """
+    Finds all the subtrees from the given graph definition.
+    Arguments:
+        output_node: the root of the tree
+        input_nodes: leaf of the tree
+    Returns:
+        a list of trees defined by their input, output nodes (as a tuple).
+    """
+    return [(output_node, input_nodes)]
