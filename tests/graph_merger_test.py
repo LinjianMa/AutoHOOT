@@ -11,6 +11,29 @@ BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
 
 
+###############################################################################
+# Helper functions for the tests
+###############################################################################
+def get_tree(prefix=""):
+    """
+        Returns input node list and outputnode
+    """
+    a1 = ad.Variable(name=prefix + "a1", shape=[3, 2])
+    a2 = ad.Variable(name=prefix + "a2", shape=[2, 3])
+
+    b1 = ad.Variable(name=prefix + "b1", shape=[3, 2])
+    b2 = ad.Variable(name=prefix + "b2", shape=[2, 3])
+
+    x = ad.einsum('ik,kj->ij', a1, a2)
+    y = ad.einsum('jl,ls->js', b1, b2)
+
+    z = ad.einsum('ij, js->is', x, y)
+    return [a1, a2, b1, b2], z
+
+
+###############################################################################
+
+
 def test_einsum_simple_rewrite():
     """
         Rewrite the einsum expression.
@@ -46,44 +69,24 @@ def test_einsum():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        a1 = ad.Variable(name="a1", shape=[3, 2])
-        a2 = ad.Variable(name="a2", shape=[2, 3])
+        input_nodes, z = get_tree()
+        executor = ad.Executor([z])
 
-        b1 = ad.Variable(name="b1", shape=[3, 2])
-        b2 = ad.Variable(name="b2", shape=[2, 3])
-
-        x = ad.einsum('ik,kj->ij', a1, a2)
-        y = ad.einsum('jl,ls->js', b1, b2)
-
-        z = ad.einsum('ij, js->is', x, y)
-
-        executor = ad.Executor([z, x, y])
-
-        a1_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        a2_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        b1_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b2_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        z_val, x_val, y_val = executor.run(feed_dict={
-            a1: a1_val,
-            a2: a2_val,
-            b1: b1_val,
-            b2: b2_val
-        })
+        input_values = [
+            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
+            T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
+            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
+            T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
+        ]
+        z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
 
         # New graph
-        z_new, input_nodes = fuse_einsums(z, [a1, a2, b1, b2])
-        a1_new, a2_new, b1_new, b2_new = input_nodes
+        z_new, input_nodes = fuse_einsums(z, input_nodes)
         assert z_new.inputs == input_nodes
 
         executor = ad.Executor([z_new])
-        z_new_val, = executor.run(feed_dict={
-            a1_new: a1_val,
-            a2_new: a2_val,
-            b1_new: b1_val,
-            b2_new: b2_val
-        })
+        z_new_val, = executor.run(
+            feed_dict=dict(zip(input_nodes, input_values)))
 
         assert T.array_equal(z_val, z_new_val)
 
