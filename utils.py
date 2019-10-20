@@ -10,10 +10,12 @@ import numpy.linalg as la
 
 def jit_decorator(forward):
     from jax import jit
+
     def wrapper_jit(*args, **kwargs):
         jit_forward = jit(forward)
         jax_np_array = jit_forward(*args, **kwargs)
         return [np.asarray(element) for element in jax_np_array]
+
     return wrapper_jit
 
 

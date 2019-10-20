@@ -173,4 +173,11 @@ def find_sub_einsumtree(output_node, input_nodes):
     Returns:
         a list of trees defined by their input, output nodes (as a tuple).
     """
+    # Traverse. run union find for each edge. Each edge represents a connection relationship.
+    # If two nodes are both einsum node, we can link together.
+
+    # TODO: extend the UF value type.
+    # uf = UF(...)
+    # for each node in the graph, use their input/output relation to UF.
+
     return [(output_node, input_nodes)]
