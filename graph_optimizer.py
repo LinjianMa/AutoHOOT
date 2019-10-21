@@ -7,6 +7,7 @@ from collections import defaultdict
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter
 from utils import get_root, get_leaves
+from union_find import UFBase
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -32,14 +33,11 @@ class CharacterGetter():
         return previous_char
 
 
-### Assign each UF parent a character val.
-class UF():
+### Assign each UF group a character val.
+class UF(UFBase):
     def __init__(self, literal_names):
-        self.parent_map = {}
+        super().__init__(literal_names)
         self.cg = CharacterGetter()
-        self.roots = {}
-        for name in literal_names:
-            self.parent_map[name] = name
 
     def assign(self):
         """
@@ -52,32 +50,23 @@ class UF():
             if rootname not in self.roots:
                 self.roots[rootname] = self.cg.getchar()
 
-    def root(self, n1):
-        """
-            Returns the root of the given node.
-        """
-        n = n1
-        while self.parent_map[n] != n:
-            n = self.parent_map[n]
-        return n
 
-    def connect(self, n1, n2):
-        """
-            Union two nodes.
-        """
-        rootn1 = self.root(n1)
-        rootn2 = self.root(n2)
-        if rootn1 == rootn2:
-            # Already connected.
-            return
-        self.parent_map[rootn1] = rootn2
+### Assign each UF parent a int value for group.
+class UFNodes(UFBase):
+    def __init__(self, nodes):
+        super().__init__(nodes)
+        self.ig = IntGetter()
 
-    # Must be called after assign
-    def rootval(self, n1):
+    def assign(self):
         """
-            Returns the assigned character of the given node's root.
+            Get all parent and assign a int for each group.
+            Should be only called once.
         """
-        return self.roots[self.root(n1)]
+        assert len(self.roots) == 0
+        for node in self.parent_map.keys():
+            rootnode = self.root(node)
+            if rootnode not in self.roots:
+                self.roots[rootnode] = self.ig.getint()
 
 
 def cross_einsum_connect(uf, output_node):
@@ -165,57 +154,6 @@ def fuse_einsums(output_node, input_nodes):
     output_node = ad.einsum(new_subscripts, *input_nodes)
 
     return output_node, input_nodes
-
-
-### Assign each UF parent a int value for group.
-class UFNodes():
-    """
-    TODO(yejiayu): Merge with the UF code.
-    """
-    def __init__(self, nodes):
-        self.parent_map = {}
-        self.ig = IntGetter()
-        self.roots = {}
-        for node in nodes:
-            self.parent_map[node] = node
-
-    def assign(self):
-        """
-            Get all parent and assign a character for each group.
-            Should be only called once.
-        """
-        assert len(self.roots) == 0
-        for node in self.parent_map.keys():
-            rootnode = self.root(node)
-            if rootnode not in self.roots:
-                self.roots[rootnode] = self.ig.getint()
-
-    def root(self, n1):
-        """
-            Returns the root of the given node.
-        """
-        n = n1
-        while self.parent_map[n] != n:
-            n = self.parent_map[n]
-        return n
-
-    def connect(self, n1, n2):
-        """
-            Union two nodes.
-        """
-        rootn1 = self.root(n1)
-        rootn2 = self.root(n2)
-        if rootn1 == rootn2:
-            # Already connected.
-            return
-        self.parent_map[rootn1] = rootn2
-
-    # Must be called after assign
-    def rootval(self, n1):
-        """
-            Returns the assigned character of the given node's root.
-        """
-        return self.roots[self.root(n1)]
 
 
 def find_sub_einsumtree(output_node, input_nodes):

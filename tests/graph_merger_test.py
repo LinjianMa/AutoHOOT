@@ -230,6 +230,3 @@ def test_einsum_multitier():
             feed_dict=dict(zip(input_nodes, input_values)))
 
         assert T.array_equal(z_val, z_new_val)
-
-
-test_einsum_multitier()
