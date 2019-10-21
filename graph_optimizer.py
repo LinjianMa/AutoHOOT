@@ -2,8 +2,11 @@
 import autodiff as ad
 import logging
 import copy
+from collections import defaultdict
+
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort
+from utils import find_topo_sort, IntGetter
+from utils import get_root, get_leaves
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -126,12 +129,12 @@ def fuse_einsums(output_node, input_nodes):
 
     # Assume the graph is independent of others, while all are einsums.
     # Assume input are variables.
-    # for node in input_nodes:
-    #     assert (isinstance(node, ad.VariableNode))
+    for node in input_nodes:
+        assert (not isinstance(node, ad.EinsumNode))
 
     # TODO: Get all the einsum nodes in the computation graph.
     # Note that the order doesn't matter!
-    all_nodes = find_topo_sort([output_node])
+    all_nodes = find_topo_sort([output_node], input_nodes)
     einsum_nodes = list(
         filter(lambda x: isinstance(x, ad.EinsumNode), all_nodes))
 
@@ -162,3 +165,107 @@ def fuse_einsums(output_node, input_nodes):
     output_node = ad.einsum(new_subscripts, *input_nodes)
 
     return output_node, input_nodes
+
+
+### Assign each UF parent a int value for group.
+class UFNodes():
+    """
+    TODO(yejiayu): Merge with the UF code.
+    """
+    def __init__(self, nodes):
+        self.parent_map = {}
+        self.ig = IntGetter()
+        self.roots = {}
+        for node in nodes:
+            self.parent_map[node] = node
+
+    def assign(self):
+        """
+            Get all parent and assign a character for each group.
+            Should be only called once.
+        """
+        assert len(self.roots) == 0
+        for node in self.parent_map.keys():
+            rootnode = self.root(node)
+            if rootnode not in self.roots:
+                self.roots[rootnode] = self.ig.getint()
+
+    def root(self, n1):
+        """
+            Returns the root of the given node.
+        """
+        n = n1
+        while self.parent_map[n] != n:
+            n = self.parent_map[n]
+        return n
+
+    def connect(self, n1, n2):
+        """
+            Union two nodes.
+        """
+        rootn1 = self.root(n1)
+        rootn2 = self.root(n2)
+        if rootn1 == rootn2:
+            # Already connected.
+            return
+        self.parent_map[rootn1] = rootn2
+
+    # Must be called after assign
+    def rootval(self, n1):
+        """
+            Returns the assigned character of the given node's root.
+        """
+        return self.roots[self.root(n1)]
+
+
+def find_sub_einsumtree(output_node, input_nodes):
+    """
+    Finds all the subtrees from the given graph definition.
+    Arguments:
+        output_node: the root of the tree
+        input_nodes: leaf of the tree
+    Returns:
+        a list of trees defined by their input, output nodes (as a tuple).
+    """
+    # Traverse. run union find for each edge. Each edge represents a connection relationship.
+    # If two nodes are both einsum node, we can link together.
+    all_nodes = find_topo_sort([output_node], input_nodes)
+    uf = UFNodes(all_nodes)
+    for node in all_nodes:
+        for cur_input in node.inputs:
+            # link current node and cur_input if they are both Einsum node.
+            if isinstance(node, ad.EinsumNode) and isinstance(
+                    cur_input, ad.EinsumNode):
+                uf.connect(node, cur_input)
+
+    uf.assign()
+    groups = defaultdict(set)
+    results = []
+    for node in all_nodes:
+        groups[uf.rootval(node)].add(node)
+        # print(f'name: {node} + val: {uf.rootval(node)}')
+    # For now each einsum tree has been marked with all adjacent einsum nodes.
+    # Then for all the leaf einsum nodes and include their inputs.
+    # Note: einsum node leaf's input must not be an Einsum node (otherwise it will be the leaf).
+    for k, nodes in groups.items():
+        # How to find leaves...
+        assert len(nodes) > 0
+        # Root must be the the node that is not contained in any nodes input.
+        parent = get_root(nodes)
+        # We only work with einsum trees.
+        if not isinstance(parent, ad.EinsumNode):
+            continue
+
+        leaves = get_leaves(nodes)
+
+        for leaf in leaves:
+            uf.roots[leaf] = k
+
+        nodes = nodes | leaves  # This is only for debug.
+
+        results.append((parent, list(leaves)))
+
+    # for node in all_nodes:
+    #     print(f'name: {node} + val: {uf.rootval(node)}')
+
+    return results
