@@ -2,7 +2,7 @@ import autodiff as ad
 import numpy as np
 import backend as T
 from source import SourceToSource
-from graph_optimizer import fuse_einsums
+from graph_optimizer import fuse_einsums, find_sub_einsumtree
 from graph_linearizer import linearize
 from visualizer import print_computation_graph
 from utils import find_topo_sort
@@ -203,27 +203,33 @@ def test_einsum_multitier():
         input_nodes4, zs4 = get_tree("set4")
         out2 = zs3 + zs4
         out = ad.einsum("ij, jk->ik", out1, out2)
+        input_nodes = input_nodes1 + input_nodes2 + input_nodes3 + input_nodes4
 
         executor = ad.Executor([out])
-        print_computation_graph([out])
 
-        # input_values = [
-        #     T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
-        #     T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
-        #     T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
-        #     T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
-        # ]
-        # z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
+        input_values = [
+            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
+            T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
+            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
+            T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
+        ] * 4
+        z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
 
-        # # New graph
-        # z_new, input_nodes = fuse_einsums(z, input_nodes)
-        # assert z_new.inputs == input_nodes
+        trees = find_sub_einsumtree(out, input_nodes)
+        new_zs = []
+        for tree in trees:
+            out_node, in_nodes = tree
+            new_z, _ = fuse_einsums(out_node, in_nodes)
+            new_zs.append(new_z)
+        # TODO(yejiayu): For now the replacement is not inplace, will need API to replace node in the graph.
+        new_output = ad.einsum("ij,jk->ik", new_zs[0] + new_zs[1],
+                               new_zs[2] + new_zs[3])
 
-        # executor = ad.Executor([z_new])
-        # z_new_val, = executor.run(
-        #     feed_dict=dict(zip(input_nodes, input_values)))
+        executor = ad.Executor([out])
+        z_new_val, = executor.run(
+            feed_dict=dict(zip(input_nodes, input_values)))
 
-        # assert T.array_equal(z_val, z_new_val)
+        assert T.array_equal(z_val, z_new_val)
 
 
 test_einsum_multitier()

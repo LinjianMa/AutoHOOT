@@ -58,6 +58,50 @@ def einsum_grad_subscripts(subscripts, left=True):
         return match.group(1) + ',' + match.group(3) + '->' + match.group(2)
 
 
+def get_root(nodes):
+    """
+        Returns the root of a set of nodes. Nodes is connected and a tree.
+        Args:
+            Nodes is a list of graph nodes.
+        Returns:
+            one single node that is the root.
+        Idea: The root must not any nodes input.
+        Complexity: O(N^2)
+    """
+    all_inputs = set()
+    for n in nodes:
+        for n_i in n.inputs:
+            all_inputs.add(n_i)
+    for n in nodes:
+        if n not in all_inputs:
+            return n
+
+
+def get_leaves(nodes):
+    """
+        Returns leaves of a set of nodes. Nodes is connected and a tree.
+        Args:
+            Nodes is a list of graph nodes.
+        Returns:
+            a set of nodes that is the root.
+        Idea: Leaves' input must not be a node in the group.
+        Complexity: O(N^2)
+    """
+    leafs = set()
+    for n in nodes:
+        is_leaf = True
+        for n_i in n.inputs:
+            if n_i in nodes:
+                # must not be leaf.
+                is_leaf = False
+                break
+        if is_leaf:
+            # If is leaf, we include the leaf's inputs in the same group.
+            for n_i in n.inputs:
+                leafs.add(n_i)
+    return leafs
+
+
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
 
