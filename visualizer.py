@@ -1,7 +1,7 @@
 from graphviz import Digraph
 import autodiff as ad
 import numpy as np
-from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
 from utils import OutputInjectedMode
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

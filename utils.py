@@ -22,6 +22,23 @@ def jit_decorator(forward):
 ##############################
 ####### Helper Methods #######
 ##############################
+class CharacterGetter():
+    """ Return a character and increment"""
+    def __init__(self):
+        self.char = 'a'
+
+    def getchar(self):
+        """
+            Returns a single character. Increment after return.
+        """
+        previous_char = self.char
+        if self.char == 'z':
+            logging.info('Run out of characters.')
+            raise NotImplementedError
+        self.char = chr(ord(self.char) + 1)
+        return previous_char
+
+
 class IntGetter():
     """ Return a int and increment"""
     def __init__(self):
@@ -48,14 +65,6 @@ class OutputInjectedMode:
     def __exit__(self, type, value, traceback):
         for n in self.nodes:
             n.outputs = []
-
-
-def einsum_grad_subscripts(subscripts, left=True):
-    match = re.search(r'^(.*),(.*)->(.*)', subscripts)
-    if left:
-        return match.group(3) + ',' + match.group(2) + '->' + match.group(1)
-    else:
-        return match.group(1) + ',' + match.group(3) + '->' + match.group(2)
 
 
 def get_root(nodes):
@@ -104,14 +113,11 @@ def get_leaves(nodes):
 
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
-
     The input_node_list are used to stop. If ever met a input node, stop probing the graph.
-
     A simple algorithm is to do a post-order DFS traversal on the given nodes,
     going backwards based on input edges. Since a node is added to the ordering
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
-
     """
     visited = set()
     topo_order = []

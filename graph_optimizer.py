@@ -5,7 +5,7 @@ import copy
 from collections import defaultdict
 
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter
+from utils import find_topo_sort, IntGetter, CharacterGetter
 from utils import get_root, get_leaves
 from union_find import UFBase
 
@@ -14,23 +14,6 @@ FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 logger = logging.getLogger('optimizer')
 logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
-
-
-class CharacterGetter():
-    """ Return a character and increment"""
-    def __init__(self):
-        self.char = 'a'
-
-    def getchar(self):
-        """
-            Returns a single character. Increment after return.
-        """
-        previous_char = self.char
-        if self.char == 'z':
-            logging.info('Run out of characters.')
-            raise NotImplementedError
-        self.char = chr(ord(self.char) + 1)
-        return previous_char
 
 
 ### Assign each UF group a character val.
