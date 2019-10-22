@@ -2,7 +2,7 @@ import numpy as np
 import backend as T
 import copy
 from functools import reduce
-from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
 from utils import IntGetter
 from numpy.core.einsumfunc import _parse_einsum_input
 
@@ -104,7 +104,7 @@ class OpNode(Node):
     def __init__(self):
         super().__init__()
 
-    def compute(self, node, input_vals):
+    def compute(self, input_vals):
         """Given values of input nodes, compute the output value.
         Parameters
         ----------
@@ -116,7 +116,7 @@ class OpNode(Node):
         """
         raise NotImplementedError
 
-    def transposed_vjp(self, node, output_grad):
+    def transposed_vjp(self, output_grad):
         """Given value of output vector-jacobian product, compute transposed vjp contributions to each input node.
         Parameters
         ----------
@@ -795,7 +795,7 @@ class Executor:
         return node_val_results
 
 
-def transposed_vjps_map(output_node, node_list, input_vector):
+def transposed_vjps_map(output_node, input_vector):
     """
     Return:
         a map mapping input nodes to their vjp contributions.
@@ -843,8 +843,7 @@ def transposed_vjps(output_node, node_list, input_vector):
     The returned list shapes are the same as the node_list shapes.
 
     """
-    node_to_output_grad = transposed_vjps_map(output_node, node_list,
-                                              input_vector)
+    node_to_output_grad = transposed_vjps_map(output_node, input_vector)
     # Collect results for vjps requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
@@ -891,8 +890,8 @@ def jtjvps(output_node, node_list, vector_list):
     return transposed_vjps(output_node, node_list, jvp_result)
 
 
-def gradients_map(output_node, node_list):
-    return transposed_vjps_map(output_node, node_list, oneslike(output_node))
+def gradients_map(output_node):
+    return transposed_vjps_map(output_node, oneslike(output_node))
 
 
 def gradients(output_node, node_list):

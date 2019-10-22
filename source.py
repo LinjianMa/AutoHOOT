@@ -96,7 +96,7 @@ class SourceToSource():
         self._sub_forward([output_node])
         self._print_to_file(f'\n{INDENT}# backward pass starts')
 
-        self.forward_to_grad_map = ad.gradients_map(output_node, node_list)
+        self.forward_to_grad_map = ad.gradients_map(output_node)
         self.grad_to_forward_map = invert_dict(self.forward_to_grad_map)
         self.gradient_list = [
             self.forward_to_grad_map[node] for node in node_list
@@ -131,8 +131,7 @@ class SourceToSource():
         """Subroutine of hvp."""
         self._print_to_file(
             f'\n{INDENT}# backward pass of inner product of g and v starts')
-        self.forward_to_hvp_map = ad.gradients_map(inner_product_node,
-                                                   node_list)
+        self.forward_to_hvp_map = ad.gradients_map(inner_product_node)
         self.hvp_to_forward_map = invert_dict(self.forward_to_hvp_map)
         hvp_nodes = [self.forward_to_hvp_map[node] for node in node_list]
         topo_order_hvps = find_topo_sort(hvp_nodes)
