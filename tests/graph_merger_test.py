@@ -225,11 +225,8 @@ def test_einsum_multitier():
         new_output = ad.einsum("ij,jk->ik", new_zs[0] + new_zs[1],
                                new_zs[2] + new_zs[3])
 
-        executor = ad.Executor([out])
+        executor = ad.Executor([new_output])
         z_new_val, = executor.run(
             feed_dict=dict(zip(input_nodes, input_values)))
 
         assert T.array_equal(z_val, z_new_val)
-
-
-test_einsum_multitier()
