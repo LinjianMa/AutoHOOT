@@ -2,8 +2,8 @@ import numpy as np
 import backend as T
 import copy
 from functools import reduce
-from utils import einsum_grad_subscripts, find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
-from utils import IntGetter
+from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import IntGetter, indexes_to_subscripts
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
@@ -104,7 +104,7 @@ class OpNode(Node):
     def __init__(self):
         super().__init__()
 
-    def compute(self, node, input_vals):
+    def compute(self, input_vals):
         """Given values of input nodes, compute the output value.
         Parameters
         ----------
@@ -116,7 +116,7 @@ class OpNode(Node):
         """
         raise NotImplementedError
 
-    def transposed_vjp(self, node, output_grad):
+    def transposed_vjp(self, output_grad):
         """Given value of output vector-jacobian product, compute transposed vjp contributions to each input node.
         Parameters
         ----------
@@ -126,6 +126,9 @@ class OpNode(Node):
         -------
         A list of transposed vjp contributions to each input node respectively.
         """
+        raise NotImplementedError
+
+    def jacobian(self, output_jacobian):
         raise NotImplementedError
 
     def s2s_expr(self, inputs):
@@ -142,6 +145,54 @@ class VariableNode(Node):
         self.name = name
         self.shape = shape
         assert shape != None
+
+
+class ConstantNode(Node):
+    """
+    The nodes that cannot be taken derivative over (not operations)
+    and also cannot set input variables (not VariableNode).
+    It contains constant tensors useful for graph construction.
+    """
+    @staticmethod
+    def create(*args, **kwargs):
+        return ConstantNode(*args, **kwargs)
+
+    def __init__(self, name, shape=None):
+        super().__init__()
+        self.name = name
+        self.shape = shape
+
+
+class IdentityNode(ConstantNode):
+    """Op that represents a constant T.identity."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return IdentityNode(*args, **kwargs)
+
+    def __init__(self, shape):
+        if len(shape) == 2:
+            name = f"T.identity({shape[0]})"
+        else:
+            assert len(shape) == 0
+            name = "T.identity()"
+        super().__init__(name, shape)
+
+    def compute(self):
+        if self.shape == []:
+            return 1.
+        else:
+            return T.identity(self.shape[0])
+
+
+class EmptyNode(ConstantNode):
+    """Empty node
+    """
+    @staticmethod
+    def create(*args, **kwargs):
+        return EmptyNode(*args, **kwargs)
+
+    def __init__(self):
+        super().__init__(name='empty')
 
 
 # This is a straight through node.
@@ -162,6 +213,9 @@ class CloneNode(OpNode):
 
     def transposed_vjp(self, output_grad):
         return [output_grad]
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class AddNode(OpNode):
@@ -192,6 +246,27 @@ class AddNode(OpNode):
         assert len(inputs) == 2
         return "(%s + %s)" % (inputs[0].name, inputs[1].name)
 
+    def jacobian(self, output_jacobian):
+        # the case when addition is put on scalars
+        if self.shape == []:
+            jacobian = identity(self.shape)
+        else:
+            # see the autodiff cheatsheet for the details
+            order = len(self.shape)
+            input_nodes = [
+                identity([self.shape[i], self.shape[i]]) for i in range(order)
+            ]
+            input_indexes = [[i, i + order] for i in range(order)]
+            out_index = [i for i in range(2 * order)]
+
+            subscripts = indexes_to_subscripts(input_indexes, out_index,
+                                               2 * order)
+            jacobian = einsum(subscripts, *input_nodes)
+        return [
+            chainjacobian(output_jacobian, jacobian),
+            chainjacobian(output_jacobian, jacobian)
+        ]
+
 
 class AddByConstNode(OpNode):
     """Node to element-wise add a nodes by a constant."""
@@ -217,6 +292,9 @@ class AddByConstNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class SubNode(OpNode):
@@ -244,6 +322,9 @@ class SubNode(OpNode):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class SubByConstNode(OpNode):
     """Node to element-wise add a nodes by a constant."""
@@ -269,6 +350,9 @@ class SubByConstNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "(%s - %s)" % (inputs[0].name, self.const_attr)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class MulNode(OpNode):
@@ -322,6 +406,9 @@ class MulNode(OpNode):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class MulByConstNode(OpNode):
     """Node to element-wise multiply a nodes by a constant."""
@@ -347,6 +434,9 @@ class MulByConstNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "(%s * %s)" % (inputs[0].name, self.const_attr)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class PowerNode(OpNode):
@@ -376,6 +466,9 @@ class PowerNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.power(%s, %s)" % (inputs[0].name, self.const_attr)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class MatMulNode(OpNode):
@@ -439,6 +532,9 @@ class MatMulNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
         return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class EinsumNode(OpNode):
@@ -564,6 +660,9 @@ class EinsumNode(OpNode):
         input_names = [inputvar.name for inputvar in inputs]
         return self._name_generator(self.einsum_subscripts, input_names)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class NormNode(OpNode):
     @staticmethod
@@ -600,6 +699,9 @@ class NormNode(OpNode):
         assert len(inputs) == 1
         return "T.norm(%s, %s, %s)" % (inputs[0].name, self.order, self.axis)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class SumNode(OpNode):
     @staticmethod
@@ -635,6 +737,9 @@ class SumNode(OpNode):
         assert len(inputs) == 1
         return "T.sum(%s, %s)" % (inputs[0].name, self.axis)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class TransposeNode(OpNode):
     @staticmethod
@@ -664,6 +769,9 @@ class TransposeNode(OpNode):
         assert len(inputs) == 1
         return "T.transpose(%s)" % (inputs[0].name)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class ZerosLikeNode(OpNode):
     """Op that represents a constant T.zeros_like."""
@@ -689,6 +797,9 @@ class ZerosLikeNode(OpNode):
         assert len(inputs) == 1
         return "T.zeros_like(%s)" % (inputs[0].name)
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 class OnesLikeNode(OpNode):
     @staticmethod
@@ -711,6 +822,9 @@ class OnesLikeNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.ones_like(%s)" % (inputs[0].name)
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
 
 
 class NegativeNode(OpNode):
@@ -738,9 +852,14 @@ class NegativeNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [-output_grad]
 
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
 
 # Create global singletons of operators.
 Variable = VariableNode.create
+Constant = ConstantNode.create
+Empty = EmptyNode.create
 add = AddNode.create
 mul = MulNode.create
 sub = SubNode.create
@@ -756,6 +875,18 @@ einsum = EinsumNode.create
 norm = NormNode.create
 sum = SumNode.create
 transpose = TransposeNode.create
+identity = IdentityNode.create
+
+
+def chainjacobian(node_A, node_B):
+    """A function that chains different jacobian matrices.
+       Mathematically:
+       dz/dx = chainjacobian(dz/dy, dy/dx)
+    """
+    if isinstance(node_A, EmptyNode):
+        return node_B
+    else:
+        raise NotImplementedError
 
 
 class Executor:
@@ -784,9 +915,21 @@ class Executor:
         topo_order = find_topo_sort(self.eval_node_list, feed_dict.keys())
         for node in topo_order:
             if node not in node_to_val_map:
-                input_vals = [node_to_val_map[val] for val in node.inputs]
-                result = node.compute(input_vals)
-                node_to_val_map[node] = result
+                if not isinstance(node, ConstantNode):
+                    input_vals = []
+                    for input_node in node.inputs:
+                        # if the input is a ConstantNode, the input values
+                        # will be directly calculated rather than from
+                        # the node_to_val_map
+                        if isinstance(input_node, ConstantNode):
+                            input_vals.append(input_node.compute())
+                        else:
+                            input_vals.append(node_to_val_map[input_node])
+                    result = node.compute(input_vals)
+                    node_to_val_map[node] = result
+                # if we want the ConstantNode value
+                else:
+                    node_to_val_map[node] = node.compute()
 
         # Collect node values.
         node_val_results = [
@@ -795,36 +938,45 @@ class Executor:
         return node_val_results
 
 
-def transposed_vjps_map(output_node, node_list, input_vector):
+def reverse_mode_map(output_node, input_tensor, mode):
     """
     Return:
-        a map mapping input nodes to their vjp contributions.
-        node_to_output_grad[node] = [\frac{node}{input_vector}]
-    Used in source generation.
+        a map mapping input nodes to their reverse mode graph contributions.
+        for the jacobian calculation:
+            node_to_reverse_node[node] = jacobian{output_node}{node}
+        for the transposed vjp calculation:
+            node_to_reverse_node[node] = jacobian{output_node}{node}^T @ input_tensor
     """
-    node_to_output_grads_list = {}
-    # Special note on initializing vjp of output_node as oneslike(output_node):
-    # We are really taking a derivative of the scalar reduce_sum(output_node)
-    # instead of the vector output_node. But this is the common case for loss
-    # function.
-    node_to_output_grads_list[output_node] = [input_vector]
-    # a map from node to the vjp of that node
-    node_to_output_grad = {}
+    node_to_reverse_node_list = {}
+    node_to_reverse_node_list[output_node] = [input_tensor]
+    # a map from node to the corresponding reverse graph node
+    node_to_reverse_node = {}
     # Traverse graph in reverse topological order given the output_node that
-    # we are taking vjp wrt.
+    # we are taking vjp/jacobian wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     for node in reverse_topo_order:
-        assert node in node_to_output_grads_list
-        transposed_vjp = sum_node_list(node_to_output_grads_list[node])
-        node_to_output_grad[node] = transposed_vjp
+        assert node in node_to_reverse_node_list
+        reverse_node = sum_node_list(node_to_reverse_node_list[node])
+        node_to_reverse_node[node] = reverse_node
         for index, input in enumerate(node.inputs):
-            input_transposed_vjp = node.transposed_vjp(transposed_vjp)[index]
-            if input not in node_to_output_grads_list:
-                node_to_output_grads_list[input] = [input_transposed_vjp]
+            # TODO: not sure how to write this in a clean way
+            if mode == "vjp":
+                output_reverse_node = node.transposed_vjp(reverse_node)[index]
+            elif mode == "jacobian":
+                output_reverse_node = node.jacobian(reverse_node)[index]
             else:
-                node_to_output_grads_list[input].append(input_transposed_vjp)
-    return node_to_output_grad
+                raise NotImplementedError
+
+            if input not in node_to_reverse_node_list:
+                node_to_reverse_node_list[input] = [output_reverse_node]
+            else:
+                node_to_reverse_node_list[input].append(output_reverse_node)
+    return node_to_reverse_node
+
+
+def transposed_vjps_map(output_node, input_vector):
+    return reverse_mode_map(output_node, input_vector, 'vjp')
 
 
 def transposed_vjps(output_node, node_list, input_vector):
@@ -843,9 +995,19 @@ def transposed_vjps(output_node, node_list, input_vector):
     The returned list shapes are the same as the node_list shapes.
 
     """
-    node_to_output_grad = transposed_vjps_map(output_node, node_list,
-                                              input_vector)
+    node_to_output_grad = transposed_vjps_map(output_node, input_vector)
     # Collect results for vjps requested.
+    grad_node_list = [node_to_output_grad[node] for node in node_list]
+    return grad_node_list
+
+
+def jacobians_map(output_node):
+    return reverse_mode_map(output_node, Empty(), 'jacobian')
+
+
+def jacobians(output_node, node_list):
+    node_to_output_grad = jacobians_map(output_node)
+    # Collect results for jacobian requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
 
@@ -891,8 +1053,8 @@ def jtjvps(output_node, node_list, vector_list):
     return transposed_vjps(output_node, node_list, jvp_result)
 
 
-def gradients_map(output_node, node_list):
-    return transposed_vjps_map(output_node, node_list, oneslike(output_node))
+def gradients_map(output_node):
+    return transposed_vjps_map(output_node, oneslike(output_node))
 
 
 def gradients(output_node, node_list):
