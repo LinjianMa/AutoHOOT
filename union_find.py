@@ -14,7 +14,7 @@ class UFBase():
 
     def assign():
         """
-            Assigns a distint value for each group.
+            Assigns a distinct value for each group.
         """
         raise NotImplementedError
 
