@@ -111,6 +111,26 @@ def get_leaves(nodes):
     return leafs
 
 
+def replace_node(prev, new):
+    """Replaces the previous node with the new node.
+
+    Need OutputInjectedMode to be enabled.
+    It will replace all the inputs reference to prev node to new node.
+    Note that this is a mutation operation on the graph which is irreversible.
+
+    Args:
+        prev: A node in the graph.
+        new: Another node in the graph.
+    Returns:
+        None
+    """
+    assert prev.outputs != None
+    assert new.outputs != None
+    for n_o in prev.outputs:
+        n_o.set_inputs(
+            [tmp if tmp.name != prev.name else new for tmp in n_o.inputs])
+
+
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
     The input_node_list are used to stop. If ever met a input node, stop probing the graph.
