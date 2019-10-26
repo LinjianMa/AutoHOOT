@@ -6,6 +6,7 @@ from graph_optimizer import fuse_einsums, find_sub_einsumtree
 from graph_linearizer import linearize
 from visualizer import print_computation_graph
 from utils import find_topo_sort
+from utils import replace_node, OutputInjectedMode
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
@@ -215,17 +216,15 @@ def test_einsum_multitier():
         ] * 4
         z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
 
-        trees = find_sub_einsumtree(out, input_nodes)
-        new_zs = []
-        for tree in trees:
-            out_node, in_nodes = tree
-            new_z, _ = fuse_einsums(out_node, in_nodes)
-            new_zs.append(new_z)
-        # TODO(yejiayu): For now the replacement is not inplace, will need API to replace node in the graph.
-        new_output = ad.einsum("ij,jk->ik", new_zs[0] + new_zs[1],
-                               new_zs[2] + new_zs[3])
+        with OutputInjectedMode(find_topo_sort([out])):
+            trees = find_sub_einsumtree(out, input_nodes)
+            new_zs = []
+            for tree in trees:
+                out_node, in_nodes = tree
+                new_z, _ = fuse_einsums(out_node, in_nodes)
+                replace_node(out_node, new_z)
 
-        executor = ad.Executor([new_output])
+        executor = ad.Executor([out])
         z_new_val, = executor.run(
             feed_dict=dict(zip(input_nodes, input_values)))
 
