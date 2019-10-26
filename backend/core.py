@@ -192,6 +192,10 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def identity(shape, dtype=None):
+        raise NotImplementedError
+
+    @staticmethod
     def zeros_like(tensor):
         """Return at tensor of zeros with the same shape and type as a given tensor.
 

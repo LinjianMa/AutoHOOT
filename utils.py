@@ -19,6 +19,22 @@ def jit_decorator(forward):
     return wrapper_jit
 
 
+def indexes_to_subscripts(in_indexes, out_index, max_dim):
+    """Produce an einsum subscript based on the input indexes.
+    """
+    cg = CharacterGetter()
+    chars = {}
+    for i in range(max_dim):
+        chars[i] = cg.getchar()
+    # Assign literals
+    input_subs = []
+    for in_index in in_indexes:
+        input_subs.append("".join([chars[i] for i in in_index]))
+    output_sub = "".join([chars[i] for i in out_index])
+    new_subscripts = ",".join(input_subs) + "->" + output_sub
+    return new_subscripts
+
+
 ##############################
 ####### Helper Methods #######
 ##############################
