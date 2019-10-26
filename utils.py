@@ -97,18 +97,12 @@ def get_leaves(nodes):
         Complexity: O(N^2)
     """
     leafs = set()
+    all_inputs = set()
     for n in nodes:
-        is_leaf = True
         for n_i in n.inputs:
-            if n_i in nodes:
-                # must not be leaf.
-                is_leaf = False
-                break
-        if is_leaf:
-            # If is leaf, we include the leaf's inputs in the same group.
-            for n_i in n.inputs:
-                leafs.add(n_i)
-    return leafs
+            if n_i not in nodes:
+                all_inputs.add(n_i)
+    return all_inputs
 
 
 def find_topo_sort(node_list, input_node_list=[]):

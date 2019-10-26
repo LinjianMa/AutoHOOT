@@ -4,6 +4,11 @@ import numpy as np
 import backend as T
 from tensors.synthetic_tensors import init_rand_3d
 from utils import conjugate_gradient, cp_nls_optimizer
+from utils import OutputInjectedMode, find_topo_sort
+from utils import replace_node
+from graph_optimizer import find_sub_einsumtree, fuse_einsums
+from graph_linearizer import linearize
+from visualizer import print_computation_graph
 import time
 
 BACKEND_TYPES = ['numpy']
@@ -98,6 +103,20 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                     from examples.cpd_jtjvp_optimized import jtjvp
                     return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
                 elif mode == 'ad':
+                    linearize(JtJvps, [A, B, C, input_tensor, v_A, v_B, v_C])
+                    with OutputInjectedMode(find_topo_sort(JtJvps)):
+                        for JtJvp in JtJvps:
+                            trees = find_sub_einsumtree(
+                                JtJvp, [A, B, C, input_tensor, v_A, v_B, v_C])
+                            for tree in trees:
+                                out_node, in_nodes = tree
+                                print(in_nodes)
+                                # print_computation_graph([out_node], in_nodes)
+                                # assert False
+                                new_z, _ = fuse_einsums(out_node, in_nodes)
+                                # print_computation_graph([new_z])
+                                replace_node(out_node, new_z)
+
                     return executor_JtJvps.run(
                         feed_dict={
                             A: A_val,
