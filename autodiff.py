@@ -856,27 +856,18 @@ class Executor:
         A list of values for nodes in eval_node_list.
         """
         node_to_val_map = dict(feed_dict)
-        # Traverse graph in topological sort order and compute values for all
-        # nodes.
+        # Traverse graph in topological sort order
         topo_order = find_topo_sort(self.eval_node_list, feed_dict.keys())
+        # compute the values for constant nodes and save that in the map
+        for node in topo_order:
+            if isinstance(node, ConstantNode):
+                node_to_val_map[node] = node.compute()
+        # Compute values for all nodes.
         for node in topo_order:
             if node not in node_to_val_map:
-                if not isinstance(node, ConstantNode):
-                    input_vals = []
-                    for input_node in node.inputs:
-                        # if the input is a ConstantNode, the input values
-                        # will be directly calculated rather than from
-                        # the node_to_val_map
-                        if isinstance(input_node, ConstantNode):
-                            input_vals.append(input_node.compute())
-                        else:
-                            input_vals.append(node_to_val_map[input_node])
-                    result = node.compute(input_vals)
-                    node_to_val_map[node] = result
-                # if we want the ConstantNode value
-                else:
-                    node_to_val_map[node] = node.compute()
-
+                input_vals = [node_to_val_map[val] for val in node.inputs]
+                result = node.compute(input_vals)
+                node_to_val_map[node] = result
         # Collect node values.
         node_val_results = [
             node_to_val_map[node] for node in self.eval_node_list
