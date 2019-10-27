@@ -88,15 +88,22 @@ def get_root(nodes):
 
 def get_leaves(nodes):
     """
-        Returns leaves of a set of nodes. Nodes is connected and a tree.
+        Returns all the inputs of the nodes formed as a tree. The returned node
+        must not be in the tree.
         Args:
             Nodes is a list of graph nodes.
         Returns:
-            a set of nodes that is the root.
-        Idea: Leaves' input must not be a node in the group.
-        Complexity: O(N^2)
+            a set of nodes.
+        
+        For further illustration:
+            A
+           / \
+          B  I3
+         / \
+        I1  I2
+        
+        I1, I2, I3 are the returned nodes. inputs is {A,B} 
     """
-    leafs = set()
     all_inputs = set()
     for n in nodes:
         for n_i in n.inputs:
