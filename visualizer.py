@@ -22,13 +22,13 @@ from utils import OutputInjectedMode
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
-def print_computation_graph(output_node_list):
+def print_computation_graph(output_node_list, input_nodes=None):
     """
         ouput_node_list: a list of output nodes.
     """
     assert len(output_node_list) > 0
 
-    topo_order = find_topo_sort(output_node_list)
+    topo_order = find_topo_sort(output_node_list, input_nodes)
 
     inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
     with OutputInjectedMode(topo_order):
