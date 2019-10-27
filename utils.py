@@ -19,16 +19,28 @@ def jit_decorator(forward):
     return wrapper_jit
 
 
-def indexes_to_subscripts(in_indexes, out_index, max_dim):
-    """Produce an einsum subscript based on the input indexes.
+def indices_to_subscripts(in_indices, out_index, dim_size):
+    """ Produce an einsum subscript based on the input indices notations.
+        Args:
+            in_indices: an array with each element being the index array of
+                that input tensor.
+            out_index: The index array of the output tensor.
+            dim_size: number of dimensions involved in the einsum.
+        Returns:
+            new_subscripts: the einsum subscripts corresponding to the index notation.
+        Examples:
+            For the einsum E[0,1,2,3,4,5,6,7] = A[0,4]*B[1,5]*C[2,6]*D[3,7]
+            where E is a 8-d tensor, and A B C D are 2-d tensors, each dimension of
+            E is corresponding to one dimension of the inputs with the same number.
+            The string based einsum will be 'ae,bf,cg,dh->abcdefgh'.
     """
     cg = CharacterGetter()
     chars = {}
-    for i in range(max_dim):
+    for i in range(dim_size):
         chars[i] = cg.getchar()
     # Assign literals
     input_subs = []
-    for in_index in in_indexes:
+    for in_index in in_indices:
         input_subs.append("".join([chars[i] for i in in_index]))
     output_sub = "".join([chars[i] for i in out_index])
     new_subscripts = ",".join(input_subs) + "->" + output_sub

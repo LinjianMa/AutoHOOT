@@ -55,7 +55,7 @@ def test_add_jacobian_scalar():
             x2: x2_val
         })
 
-        expected_jacobian_x2_val = T.tensor(1.)
+        expected_jacobian_x2_val = T.tensor([[1.]])
 
         assert isinstance(y, ad.Node)
         assert isinstance(jacobian_x2, ad.Node)

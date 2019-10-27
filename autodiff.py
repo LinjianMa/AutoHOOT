@@ -3,7 +3,7 @@ import backend as T
 import copy
 from functools import reduce
 from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
-from utils import IntGetter, indexes_to_subscripts
+from utils import IntGetter, indices_to_subscripts
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
@@ -157,19 +157,12 @@ class IdentityNode(ConstantNode):
     def create(*args, **kwargs):
         return IdentityNode(*args, **kwargs)
 
-    def __init__(self, shape):
-        if len(shape) == 2:
-            name = f"T.identity({shape[0]})"
-        else:
-            assert len(shape) == 0
-            name = "T.identity()"
-        super().__init__(name, shape)
+    def __init__(self, size):
+        name = f"T.identity({size})"
+        super().__init__(name, [size, size])
 
     def compute(self):
-        if self.shape == []:
-            return 1.
-        else:
-            return T.identity(self.shape[0])
+        return T.identity(self.shape[0])
 
 
 class EmptyNode(ConstantNode):
@@ -246,17 +239,15 @@ class AddNode(OpNode):
     def jacobian(self, output_jacobian):
         # the case when addition is put on scalars
         if self.shape == []:
-            jacobian = identity(self.shape)
+            jacobian = identity(1)
         else:
             # see the autodiff cheatsheet for the details
             order = len(self.shape)
-            input_nodes = [
-                identity([self.shape[i], self.shape[i]]) for i in range(order)
-            ]
-            input_indexes = [[i, i + order] for i in range(order)]
+            input_nodes = [identity(self.shape[i]) for i in range(order)]
+            input_indices = [[i, i + order] for i in range(order)]
             out_index = [i for i in range(2 * order)]
 
-            subscripts = indexes_to_subscripts(input_indexes, out_index,
+            subscripts = indices_to_subscripts(input_indices, out_index,
                                                2 * order)
             jacobian = einsum(subscripts, *input_nodes)
         return [
