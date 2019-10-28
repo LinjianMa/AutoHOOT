@@ -150,6 +150,12 @@ class ConstantNode(Node):
         self.name = name
         self.shape = shape
 
+    def transposed_vjp(self, output_grad):
+        raise Exception('ConstantNode does not allow vjp calculation')
+
+    def jacobian(self, output_jacobian):
+        raise Exception('ConstantNode does not allow jacobian calculation')
+
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
@@ -877,6 +883,12 @@ class Executor:
 
 def reverse_mode_map(output_node, input_tensor, mode):
     """
+    Inputs:
+        output_node: the node that the reverse mode graph is respect to.
+        input_tensor: input node of the reverse mode graph.
+        mode: "vjp" or "jacobian".
+            "vjp": will return the reverse mode graph for transposed_vjp.
+            "jacobian": will return the graph for jacobian.
     Return:
         a map mapping input nodes to their reverse mode graph contributions.
         for the jacobian calculation:
