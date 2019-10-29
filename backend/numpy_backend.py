@@ -77,7 +77,8 @@ for name in [
         'reshape', 'moveaxis', 'where', 'copy', 'transpose', 'arange', 'ones',
         'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
         'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
-        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power', 'einsum'
+        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power', 'einsum',
+        'identity'
 ]:
     NumpyBackend.register_method(name, getattr(np, name))
 
