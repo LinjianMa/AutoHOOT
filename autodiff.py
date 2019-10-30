@@ -213,6 +213,10 @@ class CloneNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [output_grad]
 
+    def s2s_expr(self, inputs):
+        """source_to_source expression: used for source generation"""
+        return "%s" % (inputs[0].name)
+
 
 class AddNode(OpNode):
     """A node that add two node together"""
