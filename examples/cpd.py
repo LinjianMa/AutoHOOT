@@ -4,6 +4,10 @@ import numpy as np
 import backend as T
 from tensors.synthetic_tensors import init_rand_3d
 from utils import conjugate_gradient, cp_nls_optimizer
+from graph_linearizer import linearize
+from graph_optimizer import *
+from utils import OutputInjectedMode, replace_node
+from visualizer import print_computation_graph
 import time
 
 BACKEND_TYPES = ['numpy']
@@ -88,7 +92,24 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         regu_increase = False
         normT = T.norm(input_tensor_val)
         time_all, fitness = 0., 0.
-
+        # >>>>>>>>>>>>>>> Optimization for ad.
+        linearize(JtJvps, [A, B, C, input_tensor, v_A, v_B, v_C])
+        all_nodes = find_topo_sort(JtJvps)
+        with OutputInjectedMode(all_nodes):
+            for JtJvp in JtJvps:
+                trees = find_sub_einsumtree(
+                    JtJvp, [A, B, C, input_tensor, v_A, v_B, v_C])
+                for tree in trees:
+                    out_node, in_nodes = tree
+                    # print(in_nodes)
+                    # print(out_node)
+                    # print_computation_graph([out_node], in_nodes)
+                    # assert False
+                    new_z, _ = fuse_einsums(out_node, in_nodes)
+                    # print(">>>>> Finish Fusing <<<<<")
+                    # print_computation_graph([new_z])
+                    replace_node(out_node, new_z)
+        # >>>>>>>>>>>>>>> Optimization for ad.
         for i in range(10):
 
             t0 = time.time()
