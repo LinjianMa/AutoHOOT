@@ -22,7 +22,7 @@ from utils import OutputInjectedMode
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
-def print_computation_graph(output_node_list, input_nodes=None):
+def print_computation_graph(output_node_list, input_nodes=[]):
     """
         ouput_node_list: a list of output nodes.
     """

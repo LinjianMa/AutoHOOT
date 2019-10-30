@@ -61,7 +61,7 @@ def cross_einsum_connect(uf, output_node):
     #     assert (isinstance(child, ad.EinsumNode))
 
     in_subs, out_subs, _ = _parse_einsum_input(
-        (output_node.subscripts, *output_node.inputs))
+        (output_node.einsum_subscripts, *output_node.inputs))
     in_subs_list = in_subs.split(',')
     whole_str = out_subs + "".join(in_subs_list)
 
