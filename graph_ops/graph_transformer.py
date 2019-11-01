@@ -1,5 +1,11 @@
+"""
+    This file will contains the equivalent graph transformations.
+    These are not optimizations but equivalent transforms.
+
+    Currently it includes 
+        * Linearization
+"""
 from utils import find_topo_sort, OutputInjectedMode
-from visualizer import print_computation_graph
 
 
 def linearize(output_nodes, input_nodes):
