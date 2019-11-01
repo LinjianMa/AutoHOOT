@@ -6,6 +6,7 @@
         * Linearization
 """
 from utils import find_topo_sort, OutputInjectedMode
+import autodiff as ad
 
 
 def linearize(output_nodes, input_nodes):
@@ -32,3 +33,33 @@ def linearize(output_nodes, input_nodes):
                     ])
 
     return output_nodes, input_nodes
+
+
+def distribute(binary_op_node, output):
+    """ Distribute the operations. E.g (A + B) * C = A * C + B * C 
+
+    Currently only consider the case where the binary_op is plus node.
+
+    Args:
+        binary_op_node: This is the plus node
+        output: This is the (A + B) * C node.
+    Return:
+        The new output node that already distribute the computation.
+    """
+    assert isinstance(binary_op_node, ad.AddNode)
+    assert isinstance(output, ad.EinsumNode)
+    assert binary_op_node in output.inputs
+
+    other_inputs = filter(lambda x: x != binary_op_node, output.inputs)
+
+    # Then find the childs, the binary op should only have two.
+    A, B = binary_op_node.inputs
+    AC_seq = [
+        tmp if tmp.name != binary_op_node.name else A for tmp in output.inputs
+    ]
+    BC_seq = [
+        tmp if tmp.name != binary_op_node.name else B for tmp in output.inputs
+    ]
+    AC = ad.einsum(output.einsum_subscripts, *AC_seq)
+    BC = ad.einsum(output.einsum_subscripts, *BC_seq)
+    return AC + BC
