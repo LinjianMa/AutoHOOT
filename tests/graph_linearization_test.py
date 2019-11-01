@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
-from graph_linearizer import linearize
-from graph_optimizer import find_sub_einsumtree
+from graph_ops.graph_linearizer import linearize
+from graph_ops.graph_optimizer import find_sub_einsumtree
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']

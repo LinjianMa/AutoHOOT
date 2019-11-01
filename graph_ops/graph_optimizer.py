@@ -4,10 +4,10 @@ import logging
 import copy
 from collections import defaultdict
 
+from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter
 from utils import get_root, get_leaves
-from union_find import UFBase
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
