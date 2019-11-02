@@ -27,6 +27,8 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
+        # used for chaining jacobian
+        self.input_indices_length = []
 
         # This is used for optimization when some nodes need to be cloned.
         self.suffix_getter = IntGetter()
@@ -142,6 +144,15 @@ class OpNode(Node):
 
     def s2s_expr(self, inputs):
         raise NotImplementedError
+
+    def set_in_indices_length(self, length):
+        """
+        used for chainjacobian function.
+        Input:
+            length: the input dimension length
+        """
+        assert (length <= len(self.shape))
+        self.input_indices_length = length
 
 
 class ConstantNode(Node):
@@ -330,6 +341,26 @@ class SubNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
+
+    def jacobian(self, output_jacobian):
+        # the case when addition is put on scalars
+        if self.shape == []:
+            jacobian = identity(1)
+        else:
+            # see the autodiff cheatsheet for the details
+            order = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(order)]
+            input_indices = [[i, i + order] for i in range(order)]
+            out_index = [i for i in range(2 * order)]
+
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * order)
+            jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(order)
+        return [
+            chainjacobian(output_jacobian, jacobian),
+            chainjacobian(output_jacobian, -jacobian)
+        ]
 
 
 class SubByConstNode(OpNode):
@@ -812,6 +843,8 @@ class NegativeNode(OpNode):
         self.inputs = [node_A]
         self.name = "(-%s)" % node_A.name
         self.shape = node_A.shape
+        # used for chainjacobian function.
+        self.input_indices_length = node_A.input_indices_length
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
