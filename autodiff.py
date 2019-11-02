@@ -28,7 +28,7 @@ class Node(object):
         self.name = ""
         self.shape = None
         # used for chaining jacobian
-        self.input_indices_length = []
+        self.input_indices_length = None
 
         # This is used for optimization when some nodes need to be cloned.
         self.suffix_getter = IntGetter()
@@ -177,6 +177,8 @@ class IdentityNode(ConstantNode):
     def __init__(self, size):
         name = f"T.identity({size})"
         super().__init__(name, [size, size])
+        # used for chaining jacobian
+        self.input_indices_length = 1
 
     def compute(self):
         return T.identity(self.shape[0])
