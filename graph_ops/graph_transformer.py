@@ -50,8 +50,6 @@ def distribute(binary_op_node, output):
     assert isinstance(output, ad.EinsumNode)
     assert binary_op_node in output.inputs
 
-    other_inputs = filter(lambda x: x != binary_op_node, output.inputs)
-
     # Then find the childs, the binary op should only have two.
     A, B = binary_op_node.inputs
     AC_seq = [
