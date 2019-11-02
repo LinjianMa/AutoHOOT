@@ -71,7 +71,7 @@ class Node(object):
 
     def clone(self):
         # Generate a new node with a different name.
-        new_name = self.name + self.suffix_getter.getint()
+        new_name = self.name + self.suffix_getter.getstr()
         return CloneNode(self, new_name)
 
     def set_inputs(self, inputs):

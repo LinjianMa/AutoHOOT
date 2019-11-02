@@ -74,6 +74,14 @@ class IntGetter():
 
     def getint(self):
         """
+            Returns an int. Increment after return.
+        """
+        previous_val = self.val
+        self.val = self.val + 1
+        return previous_val
+
+    def getstr(self):
+        """
             Returns an stringlized int. Increment after return.
         """
         previous_val = self.val

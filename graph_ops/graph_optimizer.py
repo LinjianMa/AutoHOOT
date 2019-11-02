@@ -49,7 +49,7 @@ class UFNodes(UFBase):
         for node in self.parent_map.keys():
             rootnode = self.root(node)
             if rootnode not in self.roots:
-                self.roots[rootnode] = self.ig.getint()
+                self.roots[rootnode] = self.ig.getstr()
 
 
 def cross_einsum_connect(uf, output_node):
