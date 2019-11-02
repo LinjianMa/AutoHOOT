@@ -260,6 +260,7 @@ class AddNode(OpNode):
             subscripts = indices_to_subscripts(input_indices, out_index,
                                                2 * order)
             jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(order)
         return [
             chainjacobian(output_jacobian, jacobian),
             chainjacobian(output_jacobian, jacobian)
@@ -565,6 +566,15 @@ class EinsumNode(OpNode):
         node_names = [node.name for node in nodes]
         self.name = self._name_generator(self.einsum_subscripts, node_names)
 
+    def set_in_indices_length(self, length):
+        """
+        used for chainjacobian function.
+        Input:
+            length: the input dimension length
+        """
+        assert (length <= len(self.shape))
+        self.input_indices_length = length
+
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
@@ -838,11 +848,48 @@ def chainjacobian(node_A, node_B):
     """A function that chains different jacobian matrices.
        Mathematically:
        dz/dx = chainjacobian(dz/dy, dy/dx)
+
+    Here we need to perform the matmul like operations
+    for the tensors. The "tensor multiplication"
+    operation are performed, whose results are the same as:
+        reshape T1 in to M1
+        reshape T2 in to M2
+        reshape T3 in to M3
+        M3 = M1 @ M2
+        reshape M3 back to T3.
+
+    Input:
+        node_A, node_B: einsum nodes to be chained
+    Output:
+        node_C: output einsum node
     """
     if isinstance(node_A, EmptyNode):
         return node_B
     else:
-        raise NotImplementedError
+        assert isinstance(node_A, EinsumNode)
+        assert isinstance(node_B, EinsumNode)
+        node_A_in_dim = node_A.input_indices_length
+        node_A_out_dim = len(node_A.shape) - node_A_in_dim
+        node_B_in_dim = node_B.input_indices_length
+        node_B_out_dim = len(node_B.shape) - node_B_in_dim
+        assert node_A_out_dim == node_B_in_dim
+        node_C_in_dim = node_A_in_dim
+        node_C_out_dim = node_B_out_dim
+        node_C_dim = node_C_in_dim + node_C_out_dim
+
+        dim_size = node_C_in_dim + node_C_out_dim + node_A_out_dim
+
+        indices_C = [i for i in range(node_C_in_dim + node_C_out_dim)]
+        indices_A = [i for i in range(node_A_in_dim)]
+        indices_A += [i + node_C_dim for i in range(node_A_out_dim)]
+        indices_B = [i + node_C_dim for i in range(node_B_in_dim)]
+        indices_B += [i + node_C_in_dim for i in range(node_B_out_dim)]
+
+        subscripts = indices_to_subscripts([indices_A, indices_B], indices_C,
+                                           dim_size)
+        node_C = einsum(subscripts, *[node_A, node_B])
+        node_C.set_in_indices_length(node_C_in_dim)
+        return node_C
 
 
 class Executor:
