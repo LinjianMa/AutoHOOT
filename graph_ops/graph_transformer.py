@@ -6,7 +6,10 @@
         * Linearization
 """
 from utils import find_topo_sort, OutputInjectedMode
+from utils import replace_node
 import autodiff as ad
+
+from visualizer import print_computation_graph
 
 
 def linearize(output_nodes, input_nodes):
@@ -61,3 +64,34 @@ def distribute(binary_op_node, output):
     AC = ad.einsum(output.einsum_subscripts, *AC_seq)
     BC = ad.einsum(output.einsum_subscripts, *BC_seq)
     return AC + BC
+
+
+def distribute_node(output):
+    """ Higher level wrapper of distribute.
+    
+    Will split each plus sign each at a time. Recursively apply.
+    """
+    def get_first_binary_op(nodes):
+        for node in nodes:
+            if isinstance(node, ad.AddNode):
+                return node
+        return None
+
+    assert isinstance(output, ad.EinsumNode)
+    all_inputs = output.inputs
+    # Find one Add op.
+    first_binary_op = get_first_binary_op(all_inputs)
+
+    if first_binary_op != None:
+        new_node = distribute(first_binary_op, output)
+        new_inputs = new_node.inputs
+
+        revised_inputs = []
+        for node in new_inputs:
+            new_node_i = distribute_node(node)
+            revised_inputs.append(new_node_i)
+        new_node.set_inputs(revised_inputs)
+
+        return new_node
+
+    return output
