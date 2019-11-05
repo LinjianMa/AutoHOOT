@@ -433,5 +433,4 @@ def test_tree_distribution_ppE():
             c: c_val
         })
 
-        assert False
         assert (out_val == new_out_val).all()

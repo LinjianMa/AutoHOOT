@@ -86,10 +86,9 @@ def distribute_tree(output):
     def get_first_binary_op(nodes):
         for node in nodes:
             if isinstance(node, ad.AddNode) and len(node.outputs) >= 1:
-                einsum_nodes = list(
-                    filter(lambda x: isinstance(x, ad.EinsumNode),
-                           node.outputs))
-                if len(einsum_nodes) > 0:
+                has_einsum_nodes = all(
+                    [isinstance(x, ad.EinsumNode) for x in node.outputs])
+                if has_einsum_nodes:
                     return node
         return None
 
