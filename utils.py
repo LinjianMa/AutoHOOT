@@ -87,6 +87,8 @@ class OutputInjectedMode:
 
     def __enter__(self):
         for n in self.nodes:
+            n.outputs = []
+        for n in self.nodes:
             for n_i in n.inputs:
                 n_i.outputs.append(n)
 

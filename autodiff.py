@@ -227,9 +227,13 @@ class AddNode(OpNode):
     def __init__(self, node_A, node_B):
         assert node_A.shape == node_B.shape
         super().__init__()
-        self.inputs = [node_A, node_B]
-        self.name = "(%s+%s)" % (node_A.name, node_B.name)
+        self.set_inputs([node_A, node_B])
         self.shape = node_A.shape
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 2
+        self.inputs = inputs
+        self.name = "(%s+%s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, input_vals):
         """Compute the value of the self node given the input_vals"""
@@ -551,17 +555,17 @@ class EinsumNode(OpNode):
         """
         super().__init__()
         self.einsum_subscripts = subscripts
-        self.set_inputs(*nodes)
+        self.set_inputs(list(nodes))
         self.subscripts = subscripts
         self.shape = self._output_shape(subscripts, nodes)
 
-    def set_inputs(self, *nodes):
+    def set_inputs(self, nodes):
         """
             USED DURING OPTIMIZATION 
             Inputs must be changed through this.
             Name update is needed to ensure the correctness of the fuser.
         """
-        self.inputs = list(nodes)
+        self.inputs = nodes
         node_names = [node.name for node in nodes]
         self.name = self._name_generator(self.einsum_subscripts, node_names)
 

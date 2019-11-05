@@ -30,7 +30,7 @@ def linearize(output_nodes, input_nodes):
             if len(n.outputs) > 1:
                 for n_o in n.outputs:
                     n_new = n.clone()
-                    n_o.set_inputs(*[
+                    n_o.set_inputs([
                         tmp if tmp.name != n.name else n_new
                         for tmp in n_o.inputs
                     ])
@@ -38,7 +38,7 @@ def linearize(output_nodes, input_nodes):
     return output_nodes, input_nodes
 
 
-def distribute(binary_op_node, output):
+def _distribute(binary_op_node, output):
     """ Distribute the operations. E.g (A + B) * C = A * C + B * C 
 
     Currently only consider the case where the binary_op is plus node.
@@ -66,32 +66,48 @@ def distribute(binary_op_node, output):
     return AC + BC
 
 
-def distribute_node(output):
-    """ Higher level wrapper of distribute.
+def distribute_tree(output):
+    """ Distribute a tree of einsum and add nodes.
+
+    Behavior undefined if there are other kind of nodes.
+
+    Args:
+        output: The output of a tree.
+
+    Returns:
+        output: a newly generated einsum tree with operands distributed. 
     
-    Will split each plus sign each at a time. Recursively apply.
+    Idea:
+        1. Construct the output tree.
+        2. Find binary op.
+        3. Apply distribute.
+        4. Iterate 1->3
     """
     def get_first_binary_op(nodes):
         for node in nodes:
-            if isinstance(node, ad.AddNode):
-                return node
+            if isinstance(node, ad.AddNode) and len(node.outputs) >= 1:
+                has_einsum_nodes = all(
+                    [isinstance(x, ad.EinsumNode) for x in node.outputs])
+                if has_einsum_nodes:
+                    return node
         return None
 
     assert isinstance(output, ad.EinsumNode)
-    all_inputs = output.inputs
-    # Find one Add op.
-    first_binary_op = get_first_binary_op(all_inputs)
 
-    if first_binary_op != None:
-        new_node = distribute(first_binary_op, output)
-        new_inputs = new_node.inputs
-
-        revised_inputs = []
-        for node in new_inputs:
-            new_node_i = distribute_node(node)
-            revised_inputs.append(new_node_i)
-        new_node.set_inputs(revised_inputs)
-
-        return new_node
-
+    while 1:
+        all_nodes = find_topo_sort([output])
+        with OutputInjectedMode(all_nodes):
+            first_binary_op = get_first_binary_op(all_nodes)
+            if first_binary_op is None:
+                break
+            for einsum_node in first_binary_op.outputs:
+                if isinstance(einsum_node, ad.AddNode):
+                    continue
+                assert isinstance(einsum_node, ad.EinsumNode)
+                new_node = _distribute(first_binary_op, einsum_node)
+                replace_node(einsum_node, new_node)
+                if einsum_node == output:
+                    output = new_node
+    # This is need for source generation.
+    output.set_inputs(output.inputs)
     return output
