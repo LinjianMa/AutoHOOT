@@ -384,3 +384,54 @@ def test_tree_distribution_two_layers():
         })
 
         assert (out_val == new_out_val).all()
+
+
+def test_tree_distribution_ppE():
+    """
+        [Distributive] ((A + B) + C) * G
+
+        will produce
+        
+        AG + BG + CG
+
+        Note that (A+B) has parent (A + B) + C.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 2])
+        b = ad.Variable(name="b", shape=[3, 2])
+        c = ad.Variable(name="c", shape=[3, 2])
+        g = ad.Variable(name="g", shape=[2, 2])
+
+        output = ad.einsum('ik,kk->ik', a + b + c, g)
+
+        new_output = distribute_tree(output)
+
+        assert isinstance(new_output, ad.AddNode)
+
+        executor = ad.Executor([output])
+
+        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        c_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        g_val = T.tensor([[1, 2], [3, 4]])  # 2x2
+
+        out_val, = executor.run(feed_dict={
+            a: a_val,
+            b: b_val,
+            g: g_val,
+            c: c_val
+        })
+
+        executor = ad.Executor([new_output])
+        new_out_val, = executor.run(feed_dict={
+            a: a_val,
+            b: b_val,
+            g: g_val,
+            c: c_val
+        })
+
+        assert False
+        assert (out_val == new_out_val).all()
