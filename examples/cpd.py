@@ -3,7 +3,12 @@ import autodiff as ad
 import numpy as np
 import backend as T
 from tensors.synthetic_tensors import init_rand_3d
-from utils import conjugate_gradient, cp_nls_optimizer
+from utils import conjugate_gradient, cp_nls_optimizer, find_topo_sort
+from graph_ops.graph_transformer import linearize
+from visualizer import print_computation_graph
+from graph_ops.graph_transformer import distribute_tree
+from utils import OutputInjectedMode, replace_node
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
 import time
 
 BACKEND_TYPES = ['numpy']
@@ -83,6 +88,38 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
 
         executor_grads = ad.Executor([loss] + grads)
         executor_JtJvps = ad.Executor(JtJvps)
+
+        new_JtJvps = []
+        for JtJvp in JtJvps:
+            JtJvp = distribute_tree(JtJvp)
+
+            linearize([JtJvp], [A, B, C, input_tensor, v_A, v_B, v_C])
+            all_nodes = find_topo_sort([JtJvp])
+            with OutputInjectedMode(all_nodes):
+                trees = find_sub_einsumtree(
+                    JtJvp, [A, B, C, input_tensor, v_A, v_B, v_C])
+                for tree in trees:
+                    out_node, in_nodes = tree
+                    # print(in_nodes)
+                    # print(out_node)
+                    # print_computation_graph([out_node], in_nodes)
+                    # assert False
+                    new_z, _ = fuse_einsums(out_node, in_nodes)
+                    # print(">>>>> Finish Fusing <<<<<")
+                    # print_computation_graph([new_z])
+                    replace_node(out_node, new_z)
+
+            new_JtJvps.append(JtJvp)
+
+        JtJvps = new_JtJvps
+        from source import SourceToSource
+        StS = SourceToSource()
+        StS.forward(JtJvps,
+                    file=open("examples/distrbite_jtjvp.py", "w"),
+                    function_name='jtjvp')
+
+        assert False
+
         optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
 
         regu_increase = False
