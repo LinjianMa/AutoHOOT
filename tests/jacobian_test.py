@@ -63,6 +63,30 @@ def test_add_jacobian_scalar():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
+def test_chainjacobian():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[2, 2, 2])
+        x2 = ad.Variable(name="x2", shape=[2, 2, 2])
+        x1.set_in_indices_length(1)
+        x2.set_in_indices_length(2)
+
+        y = ad.chainjacobian(x1, x2)
+
+        executor = ad.Executor([y])
+
+        x1_val = T.tensor([[[1, 1], [1, 1]], [[1, 1], [1, 1]]])
+        x2_val = T.tensor([[[1, 1], [1, 1]], [[1, 1], [1, 1]]])
+        y_val, = executor.run(feed_dict={x1: x1_val, x2: x2_val})
+
+        expected_y_val = T.einsum("abc,bcd->ad", x1_val, x2_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, expected_y_val)
+
+
 def test_add_jacobian_w_chain():
 
     for datatype in BACKEND_TYPES:
@@ -88,6 +112,11 @@ def test_add_jacobian_w_chain():
         })
 
         I = T.identity(2)
+        # jacobian_z_y = T.einsum("ae,bf->abef", I, I)
+        # jacobian_y_x2 = T.einsum("ec,fd->efcd", I, I)
+        # jacobian_z_x2 = T.einsum("abef,efcd->abcd", jacobian_z_y, jacobian_y_x2)
+        #               = T.einsum("ae,bf,ec,fd->abcd", I, I, I, I)
+        #               = T.einsum("ac,bd->abcd", I, I)
         expected_jacobian_x2_val = T.einsum("ac,bd->abcd", I, I)
 
         assert isinstance(z, ad.Node)

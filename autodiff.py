@@ -77,6 +77,15 @@ class Node(object):
     def set_inputs(self, inputs):
         self.inputs = inputs
 
+    def set_in_indices_length(self, length):
+        """
+        used for chainjacobian function.
+        Input:
+            length: the input dimension length
+        """
+        assert (length <= len(self.shape))
+        self.input_indices_length = length
+
     # TODOs:
     # def __div__(self, other): return anp.divide(  self, other)
     # def __mod__(self, other): return anp.mod(     self, other)
@@ -566,15 +575,6 @@ class EinsumNode(OpNode):
         node_names = [node.name for node in nodes]
         self.name = self._name_generator(self.einsum_subscripts, node_names)
 
-    def set_in_indices_length(self, length):
-        """
-        used for chainjacobian function.
-        Input:
-            length: the input dimension length
-        """
-        assert (length <= len(self.shape))
-        self.input_indices_length = length
-
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
@@ -845,29 +845,17 @@ identity = IdentityNode.create
 
 
 def chainjacobian(node_A, node_B):
-    """A function that chains different jacobian matrices.
+    """A function that chains different jacobian matrices in a tensor format.
        Mathematically:
-       dz/dx = chainjacobian(dz/dy, dy/dx)
-
-    Here we need to perform the matmul like operations
-    for the tensors. The "tensor multiplication"
-    operation are performed, whose results are the same as:
-        reshape T1 in to M1
-        reshape T2 in to M2
-        reshape T3 in to M3
-        M3 = M1 @ M2
-        reshape M3 back to T3.
-
+       dz/dx = matmul(dz/dy, dy/dx)
     Input:
-        node_A, node_B: einsum nodes to be chained
+        node_A, node_B: input nodes to be chained
     Output:
         node_C: output einsum node
     """
     if isinstance(node_A, EmptyNode):
         return node_B
     else:
-        assert isinstance(node_A, EinsumNode)
-        assert isinstance(node_B, EinsumNode)
         node_A_in_dim = node_A.input_indices_length
         node_A_out_dim = len(node_A.shape) - node_A_in_dim
         node_B_in_dim = node_B.input_indices_length
