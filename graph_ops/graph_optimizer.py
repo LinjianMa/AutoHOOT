@@ -142,6 +142,9 @@ def fuse_einsums(output_node, input_nodes):
 def find_sub_einsumtree(output_node, input_nodes):
     """
     Finds all the subtrees from the given graph definition.
+
+    Key Assumptions: Subtrees doesn't overlap.
+
     Arguments:
         output_node: the root of the tree
         input_nodes: leaf of the tree
