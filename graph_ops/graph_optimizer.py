@@ -139,57 +139,45 @@ def fuse_einsums(output_node, input_nodes):
     return output_node, input_nodes
 
 
-def find_sub_einsumtree(output_node, input_nodes):
+def get_all_einsum_descdants(node):
+    """Returns all the einsum descdants including himself.
+    Args:
+        A node in the graph.
+    Returns:
+        A list of all connected einsum nodes in the graph.
+    """
+    assert isinstance(node, ad.EinsumNode)
+    tree_nodes = [node]
+    for i_node in node.inputs:
+        if isinstance(i_node, ad.EinsumNode):
+            nodes = get_all_einsum_descdants(i_node)
+            tree_nodes += nodes
+    return tree_nodes
+
+
+def find_sub_einsumtree(output_node):
     """
     Finds all the subtrees from the given graph definition.
 
-    Key Assumptions: Subtrees doesn't overlap.
+    There can be overlap of different subtrees.
 
     Arguments:
         output_node: the root of the tree
         input_nodes: leaf of the tree
     Returns:
-        a list of trees defined by their input, output nodes (as a tuple).
+        Return many einsum trees.
     """
-    # Traverse. run union find for each edge. Each edge represents a connection relationship.
-    # If two nodes are both einsum node, we can link together.
-    all_nodes = find_topo_sort([output_node], input_nodes)
-    uf = UFNodes(all_nodes)
-    for node in all_nodes:
-        for cur_input in node.inputs:
-            # link current node and cur_input if they are both Einsum node.
-            if isinstance(node, ad.EinsumNode) and isinstance(
-                    cur_input, ad.EinsumNode):
-                uf.connect(node, cur_input)
-
-    uf.assign()
-    groups = defaultdict(set)
-    results = []
-    for node in all_nodes:
-        groups[uf.rootval(node)].add(node)
-        # print(f'name: {node} + val: {uf.rootval(node)}')
-    # For now each einsum tree has been marked with all adjacent einsum nodes.
-    # Then for all the leaf einsum nodes and include their inputs.
-    # Note: einsum node leaf's input must not be an Einsum node (otherwise it will be the leaf).
-    for k, nodes in groups.items():
-        # How to find leaves...
-        assert len(nodes) > 0
-        # Root must be the the node that is not contained in any nodes input.
-        parent = get_root(nodes)
-        # We only work with einsum trees.
-        if not isinstance(parent, ad.EinsumNode):
-            continue
-
-        leaves = get_leaves(nodes)
-
+    trees = []
+    if isinstance(output_node, ad.EinsumNode):
+        tree_nodes = get_all_einsum_descdants(output_node)
+        leaves = get_leaves(tree_nodes)
         for leaf in leaves:
-            uf.roots[leaf] = k
-
-        nodes = nodes | leaves  # This is only for debug.
-
-        results.append((parent, list(leaves)))
-
-    # for node in all_nodes:
-    #     print(f'name: {node} + val: {uf.rootval(node)}')
-
-    return results
+            new_trees = find_sub_einsumtree(leaf)
+            trees += new_trees
+        trees.append([output_node, leaves])
+        return trees
+    else:
+        for i_node in output_node.inputs:
+            new_trees = find_sub_einsumtree(i_node)
+            trees += new_trees
+        return trees
