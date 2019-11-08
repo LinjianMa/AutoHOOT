@@ -90,26 +90,22 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         executor_JtJvps = ad.Executor(JtJvps)
 
         new_JtJvps = []
-        for JtJvp in JtJvps:
+        for JtJvp in [JtJvps[2]]:
+            print_computation_graph([JtJvp])
             JtJvp = distribute_tree(JtJvp)
 
             linearize([JtJvp], [A, B, C, input_tensor, v_A, v_B, v_C])
             all_nodes = find_topo_sort([JtJvp])
             with OutputInjectedMode(all_nodes):
-                trees = find_sub_einsumtree(
-                    JtJvp, [A, B, C, input_tensor, v_A, v_B, v_C])
+                trees = find_sub_einsumtree(JtJvp)
+                print(trees)
                 for tree in trees:
                     out_node, in_nodes = tree
-                    # print(in_nodes)
-                    # print(out_node)
-                    # print_computation_graph([out_node], in_nodes)
-                    # assert False
                     new_z, _ = fuse_einsums(out_node, in_nodes)
-                    # print(">>>>> Finish Fusing <<<<<")
-                    # print_computation_graph([new_z])
                     replace_node(out_node, new_z)
 
             new_JtJvps.append(JtJvp)
+            print_computation_graph([JtJvp])
 
         JtJvps = new_JtJvps
         from source import SourceToSource
