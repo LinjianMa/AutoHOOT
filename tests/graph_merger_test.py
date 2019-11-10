@@ -141,7 +141,11 @@ def test_einsum_fuse_graph():
         outs, _ = linearize([out], [a, b, c])
         out = outs[0]
 
-        print_computation_graph([out])
+        print_computation_graph(outs)
+
+        tree, = find_sub_einsumtree(out)
+        out, ins = tree
+        new_z, ins = fuse_einsums(out, ins)
 
         a_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
         b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
@@ -357,8 +361,3 @@ def test_einsum_subtree_clone():
         })
 
         assert (out_val == new_out_val).all()
-
-
-#
-#
-# test_einsum_subtree_clone()
