@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree
+from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from visualizer import print_computation_graph
 from utils import OutputInjectedMode, find_topo_sort, replace_node
@@ -434,3 +434,21 @@ def test_tree_distribution_ppE():
         })
 
         assert (out_val == new_out_val).all()
+
+
+def test_copy_tree():
+    """
+        [Copy] Test copying a tree.
+    """
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 2])
+        b = ad.Variable(name="b", shape=[2, 3])
+
+        c = ad.einsum('ik,kj->ij', a, b)
+        output = ad.einsum('ik,ij->kj', a, c)
+
+        new_node = copy_tree(output)
+        assert len(find_topo_sort([output
+                                   ])) == len([a, b]) + 2 * len([c, output])
