@@ -92,6 +92,53 @@ def test_einsum():
         assert T.array_equal(z_val, z_new_val)
 
 
+def test_einsum_fuse_graph():
+    """
+        [Fuse einsum used twice]
+        This case is rather subtle.
+        We want to auto fuse
+            A   B   C 
+            |    \ /  
+            |     es  
+            |    /|   
+            |  /  |   
+            es    |   
+              \   |   
+                es
+        Here es is einsum.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        a = ad.Variable(name="a", shape=[3, 3])
+        b = ad.Variable(name="b", shape=[3, 2])
+        c = ad.Variable(name="c", shape=[2, 3])
+
+        BC = ad.einsum('ik, kj->ij', b, c)  # 3x3
+
+        ABC = ad.einsum('ik, kj->ij', a, BC)  # 3x3
+
+        out = ad.einsum('jk, ki->ji', ABC, BC)  # 3x3
+
+        executor = ad.Executor([out])
+
+        outs, _ = linearize([out], [a, b, c])
+        out = outs[0]
+
+        print_computation_graph([out])
+
+        a_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
+        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        c_val = T.tensor([[1, 2, 3], [4, 5, 6]])  # 2x3
+
+        out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
+
+        executor = ad.Executor([new_z])
+        new_out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
+
+        assert (out_val == new_out_val).all()
+
+
 def test_einsum_multiuse():
     """
         Test manual fuse.
