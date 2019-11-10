@@ -450,5 +450,5 @@ def test_copy_tree():
         output = ad.einsum('ik,ij->kj', a, c)
 
         new_node = copy_tree(output)
-        assert len(find_topo_sort([output
-                                   ])) == len([a, b]) + 2 * len([c, output])
+        # The cloned variable names must be different since the clone.
+        assert new_node.name != output.name
