@@ -52,12 +52,9 @@ def test_einsum_multiuse():
 
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
-        # New graph
-        out_new, input_nodes = linearize([output], [a, b])
-        a_new, b_new = input_nodes
-
-        executor = ad.Executor(out_new)
-        out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
+        linearize(output)
+        executor = ad.Executor([output])
+        out_new_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         assert T.array_equal(out_val, out_new_val)
 
@@ -106,9 +103,8 @@ def test_einsum_find_subtree_after_linearization():
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         # New graph
-        out_new, input_nodes = linearize([output], [a, b])
-        assert len(out_new) == 1
-        tree, = find_sub_einsumtree(*out_new)
+        linearize(output)
+        tree, = find_sub_einsumtree(output)
         assert (len(tree[1]) == 3)
 
 

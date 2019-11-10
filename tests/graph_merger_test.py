@@ -138,10 +138,7 @@ def test_einsum_fuse_graph():
 
         executor = ad.Executor([out])
 
-        outs, _ = linearize([out], [a, b, c])
-        out = outs[0]
-
-        print_computation_graph(outs)
+        linearize(out)
 
         tree, = find_sub_einsumtree(out)
         out, ins = tree
@@ -237,23 +234,19 @@ def test_einsum_multiuse_auto_copy():
 
         out_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
-        # New graph
-        out_new, input_nodes = linearize([output], [a, b])
-
-        a_new, b_new = input_nodes  # Here we keep track of the original input.
-
-        # Need to manually find the to be fused nodes.
-        all_nodes = find_topo_sort(out_new)
+        linearize(output)
+        all_nodes = find_topo_sort([output])
         cloned_nodes = [
             tmp for tmp in all_nodes if isinstance(tmp, ad.CloneNode)
         ]
 
-        out_new, input_nodes = fuse_einsums(*out_new, [*cloned_nodes, b])
-        assert out_new.inputs == input_nodes
+        out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
+        # Test that every inputs is now fused.
+        assert all([not isinstance(x, ad.EinsumNode) for x in out_new.inputs])
 
         executor = ad.Executor([out_new])
         # Should only run part of the graph.
-        out_new_val, = executor.run(feed_dict={a_new: a_val, b_new: b_val})
+        out_new_val, = executor.run(feed_dict={a: a_val, b: b_val})
 
         assert T.array_equal(out_val, out_new_val)
 
