@@ -19,16 +19,17 @@ def linearize(output_nodes, input_nodes):
 
         NOTE: If you ever need to debug this function, the generated name is 
             inconsistent becasue of the added edges.
+
+        This only create cloned nodes for variable nodes.
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
-    # Note that
     assert len(output_nodes) > 0
     assert len(input_nodes) > 0
     all_nodes = find_topo_sort(output_nodes)
     # Inject outpus relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
-            if len(n.outputs) > 1:
+            if len(n.outputs) > 1 and isinstance(n, ad.VariableNode):
                 for n_o in n.outputs:
                     n_new = copy_tree(n)
                     n_o.set_inputs([

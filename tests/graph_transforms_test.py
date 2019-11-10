@@ -108,7 +108,7 @@ def test_einsum_find_subtree_after_linearization():
         # New graph
         out_new, input_nodes = linearize([output], [a, b])
         assert len(out_new) == 1
-        tree, = find_sub_einsumtree(*out_new, input_nodes)
+        tree, = find_sub_einsumtree(*out_new)
         assert (len(tree[1]) == 3)
 
 

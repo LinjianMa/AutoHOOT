@@ -2,7 +2,7 @@ import autodiff as ad
 import numpy as np
 import backend as T
 from source import SourceToSource
-from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree
+from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descdants
 from graph_ops.graph_transformer import linearize
 from visualizer import print_computation_graph
 from utils import find_topo_sort
@@ -33,6 +33,22 @@ def get_tree(prefix=""):
 
 
 ###############################################################################
+
+
+def test_find_all_einsum_descdants():
+    """
+        Find all einsum nodes.
+    """
+    a1 = ad.Variable(name="a1", shape=[3, 2])
+    a2 = ad.Variable(name="a2", shape=[2, 3])
+
+    x = ad.einsum('ik,kj->ij', a1, a2)
+
+    assert [x] == get_all_einsum_descdants(x)
+
+    inputs, output = get_tree()
+    all_einsum_nodes = get_all_einsum_descdants(output)
+    assert len(all_einsum_nodes) == 3
 
 
 def test_einsum_simple_rewrite():
@@ -264,7 +280,7 @@ def test_einsum_multitier():
         z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
 
         with OutputInjectedMode(find_topo_sort([out])):
-            trees = find_sub_einsumtree(out, input_nodes)
+            trees = find_sub_einsumtree(out)
             new_zs = []
             for tree in trees:
                 out_node, in_nodes = tree
@@ -276,3 +292,73 @@ def test_einsum_multitier():
             feed_dict=dict(zip(input_nodes, input_values)))
 
         assert T.array_equal(z_val, z_new_val)
+
+
+def test_einsum_subtree_clone():
+    """
+        [Subtree clone]
+        This case is rather subtle.
+        We want to auto fuse
+            A   B   C   D
+            |    \ /    |
+            |     es    |
+            |    /  \   |
+            |  /      \ |
+            es         es
+              \       /
+                  +
+
+        Here es is einsum.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        a = ad.Variable(name="a", shape=[3, 3])
+        b = ad.Variable(name="b", shape=[3, 2])
+        c = ad.Variable(name="c", shape=[2, 3])
+        d = ad.Variable(name="d", shape=[3, 3])
+
+        BC = ad.einsum('ik, kj->ij', b, c)  # 3x3
+
+        ABC = ad.einsum('ik, kj->ij', a, BC)  # 3x3
+
+        BCD = ad.einsum('jk, ki->ji', BC, d)  # 3x3
+
+        out = ABC + BCD
+
+        executor = ad.Executor([out])
+
+        with OutputInjectedMode(find_topo_sort([out])):
+            trees = find_sub_einsumtree(out)
+            assert len(trees) == 2
+            for tree in trees:
+                out_node, in_nodes = tree
+                new_z, _ = fuse_einsums(out_node, in_nodes)
+                replace_node(out_node, new_z)
+
+        a_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
+        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        c_val = T.tensor([[1, 2, 3], [4, 5, 6]])  # 2x3
+        d_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
+
+        out_val, = executor.run(feed_dict={
+            a: a_val,
+            b: b_val,
+            c: c_val,
+            d: d_val
+        })
+
+        executor = ad.Executor([out])
+        new_out_val, = executor.run(feed_dict={
+            a: a_val,
+            b: b_val,
+            c: c_val,
+            d: d_val
+        })
+
+        assert (out_val == new_out_val).all()
+
+
+#
+#
+# test_einsum_subtree_clone()
