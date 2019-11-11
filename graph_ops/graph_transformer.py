@@ -13,18 +13,20 @@ import copy
 from visualizer import print_computation_graph
 
 
-def linearize(output_nodes, input_nodes):
-    """
-        Linearize a graph by adding clone nodes for computation optimization.
+def linearize(output_node):
+    """Linearize a graph by adding clone nodes for computation optimization.
 
-        NOTE: If you ever need to debug this function, the generated name is 
-            inconsistent becasue of the added edges.
+    Args:
+        output_node: A single node.
+    Returns: 
+        None. Update is inplace. 
+
+    NOTE: If you ever need to debug this function, the generated name is 
+        inconsistent becasue of the added edges.
 
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
-    assert len(output_nodes) > 0
-    assert len(input_nodes) > 0
-    all_nodes = find_topo_sort(output_nodes)
+    all_nodes = find_topo_sort([output_node])
     # Inject outpus relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
@@ -35,8 +37,6 @@ def linearize(output_nodes, input_nodes):
                         tmp if tmp.name != n.name else n_new
                         for tmp in n_o.inputs
                     ])
-
-    return output_nodes, input_nodes
 
 
 def _distribute(binary_op_node, output):
@@ -118,7 +118,10 @@ def copy_tree(node):
     """
         Copies a tree, creating new nodes for each one in the tree.
     """
-    print(f"Copy tree {node}")
+    # Track back the original Variable node.
+    if isinstance(node, ad.CloneNode):
+        assert len(node.inputs) == 1
+        return copy_tree(node.inputs[0])
     if isinstance(node, ad.VariableNode):
         return node.clone()
     new_inputs = []
