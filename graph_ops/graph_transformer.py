@@ -118,7 +118,10 @@ def copy_tree(node):
     """
         Copies a tree, creating new nodes for each one in the tree.
     """
-    print(f"Copy tree {node}")
+    # Track back the original Variable node.
+    if isinstance(node, ad.CloneNode):
+        assert len(node.inputs) == 1
+        return copy_tree(node.inputs[0])
     if isinstance(node, ad.VariableNode):
         return node.clone()
     new_inputs = []
