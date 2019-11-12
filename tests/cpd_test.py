@@ -1,14 +1,9 @@
 import autodiff as ad
 import numpy as np
 import backend as T
-from source import SourceToSource
+from graph_ops.graph_transformer import optimize
 from tensors.synthetic_tensors import init_rand_3d
-from utils import find_topo_sort
-from graph_ops.graph_transformer import linearize
 from visualizer import print_computation_graph
-from graph_ops.graph_transformer import distribute_tree
-from utils import OutputInjectedMode, replace_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
 
 BACKEND_TYPES = ['numpy']
 
@@ -138,21 +133,9 @@ def test_cpd_jtjvp_optimize():
                            node_list=[A, B, C],
                            vector_list=[v_A, v_B, v_C])
 
-        # optimize the graph
-        new_JtJvps = []
-        for JtJvp in JtJvps:
-            JtJvp = distribute_tree(JtJvp)
-            linearize(JtJvp)
-            all_nodes = find_topo_sort([JtJvp])
-            with OutputInjectedMode(all_nodes):
-                trees = find_sub_einsumtree(JtJvp)
-                for tree in trees:
-                    out_node, in_nodes = tree
-                    new_z, _ = fuse_einsums(out_node, in_nodes)
-                    replace_node(out_node, new_z)
-            new_JtJvps.append(JtJvp)
-
-        JtJvps = new_JtJvps
+        JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
+        for node in JtJvps:
+            assert isinstance(node, ad.AddNode)
         executor_JtJvps = ad.Executor(JtJvps)
 
         jtjvp_val = executor_JtJvps.run(

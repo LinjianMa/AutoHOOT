@@ -5,10 +5,40 @@ from graph_ops.graph_optimizer import find_sub_einsumtree
 from visualizer import print_computation_graph
 from utils import OutputInjectedMode, find_topo_sort, replace_node
 
+import numpy as np  # This is used for generate random numbers.
+
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
 
 # TODO(yejiayu): Find a test engine that generate the test func name as prefix.
+
+###############################################################################
+# Helper functions.
+
+
+def gen_dict(input_nodes):
+    feed_dict = {}
+    for i_node in input_nodes:
+        feed_dict[i_node] = T.tensor(np.asarray(np.random.rand(*i_node.shape)))
+    return feed_dict
+
+
+def float_eq(A, B):
+    return (abs(A - B) < 1e-8).all()
+
+
+def tree_eq(out, new_out, input_nodes):
+    feed_dict = gen_dict(input_nodes)
+
+    executor = ad.Executor([out])
+    out_val, = executor.run(feed_dict=feed_dict)
+
+    executor = ad.Executor([new_out])
+    new_out_val, = executor.run(feed_dict=feed_dict)
+    return float_eq(out_val, new_out_val)
+
+
+###############################################################################
 
 
 def test_einsum_multiuse():
@@ -45,16 +75,14 @@ def test_einsum_multiuse():
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a, c)
 
+        feed_dict = gen_dict([a, b])
+
         executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val})
+        out_val, = executor.run(feed_dict=feed_dict)
 
         linearize(output)
         executor = ad.Executor([output])
-        out_new_val, = executor.run(feed_dict={a: a_val, b: b_val})
+        out_new_val, = executor.run(feed_dict=feed_dict)
 
         assert T.array_equal(out_val, out_new_val)
 
@@ -95,12 +123,9 @@ def test_einsum_find_subtree_after_linearization():
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a, c)
 
+        feed_dict = gen_dict([a, b])
         executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val})
+        out_val, = executor.run(feed_dict=feed_dict)
 
         # New graph
         linearize(output)
@@ -149,19 +174,7 @@ def test_tree_distribution():
         new_output = distribute_tree(output)
         assert isinstance(new_output, ad.AddNode)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        # New graph
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c])
 
 
 def test_tree_distribution_order():
@@ -178,23 +191,10 @@ def test_tree_distribution_order():
         c = ad.Variable(name="c", shape=[2, 3])
 
         output = ad.einsum('ik,kj->ij', c, a + b)
-
         new_output = distribute_tree(output)
         assert isinstance(new_output, ad.AddNode)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        # New graph
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c])
 
 
 def test_tree_distribution_four_terms():
@@ -232,36 +232,13 @@ def test_tree_distribution_four_terms():
         # (A + B) * (C + D) = A * (C + D) + B * (C + D)
         # Then do A * (C + D) and B * (C + D)
         new_output = distribute_tree(output)
-        # print_computation_graph([new_output])
 
         assert isinstance(new_output, ad.AddNode)
         add1, add2 = new_output.inputs
         assert isinstance(add1, ad.AddNode)
         assert isinstance(add2, ad.AddNode)
-        executor = ad.Executor([output])
 
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-        d_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            c: c_val,
-            d: d_val
-        })
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            c: c_val,
-            d: d_val
-        })
-
-        # New graph
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c, d])
 
 
 def test_tree_distribution_mim():
@@ -302,32 +279,7 @@ def test_tree_distribution_mim():
         for node in new_output.inputs:
             assert isinstance(node, ad.AddNode)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        g_val = T.tensor([[1, 2], [3, 4]])  # 2x2
-        c_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-        d_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val,
-            d: d_val
-        })
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val,
-            d: d_val
-        })
-
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c, d, g])
 
 
 def test_tree_distribution_two_layers():
@@ -353,33 +305,9 @@ def test_tree_distribution_two_layers():
         output = ad.einsum('ik,kj->ij', interm, c)
 
         new_output = distribute_tree(output)
-        print_computation_graph([new_output])
-
         assert isinstance(new_output, ad.AddNode)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        g_val = T.tensor([[1, 2], [3, 4]])  # 2x2
-        c_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val
-        })
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val
-        })
-
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c, g])
 
 
 def test_tree_distribution_ppE():
@@ -404,32 +332,9 @@ def test_tree_distribution_ppE():
         output = ad.einsum('ik,kk->ik', a + b + c, g)
 
         new_output = distribute_tree(output)
-
         assert isinstance(new_output, ad.AddNode)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        g_val = T.tensor([[1, 2], [3, 4]])  # 2x2
-
-        out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val
-        })
-
-        executor = ad.Executor([new_output])
-        new_out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            g: g_val,
-            c: c_val
-        })
-
-        assert (out_val == new_out_val).all()
+        assert tree_eq(output, new_output, [a, b, c, g])
 
 
 def test_copy_tree():
