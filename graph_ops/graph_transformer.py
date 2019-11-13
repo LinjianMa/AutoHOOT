@@ -7,6 +7,7 @@
 """
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
 import autodiff as ad
 import copy
 
@@ -131,3 +132,23 @@ def copy_tree(node):
     new_node = copy.deepcopy(node)
     new_node.set_inputs(new_inputs)
     return new_node
+
+
+def optimize(node):
+    """Optimize a graph with a single output node.
+
+    Args:
+        node: The output node.
+    Returns:
+        node: The newly generated node.
+    """
+    node = distribute_tree(node)
+    linearize(node)
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        trees = find_sub_einsumtree(node)
+        for tree in trees:
+            out_node, in_nodes = tree
+            new_z, _ = fuse_einsums(out_node, in_nodes)
+            replace_node(out_node, new_z)
+    return node
