@@ -140,7 +140,7 @@ def optimize(node):
     Args:
         node: The output node.
     Returns:
-        new_node: The newly generated node.
+        node: The newly generated node.
     """
     node = distribute_tree(node)
     linearize(node)
