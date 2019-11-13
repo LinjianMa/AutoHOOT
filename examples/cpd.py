@@ -41,6 +41,87 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
+def np_einsum_path(inputs):
+    v_A = inputs[0]
+    B = inputs[1]
+    C = inputs[2]
+    v_B = inputs[3]
+    A = inputs[4]
+    v_C = inputs[5]
+    inter_C = T.einsum('ka, kb->ab', C, C)
+    inter_A = T.einsum('ia, ib->ab', A, A)
+    inter_B = T.einsum('ja, jb->ab', B, B)
+
+    paths = []
+    paths.append(
+        np.einsum_path('ia,ab,ab->ib', v_A, inter_B, inter_C,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ja,ia,ab,jb->ib', v_B, A, inter_C, B,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ka,ia,ab,kb->ib', v_C, A, inter_B, C,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ia,ja,ab,ib->jb', v_A, B, inter_C, A,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ja,ab,ab->jb', v_B, inter_A, inter_C,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ka,ja,kb,ab->jb', v_C, B, C, inter_A,
+                       optimize=True)[0])
+
+    paths.append(
+        np.einsum_path('ia,ab,ka,ib->kb', v_A, inter_B, C, A,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ja,ab,ka,jb->kb', v_B, inter_A, C, B,
+                       optimize=True)[0])
+    paths.append(
+        np.einsum_path('ka,ab,ab->kb', v_C, inter_A, inter_B,
+                       optimize=True)[0])
+    return paths
+
+
+def np_jtjvp(inputs, paths):
+
+    # forward pass starts
+    v_A = inputs[0]
+    B = inputs[1]
+    C = inputs[2]
+    # _b = T.einsum('ia,ja,ka->ijk', v_A, B, C)  # v_A B C
+    v_B = inputs[3]
+    A = inputs[4]
+    # _d = T.einsum('ja,ia,ka->ijk', v_B, A, C)  # v_B A C
+    v_C = inputs[5]
+    # _g = T.einsum('ka,ia,ja->ijk', v_C, A, B)  # v_C A B
+    # _i = T.einsum('ia,ja,ka,kb->ijb', v_A, B, C, C) + T.einsum('ijk,kb->ijb', _d, C) + T.einsum('ijk,kb->ijb', _g, C) # [v_A B C + v_B A C + v_C A B ] C
+    inter_C = T.einsum('ka, kb->ab', C, C)
+    inter_A = T.einsum('ia, ib->ab', A, A)
+    inter_B = T.einsum('ja, jb->ab', B, B)
+
+    _j = T.einsum(
+        'ia,ab,ab->ib', v_A, inter_B, inter_C, optimize=paths[0]) + T.einsum(
+            'ja,ia,ab,jb->ib', v_B, A, inter_C, B,
+            optimize=paths[1]) + T.einsum(
+                'ka,ia,ab,kb->ib', v_C, A, inter_B, C,
+                optimize=paths[2])  # [v_A B C + v_B A C + v_C A B ] C B
+    _k = T.einsum(
+        'ia,ja,ab,ib->jb', v_A, B, inter_C, A, optimize=paths[3]) + T.einsum(
+            'ja,ab,ab->jb', v_B, inter_A, inter_C,
+            optimize=paths[4]) + T.einsum(
+                'ka,ja,kb,ab->jb', v_C, B, C, inter_A,
+                optimize=paths[5])  # [v_A B C + v_B A C + v_C A B ] C A
+    _l = T.einsum(
+        'ia,ab,ka,ib->kb', v_A, inter_B, C, A, optimize=paths[6]) + T.einsum(
+            'ja,ab,ka,jb->kb', v_B, inter_A, C, B,
+            optimize=paths[7]) + T.einsum(
+                'ka,ab,ab->kb', v_C, inter_A, inter_B,
+                optimize=paths[8])  # [v_A B C + v_B A C + v_C A B ] A B
+    return [_j, _k, _l]
+
+
 def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
     """
     mode: ad / optimized / jax
@@ -89,6 +170,8 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         normT = T.norm(input_tensor_val)
         time_all, fitness = 0., 0.
 
+        paths = []
+        path_cal = False
         for i in range(10):
 
             t0 = time.time()
@@ -98,6 +181,14 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                     from examples.cpd_jtjvp_optimized import jtjvp
                     return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
                 elif mode == 'ad':
+                    nonlocal path_cal
+                    if not path_cal:
+                        nonlocal paths
+                        paths = np_einsum_path(
+                            [v[0], B_val, C_val, v[1], A_val, v[2]])
+                        path_cal = True
+                    return np_jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]],
+                                    paths)
                     return executor_JtJvps.run(
                         feed_dict={
                             A: A_val,
