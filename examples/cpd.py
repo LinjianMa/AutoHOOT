@@ -101,24 +101,42 @@ def np_jtjvp(inputs, paths):
     inter_A = T.einsum('ia, ib->ab', A, A)
     inter_B = T.einsum('ja, jb->ab', B, B)
 
-    _j = T.einsum(
-        'ia,ab,ab->ib', v_A, inter_B, inter_C, optimize=paths[0]) + T.einsum(
-            'ja,ia,ab,jb->ib', v_B, A, inter_C, B,
-            optimize=paths[1]) + T.einsum(
-                'ka,ia,ab,kb->ib', v_C, A, inter_B, C,
-                optimize=paths[2])  # [v_A B C + v_B A C + v_C A B ] C B
+    inter_AB = T.einsum('ab, ab->ab', inter_A, inter_B)
+    inter_AC = T.einsum('ab, ab->ab', inter_A, inter_C)
+    inter_BC = T.einsum('ab, ab->ab', inter_B, inter_C)
+
+    _j = T.einsum('ia,ab->ib', v_A, inter_BC) + T.einsum(
+        'ja,ia,ab,jb->ib', v_B, A, inter_C, B, optimize=paths[1]) + T.einsum(
+            'ka,ia,ab,kb->ib', v_C, A, inter_B, C, optimize=paths[2])
+
     _k = T.einsum(
         'ia,ja,ab,ib->jb', v_A, B, inter_C, A, optimize=paths[3]) + T.einsum(
-            'ja,ab,ab->jb', v_B, inter_A, inter_C,
-            optimize=paths[4]) + T.einsum(
-                'ka,ja,kb,ab->jb', v_C, B, C, inter_A,
-                optimize=paths[5])  # [v_A B C + v_B A C + v_C A B ] C A
-    _l = T.einsum(
-        'ia,ab,ka,ib->kb', v_A, inter_B, C, A, optimize=paths[6]) + T.einsum(
-            'ja,ab,ka,jb->kb', v_B, inter_A, C, B,
-            optimize=paths[7]) + T.einsum(
-                'ka,ab,ab->kb', v_C, inter_A, inter_B,
-                optimize=paths[8])  # [v_A B C + v_B A C + v_C A B ] A B
+            'ja,ab->jb', v_B, inter_AC) + T.einsum(
+                'ka,ja,kb,ab->jb', v_C, B, C, inter_A, optimize=paths[5])
+
+    _l = T.einsum('ia,ab,ka,ib->kb', v_A, inter_B, C, A,
+                  optimize=paths[6]) + T.einsum(
+                      'ja,ab,ka,jb->kb', v_B, inter_A, C, B,
+                      optimize=paths[7]) + T.einsum('ka,ab->kb', v_C, inter_AB)
+
+    # _j = T.einsum(
+    #     'ia,ab,ab->ib', v_A, inter_B, inter_C, optimize=paths[0]) + T.einsum(
+    #         'ja,ia,ab,jb->ib', v_B, A, inter_C, B,
+    #         optimize=paths[1]) + T.einsum(
+    #             'ka,ia,ab,kb->ib', v_C, A, inter_B, C,
+    #             optimize=paths[2])  # [v_A B C + v_B A C + v_C A B ] C B
+    # _k = T.einsum(
+    #     'ia,ja,ab,ib->jb', v_A, B, inter_C, A, optimize=paths[3]) + T.einsum(
+    #         'ja,ab,ab->jb', v_B, inter_A, inter_C,
+    #         optimize=paths[4]) + T.einsum(
+    #             'ka,ja,kb,ab->jb', v_C, B, C, inter_A,
+    #             optimize=paths[5])  # [v_A B C + v_B A C + v_C A B ] C A
+    # _l = T.einsum(
+    #     'ia,ab,ka,ib->kb', v_A, inter_B, C, A, optimize=paths[6]) + T.einsum(
+    #         'ja,ab,ka,jb->kb', v_B, inter_A, C, B,
+    #         optimize=paths[7]) + T.einsum(
+    #             'ka,ab,ab->kb', v_C, inter_A, inter_B,
+    #             optimize=paths[8])  # [v_A B C + v_B A C + v_C A B ] A B
     return [_j, _k, _l]
 
 
@@ -238,11 +256,11 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
 
 
 def cpd_nls_benchmark():
-    cg_time_ad, fitness_ad = cpd_nls(size=64, rank=10, mode='ad')
-    cg_time_optimized, fitness_optimized = cpd_nls(size=64,
-                                                   rank=10,
+    cg_time_ad, fitness_ad = cpd_nls(size=100, rank=100, mode='ad')
+    cg_time_optimized, fitness_optimized = cpd_nls(size=100,
+                                                   rank=100,
                                                    mode='optimized')
-    cg_time_jax, fitness_jax = cpd_nls(size=64, rank=10, mode='jax')
+    cg_time_jax, fitness_jax = cpd_nls(size=100, rank=100, mode='jax')
 
     assert (abs(fitness_ad - fitness_optimized) < 1e-3)
     assert (abs(fitness_jax - fitness_optimized) < 1e-3)
