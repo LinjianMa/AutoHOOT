@@ -268,15 +268,15 @@ class AddNode(OpNode):
             jacobian.set_in_indices_length(1)
         else:
             # see the autodiff cheatsheet for the details
-            order = len(self.shape)
-            input_nodes = [identity(self.shape[i]) for i in range(order)]
-            input_indices = [[i, i + order] for i in range(order)]
-            out_index = [i for i in range(2 * order)]
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
 
             subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
+                                               2 * dim)
             jacobian = einsum(subscripts, *input_nodes)
-            jacobian.set_in_indices_length(order)
+            jacobian.set_in_indices_length(dim)
         return [
             chainjacobian(output_jacobian, jacobian),
             chainjacobian(output_jacobian, jacobian)
@@ -341,15 +341,15 @@ class SubNode(OpNode):
             jacobian.set_in_indices_length(1)
         else:
             # see the autodiff cheatsheet for the details
-            order = len(self.shape)
-            input_nodes = [identity(self.shape[i]) for i in range(order)]
-            input_indices = [[i, i + order] for i in range(order)]
-            out_index = [i for i in range(2 * order)]
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
 
             subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
+                                               2 * dim)
             jacobian = einsum(subscripts, *input_nodes)
-            jacobian.set_in_indices_length(order)
+            jacobian.set_in_indices_length(dim)
         return [
             chainjacobian(output_jacobian, jacobian),
             chainjacobian(output_jacobian, -jacobian)
