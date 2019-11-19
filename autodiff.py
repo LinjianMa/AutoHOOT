@@ -27,6 +27,8 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
+        # used for chaining jacobian
+        self.input_indices_length = None
 
         # This is used for optimization when some nodes need to be cloned.
         self.suffix_getter = IntGetter()
@@ -263,17 +265,18 @@ class AddNode(OpNode):
         # the case when addition is put on scalars
         if self.shape == []:
             jacobian = identity(1)
+            jacobian.set_in_indices_length(1)
         else:
             # see the autodiff cheatsheet for the details
-            order = len(self.shape)
-            input_nodes = [identity(self.shape[i]) for i in range(order)]
-            input_indices = [[i, i + order] for i in range(order)]
-            out_index = [i for i in range(2 * order)]
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
 
             subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
+                                               2 * dim)
             jacobian = einsum(subscripts, *input_nodes)
-            jacobian.set_in_indices_length(order)
+            jacobian.set_in_indices_length(dim)
         return [
             chainjacobian(output_jacobian, jacobian),
             chainjacobian(output_jacobian, jacobian)
@@ -330,6 +333,27 @@ class SubNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
+
+    def jacobian(self, output_jacobian):
+        # the case when addition is put on scalars
+        if self.shape == []:
+            jacobian = identity(1)
+            jacobian.set_in_indices_length(1)
+        else:
+            # see the autodiff cheatsheet for the details
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
+
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * dim)
+            jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(dim)
+        return [
+            chainjacobian(output_jacobian, jacobian),
+            chainjacobian(output_jacobian, -jacobian)
+        ]
 
 
 class SubByConstNode(OpNode):
@@ -812,6 +836,8 @@ class NegativeNode(OpNode):
         self.inputs = [node_A]
         self.name = "(-%s)" % node_A.name
         self.shape = node_A.shape
+        # used for chainjacobian function.
+        self.input_indices_length = node_A.input_indices_length
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
