@@ -619,7 +619,7 @@ class EinsumNode(OpNode):
         in_subs_split = in_subs.split(',')
         in_subs_list = []
         for i in in_subs_split:
-            if i is not '':
+            if i != '':
                 in_subs_list = in_subs_list + list(i)
             else:
                 in_subs_list = in_subs_list + ['']
