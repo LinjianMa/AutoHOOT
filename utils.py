@@ -1,11 +1,18 @@
 from functools import reduce
-import re
 import autodiff as ad
 import backend as T
-import scipy.linalg as sla
-import time
+import logging
 import numpy as np
 import numpy.linalg as la
+import re
+import scipy.linalg as sla
+import time
+
+FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
+
+logger = logging.getLogger('optimizer')
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
 
 
 def jit_decorator(forward):
