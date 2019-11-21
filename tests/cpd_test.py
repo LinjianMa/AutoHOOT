@@ -1,9 +1,7 @@
 import autodiff as ad
-import numpy as np
 import backend as T
 from graph_ops.graph_transformer import optimize
 from tensors.synthetic_tensors import init_rand_3d
-from visualizer import print_computation_graph
 
 BACKEND_TYPES = ['numpy']
 

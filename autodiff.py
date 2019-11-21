@@ -1,8 +1,5 @@
-import numpy as np
 import backend as T
-import copy
-from functools import reduce
-from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import find_topo_sort, sum_node_list, inner_product
 from utils import IntGetter, indices_to_subscripts
 from numpy.core.einsumfunc import _parse_einsum_input
 
@@ -202,7 +199,7 @@ class VariableNode(Node):
         super().__init__()
         self.name = name
         self.shape = shape
-        assert shape != None
+        assert shape is not None
 
 
 # This is a straight through node.
@@ -595,7 +592,7 @@ class EinsumNode(OpNode):
 
     def set_inputs(self, nodes):
         """
-            USED DURING OPTIMIZATION 
+            USED DURING OPTIMIZATION
             Inputs must be changed through this.
             Name update is needed to ensure the correctness of the fuser.
         """
@@ -642,7 +639,6 @@ class EinsumNode(OpNode):
         Returns
         -------
         Returns a einsum node.
-        
         """
         in_subs, out_subs, _ = _parse_einsum_input(
             (node.einsum_subscripts, *node.inputs))

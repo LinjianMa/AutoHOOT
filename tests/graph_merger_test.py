@@ -1,10 +1,7 @@
 import autodiff as ad
-import numpy as np
 import backend as T
-from source import SourceToSource
 from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descdants
 from graph_ops.graph_transformer import linearize
-from visualizer import print_computation_graph
 from utils import find_topo_sort
 from utils import replace_node, OutputInjectedMode
 
@@ -278,7 +275,6 @@ def test_einsum_multitier():
 
         with OutputInjectedMode(find_topo_sort([out])):
             trees = find_sub_einsumtree(out)
-            new_zs = []
             for tree in trees:
                 out_node, in_nodes = tree
                 new_z, _ = fuse_einsums(out_node, in_nodes)

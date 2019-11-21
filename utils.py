@@ -4,7 +4,6 @@ import backend as T
 import logging
 import numpy as np
 import numpy.linalg as la
-import re
 import scipy.linalg as sla
 import time
 
@@ -198,7 +197,6 @@ def topo_sort_dfs(node, visited, topo_order, input_node_list):
 def sum_node_list(node_list):
     """Custom sum function in order to avoid create redundant nodes in Python sum implementation."""
     from operator import add
-    from functools import reduce
     return reduce(add, node_list)
 
 
@@ -340,7 +338,7 @@ class cp_nls_optimizer():
     def compute_block_diag_preconditioner(self, regularization):
         P = []
         for i in range(len(self.A)):
-            n = self.A[i].shape[1]
+            self.A[i].shape[1]
             P.append(
                 la.cholesky(self.gamma[i]) +
                 regularization * np.diag(self.gamma[i].diagonal()))
