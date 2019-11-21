@@ -2,8 +2,6 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree
-from visualizer import print_computation_graph
-from utils import OutputInjectedMode, find_topo_sort, replace_node
 
 import numpy as np  # This is used for generate random numbers.
 

@@ -2,12 +2,11 @@
 import autodiff as ad
 import logging
 import copy
-from collections import defaultdict
 
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter
-from utils import get_root, get_leaves
+from utils import get_leaves
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -92,7 +91,6 @@ def fuse_einsums(output_node, input_nodes):
     """
     # First assume everything einsum.
     logger.info('Start fusing einsum')
-    g = CharacterGetter()
 
     # Making this automatic.
     # Assume output_node is einsum and their children are einsum of any number

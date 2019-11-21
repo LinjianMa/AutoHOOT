@@ -11,7 +11,6 @@ from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
 import autodiff as ad
 import copy
 
-from visualizer import print_computation_graph
 
 
 def linearize(output_node):
