@@ -1,15 +1,27 @@
 import numpy as np
 
 
-# A path cached einsum. optimize argument will be ignored
+# This matains a global state.
+# Only consider two expression that has the same subscripts and operand shapes
+# to be the same einsum expression.
 class _EinsumPathCached:
     def __init__(self):
-        self.path = None
+        self.path = {}
 
     def __call__(self, *args, **kwargs):
-        if self.path is None:
-            self.path = np.einsum_path(*args, **kwargs, optimize='optimal')
-        kwargs['optimize'] = self.path[0]
+        subscript = args[0]
+        operands = args[1:]
+        key = subscript
+        key += '|'
+        for operand in operands:
+            key += '-'.join([str(dim) for dim in operand.shape])
+            key += '|'
+
+        if key not in self.path:
+            self.path[key] = np.einsum_path(*args,
+                                            **kwargs,
+                                            optimize='optimal')[0]
+        kwargs['optimize'] = self.path[key]
         return np.einsum(*args, **kwargs)
 
 
@@ -22,7 +34,9 @@ einsum_pc = _EinsumPathCached()
 # begin = time.time()
 # for i in range(10):
 #     einsum_pc('pi,qj,ijkl,rk,sl->pqrs', C, C, I, C, C)
+#     einsum_pc('pi,qj,ijko,rk,so->pqrs', C, C, I, C, C)
 # end = time.time()
+# print(einsum_pc.path)
 # print(f'{end - begin}')
 # begin = time.time()
 # for i in range(10):
