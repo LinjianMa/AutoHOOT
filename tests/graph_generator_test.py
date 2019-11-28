@@ -1,14 +1,19 @@
 import autodiff as ad
 import backend as T
 from graph_ops.graph_generator import generate_optimal_tree
+from tests.test_utils import tree_eq
+from visualizer import print_computation_graph
 
 BACKEND_TYPES = ['numpy']
 
 
 def test_einsum_gen():
     for datatype in BACKEND_TYPES:
-        a1 = ad.Variable(name="a1", shape=[3, 2])
-        a2 = ad.Variable(name="a2", shape=[2, 3])
+        N = 10
+        C = ad.Variable(name="C", shape=[N, N])
+        I = ad.Variable(name="I", shape=[N, N, N, N])
 
-        x = ad.einsum('ik,kj->ij', a1, a2)
-        generate_optimal_tree(x)
+        output = ad.einsum('pi,qj,ijkl,rk,sl->pqrs', C, C, I, C, C)
+        new_output = generate_optimal_tree(output)
+        assert tree_eq(output, new_output, [C, I])
+        assert len(new_output.inputs) == 2
