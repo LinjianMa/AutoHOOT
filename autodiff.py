@@ -398,15 +398,20 @@ class MulNode(OpNode):
     def create(*args, **kwargs):
         return MulNode(*args, **kwargs)
 
-    def __init__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+    def __init__(self, node_A, node_B):
         super().__init__()
         self.inputs = [node_A, node_B]
-        self.scalar_A = scalar_A
-        self.scalar_B = scalar_B
+        self.scalar_A = False
+        self.scalar_B = False
+        if node_A.shape == [] or node_A.shape == [1]:
+            self.scalar_A = True
+        if node_B.shape == [] or node_B.shape == [1]:
+            self.scalar_B = True
         self.name = "(%s * %s)" % (node_A.name, node_B.name)
-        if scalar_A:
+
+        if self.scalar_A:
             self.shape = node_B.shape
-        elif scalar_B:
+        elif self.scalar_B:
             self.shape = node_A.shape
         else:
             assert node_A.shape == node_B.shape
@@ -426,19 +431,15 @@ class MulNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.scalar_A is False and self.scalar_B is True:
             return [
-                mul(output_grad, self.inputs[1], False, True),
+                output_grad * self.inputs[1],
                 sum(output_grad * self.inputs[0])
             ]
         elif self.scalar_A is True and self.scalar_B is False:
             return [
-                sum(output_grad * self.inputs[1]),
-                mul(output_grad, self.inputs[0], False, True)
+                sum(output_grad * self.inputs[1]), output_grad * self.inputs[0]
             ]
         else:
-            return [
-                output_grad * self.inputs[1],
-                output_grad * self.inputs[0],
-            ]
+            return [output_grad * self.inputs[1], output_grad * self.inputs[0]]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
@@ -710,12 +711,7 @@ class NormNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.axis is not None or self.order != 2:
             raise NotImplementedError
-        return [
-            mul(output_grad * norm(self.inputs[0])**(-1),
-                self.inputs[0],
-                scalar_A=True,
-                scalar_B=False)
-        ]
+        return [output_grad * norm(self.inputs[0])**(-1) * self.inputs[0]]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -745,12 +741,7 @@ class SumNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.axis != None:
             raise NotImplementedError
-        return [
-            mul(output_grad,
-                oneslike(self.inputs[0]),
-                scalar_A=True,
-                scalar_B=False)
-        ]
+        return [output_grad * oneslike(self.inputs[0])]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -909,7 +900,7 @@ def chainjacobian(node_A, node_B):
 
         if dim_size == 0:
             # both nodes are scalars
-            node_C = mul(node_A, node_B, scalar_A=True, scalar_B=True)
+            node_C = node_A * node_B
             node_C.set_in_indices_length(0)
             return node_C
 
