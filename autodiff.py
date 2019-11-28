@@ -165,6 +165,20 @@ class ConstantNode(Node):
         raise Exception('ConstantNode does not allow jacobian calculation')
 
 
+class ScalarNode(ConstantNode):
+    @staticmethod
+    def create(*args, **kwargs):
+        return ScalarNode(*args, **kwargs)
+
+    def __init__(self, value):
+        name = f"{value}"
+        self.value = value
+        super().__init__(name, [])
+
+    def compute(self):
+        return T.tensor(self.value)
+
+
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
     @staticmethod
@@ -261,8 +275,8 @@ class AddNode(OpNode):
     def jacobian(self, output_jacobian):
         # the case when addition is put on scalars
         if self.shape == []:
-            jacobian = identity(1)
-            jacobian.set_in_indices_length(1)
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
         else:
             # see the autodiff cheatsheet for the details
             dim = len(self.shape)
@@ -334,8 +348,8 @@ class SubNode(OpNode):
     def jacobian(self, output_jacobian):
         # the case when addition is put on scalars
         if self.shape == []:
-            jacobian = identity(1)
-            jacobian.set_in_indices_length(1)
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
         else:
             # see the autodiff cheatsheet for the details
             dim = len(self.shape)
@@ -892,6 +906,12 @@ def chainjacobian(node_A, node_B):
         node_C_dim = node_C_in_dim + node_C_out_dim
 
         dim_size = node_C_in_dim + node_C_out_dim + node_A_out_dim
+
+        if dim_size == 0:
+            # both nodes are scalars
+            node_C = mul(node_A, node_B, scalar_A=True, scalar_B=True)
+            node_C.set_in_indices_length(0)
+            return node_C
 
         indices_C = [i for i in range(node_C_in_dim + node_C_out_dim)]
         indices_A = [i for i in range(node_A_in_dim)]
