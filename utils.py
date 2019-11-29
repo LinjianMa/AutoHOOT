@@ -148,8 +148,8 @@ def get_leaves(nodes):
     return all_inputs
 
 
-def get_all_einsum_descendantss(node):
-    """Returns all the einsum descendantss including himself.
+def get_all_einsum_descendants(node):
+    """Returns all the einsum descendants including himself.
     Args:
         A node in the graph.
     Returns:
@@ -159,7 +159,7 @@ def get_all_einsum_descendantss(node):
     tree_nodes = [node]
     for i_node in node.inputs:
         if isinstance(i_node, ad.EinsumNode):
-            nodes = get_all_einsum_descendantss(i_node)
+            nodes = get_all_einsum_descendants(i_node)
             tree_nodes += nodes
     return tree_nodes
 
