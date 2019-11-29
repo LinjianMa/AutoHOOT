@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descdants
+from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendantss
 from graph_ops.graph_transformer import linearize
 from utils import find_topo_sort
 from utils import replace_node, OutputInjectedMode
@@ -32,7 +32,7 @@ def get_tree(prefix=""):
 ###############################################################################
 
 
-def test_find_all_einsum_descdants():
+def test_find_all_einsum_descendantss():
     """
         Find all einsum nodes.
     """
@@ -41,10 +41,10 @@ def test_find_all_einsum_descdants():
 
     x = ad.einsum('ik,kj->ij', a1, a2)
 
-    assert [x] == get_all_einsum_descdants(x)
+    assert [x] == get_all_einsum_descendantss(x)
 
     inputs, output = get_tree()
-    all_einsum_nodes = get_all_einsum_descdants(output)
+    all_einsum_nodes = get_all_einsum_descendantss(output)
     assert len(all_einsum_nodes) == 3
 
 

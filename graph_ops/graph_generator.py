@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descdants, get_leaves
+from utils import get_all_einsum_descendantss, get_leaves
 
 import autodiff as ad
 import copy
@@ -14,7 +14,7 @@ def generate_optimal_tree(node):
         final_node: The newly generated node.
     """
     assert isinstance(node, ad.EinsumNode)
-    leaves = get_leaves(get_all_einsum_descdants(node))
+    leaves = get_leaves(get_all_einsum_descendantss(node))
     for leaf in leaves:
         assert (not isinstance(leaf, ad.EinsumNode))
 
@@ -26,14 +26,14 @@ def generate_optimal_tree(node):
                                       *np_inputs,
                                       einsum_call=True)
 
-    orginal_inputs = [i for i in node.inputs]
+    original_inputs = [i for i in node.inputs]
     final_node = None
     for contract in contract_list:
         indices, _, subscript, _, _ = contract
-        input_nodes = [orginal_inputs[i] for i in indices]
+        input_nodes = [original_inputs[i] for i in indices]
         new_node = ad.einsum(subscript, *input_nodes)
-        orginal_inputs.append(new_node)
+        original_inputs.append(new_node)
         for i_node in input_nodes:
-            orginal_inputs.remove(i_node)
+            original_inputs.remove(i_node)
         final_node = new_node
     return final_node
