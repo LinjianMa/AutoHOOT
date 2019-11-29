@@ -6,7 +6,7 @@ import copy
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter
-from utils import get_leaves, get_all_einsum_descendantss
+from utils import get_leaves, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -151,7 +151,7 @@ def find_sub_einsumtree(output_node):
     """
     trees = []
     if isinstance(output_node, ad.EinsumNode):
-        tree_nodes = get_all_einsum_descendantss(output_node)
+        tree_nodes = get_all_einsum_descendants(output_node)
         leaves = get_leaves(tree_nodes)
         for leaf in leaves:
             new_trees = find_sub_einsumtree(leaf)
