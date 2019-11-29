@@ -1,11 +1,17 @@
 from functools import reduce
-import re
 import autodiff as ad
 import backend as T
-import scipy.linalg as sla
-import time
+import logging
 import numpy as np
 import numpy.linalg as la
+import scipy.linalg as sla
+import time
+
+FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
+
+logger = logging.getLogger('optimizer')
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
 
 
 def jit_decorator(forward):
@@ -142,6 +148,22 @@ def get_leaves(nodes):
     return all_inputs
 
 
+def get_all_einsum_descendants(node):
+    """Returns all the einsum descendants including himself.
+    Args:
+        A node in the graph.
+    Returns:
+        A list of all connected einsum nodes in the graph.
+    """
+    assert isinstance(node, ad.EinsumNode)
+    tree_nodes = [node]
+    for i_node in node.inputs:
+        if isinstance(i_node, ad.EinsumNode):
+            nodes = get_all_einsum_descendants(i_node)
+            tree_nodes += nodes
+    return tree_nodes
+
+
 def replace_node(prev, new):
     """Replaces the previous node with the new node.
 
@@ -191,7 +213,6 @@ def topo_sort_dfs(node, visited, topo_order, input_node_list):
 def sum_node_list(node_list):
     """Custom sum function in order to avoid create redundant nodes in Python sum implementation."""
     from operator import add
-    from functools import reduce
     return reduce(add, node_list)
 
 
@@ -333,7 +354,7 @@ class cp_nls_optimizer():
     def compute_block_diag_preconditioner(self, regularization):
         P = []
         for i in range(len(self.A)):
-            n = self.A[i].shape[1]
+            self.A[i].shape[1]
             P.append(
                 la.cholesky(self.gamma[i]) +
                 regularization * np.diag(self.gamma[i].diagonal()))

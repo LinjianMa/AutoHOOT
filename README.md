@@ -3,8 +3,9 @@
 ## Tests cases
 Run all tests with
 ```bash
-# sudo pip install nose
-nosetests -v tests/*.py
+# sudo pip install pytest
+python -m pytest tests/*.py
+# You can specify the python file as well.
 ```
 
 ## Overview of Module API and Data Structures

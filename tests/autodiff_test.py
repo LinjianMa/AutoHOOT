@@ -1,7 +1,5 @@
 import autodiff as ad
-import numpy as np
 import backend as T
-from source import SourceToSource
 
 BACKEND_TYPES = ['numpy', 'ctf']
 

@@ -1,6 +1,5 @@
 import math
 import autodiff as ad
-import numpy as np
 import backend as T
 from tensors.synthetic_tensors import init_rand_3d
 from utils import conjugate_gradient, cp_nls_optimizer

@@ -1,8 +1,5 @@
-import numpy as np
 import backend as T
-import copy
-from functools import reduce
-from utils import find_topo_sort, topo_sort_dfs, sum_node_list, inner_product
+from utils import find_topo_sort, sum_node_list, inner_product
 from utils import IntGetter, indices_to_subscripts
 from numpy.core.einsumfunc import _parse_einsum_input
 
@@ -27,6 +24,8 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
+        # used for chaining jacobian
+        self.input_indices_length = None
 
         # This is used for optimization when some nodes need to be cloned.
         self.suffix_getter = IntGetter()
@@ -166,6 +165,20 @@ class ConstantNode(Node):
         raise Exception('ConstantNode does not allow jacobian calculation')
 
 
+class ScalarNode(ConstantNode):
+    @staticmethod
+    def create(*args, **kwargs):
+        return ScalarNode(*args, **kwargs)
+
+    def __init__(self, value):
+        name = f"{value}"
+        self.value = value
+        super().__init__(name, [])
+
+    def compute(self):
+        return T.tensor(self.value)
+
+
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
     @staticmethod
@@ -200,7 +213,7 @@ class VariableNode(Node):
         super().__init__()
         self.name = name
         self.shape = shape
-        assert shape != None
+        assert shape is not None
 
 
 # This is a straight through node.
@@ -262,18 +275,19 @@ class AddNode(OpNode):
     def jacobian(self, output_jacobian):
         # the case when addition is put on scalars
         if self.shape == []:
-            jacobian = identity(1)
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
         else:
             # see the autodiff cheatsheet for the details
-            order = len(self.shape)
-            input_nodes = [identity(self.shape[i]) for i in range(order)]
-            input_indices = [[i, i + order] for i in range(order)]
-            out_index = [i for i in range(2 * order)]
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
 
             subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
+                                               2 * dim)
             jacobian = einsum(subscripts, *input_nodes)
-            jacobian.set_in_indices_length(order)
+            jacobian.set_in_indices_length(dim)
         return [
             chainjacobian(output_jacobian, jacobian),
             chainjacobian(output_jacobian, jacobian)
@@ -331,6 +345,27 @@ class SubNode(OpNode):
         assert len(inputs) == 2
         return "(%s - %s)" % (inputs[0].name, inputs[1].name)
 
+    def jacobian(self, output_jacobian):
+        # the case when addition is put on scalars
+        if self.shape == []:
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
+        else:
+            # see the autodiff cheatsheet for the details
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
+
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * dim)
+            jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(dim)
+        return [
+            chainjacobian(output_jacobian, jacobian),
+            chainjacobian(output_jacobian, -jacobian)
+        ]
+
 
 class SubByConstNode(OpNode):
     """Node to element-wise add a nodes by a constant."""
@@ -363,15 +398,20 @@ class MulNode(OpNode):
     def create(*args, **kwargs):
         return MulNode(*args, **kwargs)
 
-    def __init__(self, node_A, node_B, scalar_A=False, scalar_B=False):
+    def __init__(self, node_A, node_B):
         super().__init__()
         self.inputs = [node_A, node_B]
-        self.scalar_A = scalar_A
-        self.scalar_B = scalar_B
+        self.scalar_A = False
+        self.scalar_B = False
+        if node_A.shape == [] or node_A.shape == [1]:
+            self.scalar_A = True
+        if node_B.shape == [] or node_B.shape == [1]:
+            self.scalar_B = True
         self.name = "(%s * %s)" % (node_A.name, node_B.name)
-        if scalar_A:
+
+        if self.scalar_A:
             self.shape = node_B.shape
-        elif scalar_B:
+        elif self.scalar_B:
             self.shape = node_A.shape
         else:
             assert node_A.shape == node_B.shape
@@ -391,19 +431,15 @@ class MulNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.scalar_A is False and self.scalar_B is True:
             return [
-                mul(output_grad, self.inputs[1], False, True),
+                output_grad * self.inputs[1],
                 sum(output_grad * self.inputs[0])
             ]
         elif self.scalar_A is True and self.scalar_B is False:
             return [
-                sum(output_grad * self.inputs[1]),
-                mul(output_grad, self.inputs[0], False, True)
+                sum(output_grad * self.inputs[1]), output_grad * self.inputs[0]
             ]
         else:
-            return [
-                output_grad * self.inputs[1],
-                output_grad * self.inputs[0],
-            ]
+            return [output_grad * self.inputs[1], output_grad * self.inputs[0]]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
@@ -571,7 +607,7 @@ class EinsumNode(OpNode):
 
     def set_inputs(self, nodes):
         """
-            USED DURING OPTIMIZATION 
+            USED DURING OPTIMIZATION
             Inputs must be changed through this.
             Name update is needed to ensure the correctness of the fuser.
         """
@@ -595,7 +631,7 @@ class EinsumNode(OpNode):
         in_subs_split = in_subs.split(',')
         in_subs_list = []
         for i in in_subs_split:
-            if i is not '':
+            if i != '':
                 in_subs_list = in_subs_list + list(i)
             else:
                 in_subs_list = in_subs_list + ['']
@@ -618,7 +654,6 @@ class EinsumNode(OpNode):
         Returns
         -------
         Returns a einsum node.
-        
         """
         in_subs, out_subs, _ = _parse_einsum_input(
             (node.einsum_subscripts, *node.inputs))
@@ -676,12 +711,7 @@ class NormNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.axis is not None or self.order != 2:
             raise NotImplementedError
-        return [
-            mul(output_grad * norm(self.inputs[0])**(-1),
-                self.inputs[0],
-                scalar_A=True,
-                scalar_B=False)
-        ]
+        return [output_grad * norm(self.inputs[0])**(-1) * self.inputs[0]]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -711,12 +741,7 @@ class SumNode(OpNode):
     def transposed_vjp(self, output_grad):
         if self.axis != None:
             raise NotImplementedError
-        return [
-            mul(output_grad,
-                oneslike(self.inputs[0]),
-                scalar_A=True,
-                scalar_B=False)
-        ]
+        return [output_grad * oneslike(self.inputs[0])]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -812,6 +837,8 @@ class NegativeNode(OpNode):
         self.inputs = [node_A]
         self.name = "(-%s)" % node_A.name
         self.shape = node_A.shape
+        # used for chainjacobian function.
+        self.input_indices_length = node_A.input_indices_length
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -870,6 +897,12 @@ def chainjacobian(node_A, node_B):
         node_C_dim = node_C_in_dim + node_C_out_dim
 
         dim_size = node_C_in_dim + node_C_out_dim + node_A_out_dim
+
+        if dim_size == 0:
+            # both nodes are scalars
+            node_C = node_A * node_B
+            node_C.set_in_indices_length(0)
+            return node_C
 
         indices_C = [i for i in range(node_C_in_dim + node_C_out_dim)]
         indices_A = [i for i in range(node_A_in_dim)]

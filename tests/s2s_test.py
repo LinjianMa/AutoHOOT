@@ -50,12 +50,10 @@ def test_s2s_jtjvp():
 
         jtjvp_x, = ad.jtjvps(y, [x], [v])
 
-        executor = ad.Executor([y, jtjvp_x])
         x_val = T.tensor([1., 2.])
         A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
         v_val = T.tensor([3, 4])
 
-        expected_yval = A_val @ x_val
         expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
 
         StS = SourceToSource()

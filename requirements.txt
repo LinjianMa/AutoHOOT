@@ -1,2 +1,5 @@
 jax
 jaxlib
+graphviz
+numpy
+pytest-benchmark

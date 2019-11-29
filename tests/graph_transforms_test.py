@@ -2,43 +2,10 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree
-from visualizer import print_computation_graph
-from utils import OutputInjectedMode, find_topo_sort, replace_node
-
-import numpy as np  # This is used for generate random numbers.
+from tests.test_utils import tree_eq, gen_dict
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
-
-# TODO(yejiayu): Find a test engine that generate the test func name as prefix.
-
-###############################################################################
-# Helper functions.
-
-
-def gen_dict(input_nodes):
-    feed_dict = {}
-    for i_node in input_nodes:
-        feed_dict[i_node] = T.tensor(np.asarray(np.random.rand(*i_node.shape)))
-    return feed_dict
-
-
-def float_eq(A, B):
-    return (abs(A - B) < 1e-8).all()
-
-
-def tree_eq(out, new_out, input_nodes):
-    feed_dict = gen_dict(input_nodes)
-
-    executor = ad.Executor([out])
-    out_val, = executor.run(feed_dict=feed_dict)
-
-    executor = ad.Executor([new_out])
-    new_out_val, = executor.run(feed_dict=feed_dict)
-    return float_eq(out_val, new_out_val)
-
-
-###############################################################################
 
 
 def test_einsum_multiuse():
