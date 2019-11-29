@@ -6,7 +6,7 @@ import copy
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter
-from utils import get_leaves
+from utils import get_leaves, get_all_einsum_descendantss
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -137,22 +137,6 @@ def fuse_einsums(output_node, input_nodes):
     return output_node, input_nodes
 
 
-def get_all_einsum_descdants(node):
-    """Returns all the einsum descdants including himself.
-    Args:
-        A node in the graph.
-    Returns:
-        A list of all connected einsum nodes in the graph.
-    """
-    assert isinstance(node, ad.EinsumNode)
-    tree_nodes = [node]
-    for i_node in node.inputs:
-        if isinstance(i_node, ad.EinsumNode):
-            nodes = get_all_einsum_descdants(i_node)
-            tree_nodes += nodes
-    return tree_nodes
-
-
 def find_sub_einsumtree(output_node):
     """
     Finds all the subtrees from the given graph definition.
@@ -167,7 +151,7 @@ def find_sub_einsumtree(output_node):
     """
     trees = []
     if isinstance(output_node, ad.EinsumNode):
-        tree_nodes = get_all_einsum_descdants(output_node)
+        tree_nodes = get_all_einsum_descendantss(output_node)
         leaves = get_leaves(tree_nodes)
         for leaf in leaves:
             new_trees = find_sub_einsumtree(leaf)
