@@ -672,15 +672,10 @@ class EinsumNode(OpNode):
         return einsum(new_subscripts, *new_operands)
 
     def transposed_vjp(self, output_grad):
-
-        if len(self.inputs) > 1:
-            grad_einsums = [
-                self.grad_einsum(i, self, output_grad)
-                for i in range(len(self.inputs))
-            ]
-            return grad_einsums
-        if len(self.inputs) == 1:
-            return [einsum(self.einsum_subscripts, output_grad)]
+        return [
+            self.grad_einsum(i, self, output_grad)
+            for i in range(len(self.inputs))
+        ]
 
     def s2s_expr(self, inputs):
         input_names = [inputvar.name for inputvar in inputs]

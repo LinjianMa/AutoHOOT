@@ -2,4 +2,5 @@ jax
 jaxlib
 graphviz
 numpy
+pytest
 pytest-benchmark
