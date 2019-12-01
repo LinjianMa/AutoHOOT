@@ -217,3 +217,36 @@ def test_sub_jacobian_w_chain():
         assert isinstance(jacobian_x2, ad.Node)
         assert T.array_equal(z_val, x3_val - x1_val + x2_val)
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
+def test_jacobian_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[3, 3, 3])
+        x2 = ad.Variable(name="x2", shape=[3, 3, 3])
+        y = ad.einsum("ikl,jkl->ijk", x1, x2)
+
+        jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
+
+        executor = ad.Executor([y, jacobian_x1, jacobian_x2])
+
+        x1_val = T.random((3, 3, 3))
+        x2_val = T.random((3, 3, 3))
+        y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val,
+        })
+
+        I = T.identity(3)
+        expected_jacobian_x1_val = T.einsum("im,kn,jno->ijkmno", I, I, x2_val)
+        expected_jacobian_x2_val = T.einsum("jm,kn,ino->ijkmno", I, I, x1_val)
+
+        print(jacobian_x1_val.shape)
+        print(expected_jacobian_x1_val.shape)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, T.einsum("ikl,jkl->ijk", x1_val, x2_val))
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+        assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
