@@ -43,3 +43,21 @@ def test_declone():
         c = a2 + b
         c = declone(c)
         assert c.inputs == [a, b]
+
+
+def test_declone_long():
+    """
+    Declone the tree.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[2, 2])
+        b = ad.Variable(name="b", shape=[2, 2])
+
+        a2 = a.clone()
+        a3 = a2.clone()
+        c = a3 + b
+        c = declone(c)
+        assert c.inputs == [a, b]
