@@ -8,9 +8,10 @@
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
+from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_dedup import dedup, declone
 import autodiff as ad
 import copy
-
 
 
 def linearize(output_node):
@@ -149,5 +150,8 @@ def optimize(node):
         for tree in trees:
             out_node, in_nodes = tree
             new_z, _ = fuse_einsums(out_node, in_nodes)
+            new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
+    node = declone(node)
+    dedup(node)
     return node
