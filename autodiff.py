@@ -239,6 +239,23 @@ class CloneNode(OpNode):
         """source_to_source expression: used for source generation"""
         return "%s" % (inputs[0].name)
 
+    def jacobian(self, output_jacobian):
+        if self.shape == []:
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
+        else:
+            # see the autodiff cheatsheet for the details
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
+
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * dim)
+            jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(dim)
+        return [chainjacobian(output_jacobian, jacobian)]
+
 
 class AddNode(OpNode):
     """A node that add two node together"""
@@ -627,14 +644,12 @@ class EinsumNode(OpNode):
             in_shapes = in_shapes + node.shape
         in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
         if out_subs == '':
-            return [1]
+            return []
         in_subs_split = in_subs.split(',')
         in_subs_list = []
         for i in in_subs_split:
             if i != '':
                 in_subs_list = in_subs_list + list(i)
-            else:
-                in_subs_list = in_subs_list + ['']
         out_subs_list = list(out_subs)
         out_shape = []
         for out_sub in out_subs_list:
@@ -1162,7 +1177,7 @@ def gradients(output_node, node_list):
         Therefore, this function CANNOT be used to calculate the gradients
         when output_node is not a scalar.
     """
-    assert output_node.shape == [1]
+    assert output_node.shape == [1] or output_node.shape == []
     ret_nodes = transposed_vjps(output_node, node_list, oneslike(output_node))
     for (ret_node, node) in zip(ret_nodes, node_list):
         assert ret_node.shape == node.shape
@@ -1177,3 +1192,14 @@ def hvp(output_node, node_list, vector_list):
     g_v_inner_product = inner_product(vector_list, gradient_list)
 
     return gradients(g_v_inner_product, node_list)
+
+
+def hessian(output_node, node_list):
+    """
+    explicit hessian expression
+    """
+    jacobian_outputs = jacobians(output_node, node_list)
+    hessian_outputs = []
+    for jacobian in jacobian_outputs:
+        hessian_outputs.append(jacobians(jacobian, node_list))
+    return hessian_outputs
