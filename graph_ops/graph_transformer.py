@@ -149,7 +149,7 @@ def optimize(node):
         trees = find_sub_einsumtree(node)
         for tree in trees:
             out_node, in_nodes = tree
-            new_z, _ = fuse_einsums(out_node, in_nodes)
+            new_z = fuse_einsums(out_node, in_nodes)
             new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
     node = declone(node)

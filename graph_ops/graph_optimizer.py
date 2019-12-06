@@ -86,8 +86,7 @@ def fuse_einsums(output_node, input_nodes):
             representation.
         Returns:
             A graph with fused intermediate einsum nodes. Represented by
-            output_node and input_nodes
-    TODO(yejiayu): work on extend to multiple dimensions.
+            output_node.
     """
     # First assume everything einsum.
     logger.info('Start fusing einsum')
@@ -134,7 +133,7 @@ def fuse_einsums(output_node, input_nodes):
     ##########################################
     output_node = ad.einsum(new_subscripts, *input_nodes)
 
-    return output_node, input_nodes
+    return output_node
 
 
 def find_sub_einsumtree(output_node):
