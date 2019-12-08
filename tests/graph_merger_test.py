@@ -134,10 +134,6 @@ def test_einsum_multiuse():
 
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a_copy, c)
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
         # New graph
         out_new = fuse_einsums(output, [a, a_copy, b])
         assert tree_eq(output, out_new, [a, a_copy, b])
@@ -166,9 +162,6 @@ def test_einsum_multiuse_auto_copy():
 
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a, c)
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
 
         linearize(output)
         all_nodes = find_topo_sort([output])
