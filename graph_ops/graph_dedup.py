@@ -2,11 +2,14 @@ import autodiff as ad
 from utils import find_topo_sort, OutputInjectedMode, replace_node
 
 
-def dedup(node):
+def dedup(*nodes):
     """Remove the duplicate nodes with same name.
+    Args:
+        nodes: One or many nodes.
     """
+    assert len(nodes) > 0
 
-    topo_order = find_topo_sort([node])
+    topo_order = find_topo_sort(nodes)
     with OutputInjectedMode(topo_order):
         unique_nodes_map = {}
         unique_nodes = set()

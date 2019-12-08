@@ -28,6 +28,28 @@ def test_dedup():
         assert z.inputs[0] == z.inputs[1]
 
 
+def test_dedup_many():
+    """
+    Dedup the tree.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[2, 2])
+        b = ad.Variable(name="b", shape=[2, 2])
+
+        c = a + b
+        d = a + b
+        z = c + d
+        y = c - d
+
+        dedup(y, z)
+        # Assert object level equivalence.
+        assert z.inputs[0] == z.inputs[1]
+        assert y.inputs[0] == y.inputs[1]
+
+
 def test_declone():
     """
     Declone the tree.
