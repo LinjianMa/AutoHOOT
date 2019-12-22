@@ -147,12 +147,13 @@ def rewrite_einsum_expr(einsum_node):
         Rewrites the einsum expression of a node.
 
         Inplace update.
+        Args:
+            einsum_node: All inputs must be unique.
         
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
-    for node in input_nodes:
-        assert (not isinstance(node, ad.EinsumNode))
+    assert len(input_nodes) == len(set(input_nodes))
 
     # TODO: Get all the einsum nodes in the computation graph.
     # Note that the order doesn't matter!
@@ -200,6 +201,11 @@ def optimize(node):
             new_z = fuse_einsums(out_node, in_nodes)
             new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
+    linearize(node)
+    all_nodes = find_topo_sort([node])
+    for node in all_nodes:
+        if isinstance(node, ad.EinsumNode):
+            rewrite_einsum_expr(node)
     node = declone(node)
     dedup(node)
     return node
