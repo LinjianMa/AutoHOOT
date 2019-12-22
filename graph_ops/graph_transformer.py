@@ -147,12 +147,13 @@ def rewrite_einsum_expr(einsum_node):
         Rewrites the einsum expression of a node.
 
         Inplace update.
+
+    Returns:
+        uf (type: graph_ops.graph_optimizer.UF): the union_find set of the input
         
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
-    for node in input_nodes:
-        assert (not isinstance(node, ad.EinsumNode))
 
     # TODO: Get all the einsum nodes in the computation graph.
     # Note that the order doesn't matter!
@@ -180,6 +181,8 @@ def rewrite_einsum_expr(einsum_node):
     new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
     einsum_node.einsum_subscripts = new_subscripts
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
+
+    return uf
 
 
 def optimize(node):
