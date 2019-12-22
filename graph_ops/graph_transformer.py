@@ -12,6 +12,7 @@ from utils import replace_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_dedup import dedup, declone
+from numpy.core.einsumfunc import _parse_einsum_input
 import autodiff as ad
 import copy
 
@@ -181,6 +182,32 @@ def rewrite_einsum_expr(einsum_node):
     new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
     einsum_node.einsum_subscripts = new_subscripts
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
+
+
+def sort_einsum_inputs(einsum_node):
+    """
+        Sort the einsum node inputs.
+
+        Inplace update.
+        Args:
+            einsum_node: an einsum node.
+    """
+    assert (isinstance(einsum_node, ad.EinsumNode))
+
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+
+    for i in range(len(in_subs_list)):
+        einsum_node.inputs[i].subscripts = in_subs_list[i]
+
+    # sort the input nodes based on their names
+    einsum_node.inputs = sorted(einsum_node.inputs,
+                                key=lambda input_node: input_node.name)
+
+    new_input_subs = [node.subscripts for node in einsum_node.inputs]
+    new_subscripts = ",".join(new_input_subs) + "->" + out_subs
+    einsum_node.einsum_subscripts = new_subscripts
 
 
 def optimize(node):
