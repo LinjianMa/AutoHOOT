@@ -1,6 +1,7 @@
 import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import optimize
+from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
 
 BACKEND_TYPES = ['numpy']
@@ -132,6 +133,7 @@ def test_cpd_jtjvp_optimize():
                            vector_list=[v_A, v_B, v_C])
 
         JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
+        dedup(*JtJvps)
         for node in JtJvps:
             assert isinstance(node, ad.AddNode)
         executor_JtJvps = ad.Executor(JtJvps)

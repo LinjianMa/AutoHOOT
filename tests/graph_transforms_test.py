@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree
+from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -320,3 +320,20 @@ def test_copy_tree():
         new_node = copy_tree(output)
         # The cloned variable names must be different since the clone.
         assert new_node.name != output.name
+
+
+def test_rewrite_expr():
+    """
+        Test rewrite the einsum expression.
+    """
+
+    a1 = ad.Variable(name="a1", shape=[3, 2])
+    a2 = ad.Variable(name="a2", shape=[2, 3])
+
+    x = ad.einsum('ik,kj->ij', a1, a2)
+
+    y = ad.einsum('sm,ml->sl', a1, a2)
+
+    rewrite_einsum_expr(x)
+    rewrite_einsum_expr(y)
+    assert x.einsum_subscripts == y.einsum_subscripts
