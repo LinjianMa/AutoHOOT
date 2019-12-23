@@ -30,6 +30,16 @@ class Node(object):
         # This is used for optimization when some nodes need to be cloned.
         self.suffix_getter = IntGetter()
 
+    @property
+    def nodename(self):
+        """
+        A property variable that shows its dependency with other nodes in the graph.
+        Difference with self.name:
+            self.name can be any strings, and it will not change after graph transformations.
+            self.nodename will vary based on the graph relations.
+        """
+        return self.name
+
     def __neg__(self):
         return negative(self)
 
@@ -102,7 +112,7 @@ class Node(object):
 
     def __str__(self):
         """Allow print to display node name."""
-        return self.name
+        return self.nodename
 
     __repr__ = __str__
 
@@ -267,6 +277,11 @@ class AddNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [output_grad, output_grad]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 2
+        return "(%s+%s)" % (self.inputs[0].nodename, self.inputs[1].nodename)
+
     def s2s_expr(self, inputs):
         """source_to_source expression: used for source generation"""
         assert len(inputs) == 2
@@ -315,6 +330,11 @@ class AddByConstNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [output_grad]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "(%s + %s)" % (self.inputs[0].nodename, self.const_attr)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
@@ -340,6 +360,11 @@ class SubNode(OpNode):
 
     def transposed_vjp(self, output_grad):
         return [output_grad, -output_grad]
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 2
+        return "(%s - %s)" % (self.inputs[0].nodename, self.inputs[1].nodename)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
@@ -387,6 +412,11 @@ class SubByConstNode(OpNode):
 
     def transposed_vjp(self, output_grad):
         return [output_grad]
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "(%s - %s)" % (self.inputs[0].nodename, self.const_attr)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -441,6 +471,11 @@ class MulNode(OpNode):
         else:
             return [output_grad * self.inputs[1], output_grad * self.inputs[0]]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 2
+        return "(%s * %s)" % (self.inputs[0].nodename, self.inputs[1].nodename)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
@@ -466,6 +501,11 @@ class MulByConstNode(OpNode):
 
     def transposed_vjp(self, output_grad):
         return [output_grad * self.const_attr]
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "(%s * %s)" % (self.inputs[0].nodename, self.const_attr)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -495,6 +535,11 @@ class PowerNode(OpNode):
             output_grad * self.const_attr *
             power(self.inputs[0], self.const_attr - 1)
         ]
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.power(%s, %s)" % (self.inputs[0].nodename, self.const_attr)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -558,6 +603,12 @@ class MatMulNode(OpNode):
         grad_A = matmul(output_grad, transpose(self.inputs[1]))
         grad_B = matmul(transpose(self.inputs[0]), output_grad)
         return [grad_A, grad_B]
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 2
+        return "T.dot(%s, %s)" % (self.inputs[0].nodename,
+                                  self.inputs[1].nodename)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 2
@@ -677,6 +728,11 @@ class EinsumNode(OpNode):
             for i in range(len(self.inputs))
         ]
 
+    @property
+    def nodename(self):
+        input_names = [inputvar.nodename for inputvar in self.inputs]
+        return self._name_generator(self.einsum_subscripts, input_names)
+
     def s2s_expr(self, inputs):
         input_names = [inputvar.name for inputvar in inputs]
         return self._name_generator(self.einsum_subscripts, input_names)
@@ -708,6 +764,12 @@ class NormNode(OpNode):
             raise NotImplementedError
         return [output_grad * norm(self.inputs[0])**(-1) * self.inputs[0]]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.norm(%s, %s, %s)" % (self.inputs[0].nodename, self.order,
+                                       self.axis)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.norm(%s, %s, %s)" % (inputs[0].name, self.order, self.axis)
@@ -738,6 +800,11 @@ class SumNode(OpNode):
             raise NotImplementedError
         return [output_grad * oneslike(self.inputs[0])]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.sum(%s, %s)" % (self.inputs[0].nodename, self.axis)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.sum(%s, %s)" % (inputs[0].name, self.axis)
@@ -767,6 +834,11 @@ class TransposeNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [transpose(output_grad)]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.transpose(%s)" % (self.inputs[0].nodename)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.transpose(%s)" % (inputs[0].name)
@@ -792,6 +864,11 @@ class ZerosLikeNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [zeroslike(self.inputs[0])]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.zeros_like(%s)" % (self.inputs[0].nodename)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.zeros_like(%s)" % (inputs[0].name)
@@ -815,6 +892,11 @@ class OnesLikeNode(OpNode):
     def transposed_vjp(self, output_grad):
         return [zeroslike(self.inputs[0])]
 
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "T.ones_like(%s)" % (self.inputs[0].nodename)
+
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.ones_like(%s)" % (inputs[0].name)
@@ -834,6 +916,11 @@ class NegativeNode(OpNode):
         self.shape = node_A.shape
         # used for chainjacobian function.
         self.input_indices_length = node_A.input_indices_length
+
+    @property
+    def nodename(self):
+        assert len(self.inputs) == 1
+        return "(-%s)" % (self.inputs[0].nodename)
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
