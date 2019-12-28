@@ -96,16 +96,12 @@ def fuse_einsums(output_node, input_nodes):
     # of input nodes
     assert (isinstance(output_node, ad.EinsumNode))
 
-    # Assume the graph is independent of others, while all are einsums.
-    # Assume input are variables.
-    for node in input_nodes:
-        assert (not isinstance(node, ad.EinsumNode))
-
-    # TODO: Get all the einsum nodes in the computation graph.
+    # Get all the einsum nodes except the input nodes in the computation graph.
     # Note that the order doesn't matter!
     all_nodes = find_topo_sort([output_node], input_nodes)
+    intermediate_nodes = list(set(all_nodes) - set(input_nodes))
     einsum_nodes = list(
-        filter(lambda x: isinstance(x, ad.EinsumNode), all_nodes))
+        filter(lambda x: isinstance(x, ad.EinsumNode), intermediate_nodes))
 
     # We first treat each literal as a different character, and then union.
     # Create a map
@@ -139,9 +135,7 @@ def fuse_einsums(output_node, input_nodes):
 def find_sub_einsumtree(output_node):
     """
     Finds all the subtrees from the given graph definition.
-
     There can be overlap of different subtrees.
-
     Arguments:
         output_node: the root of the tree
         input_nodes: leaf of the tree
