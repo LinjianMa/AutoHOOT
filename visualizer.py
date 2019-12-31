@@ -21,6 +21,31 @@ from utils import OutputInjectedMode
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
+def graph_name(node):
+    if isinstance(node, ad.CloneNode):
+        return "Clone"
+    elif isinstance(node, ad.AddNode) or isinstance(node, ad.AddByConstNode):
+        return "Add"
+    elif isinstance(node, ad.SubNode) or isinstance(node, ad.SubByConstNode):
+        return "Sub"
+    elif isinstance(node, ad.MulNode) or isinstance(node, ad.MulByConstNode):
+        return "Mul"
+    elif isinstance(node, ad.PowerNode):
+        return "Power"
+    elif isinstance(node, ad.MatMulNode):
+        return "Matmul"
+    elif isinstance(node, ad.EinsumNode):
+        return f"Einsum(\"{node.einsum_subscripts}\")"
+    elif isinstance(node, ad.NormNode):
+        return "Norm"
+    elif isinstance(node, ad.SumNode):
+        return "Sum"
+    elif isinstance(node, ad.TransposeNode):
+        return "Transpose"
+    else:
+        return node.name
+
+
 def print_computation_graph(output_node_list, input_nodes=[]):
     """
         ouput_node_list: a list of output nodes.
@@ -29,20 +54,26 @@ def print_computation_graph(output_node_list, input_nodes=[]):
 
     topo_order = find_topo_sort(output_node_list, input_nodes)
 
-    inputs = filter(lambda x: isinstance(x, ad.VariableNode), topo_order)
+    inputs = list(filter(lambda x: isinstance(x, ad.VariableNode), topo_order))
     with OutputInjectedMode(topo_order):
 
         dot = Digraph(comment='Poorman Computation Graph')
+
         with dot.subgraph() as s:
             s.attr(rank='same')
             for n in inputs:
-                s.node(n.name, color='blue')
+                s.node(n.name, style='filled', color='aquamarine3')
         with dot.subgraph() as s:
             s.attr(rank='same')
             for n in output_node_list:
-                s.node(n.name, color='red')
+                s.node(n.name, style='filled', color='thistle')
+        with dot.subgraph() as s:
+            for n in topo_order:
+                if (n not in output_node_list and n not in inputs):
+                    s.node(n.name, style='filled', color='lightblue')
+
         for node in topo_order:
-            dot.node(node.name, node.name)
+            dot.node(node.name, graph_name(node))
             for node_i in node.inputs:
                 dot.edge(node_i.name, node.name)
 
