@@ -31,7 +31,7 @@ def graph_name(node):
     elif isinstance(node, ad.MulNode) or isinstance(node, ad.MulByConstNode):
         return "Mul"
     elif isinstance(node, ad.PowerNode):
-        return "Power"
+        return f"Power({node.const_attr})"
     elif isinstance(node, ad.MatMulNode):
         return "Matmul"
     elif isinstance(node, ad.EinsumNode):
@@ -42,6 +42,10 @@ def graph_name(node):
         return "Sum"
     elif isinstance(node, ad.TransposeNode):
         return "Transpose"
+    elif isinstance(node, ad.ZerosLikeNode):
+        return "Zeroslike"
+    elif isinstance(node, ad.OnesLikeNode):
+        return "Oneslike"
     else:
         return node.name
 
