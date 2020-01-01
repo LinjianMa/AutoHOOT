@@ -154,6 +154,7 @@ def rewrite_einsum_expr(einsum_node):
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
     assert len(input_nodes) == len(set(input_nodes))
+    input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
 
     # TODO: Get all the einsum nodes in the computation graph.
     # Note that the order doesn't matter!
@@ -180,6 +181,7 @@ def rewrite_einsum_expr(einsum_node):
     new_input_subs = [node.subscripts for node in input_nodes]
     new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
     einsum_node.einsum_subscripts = new_subscripts
+    einsum_node.set_inputs(input_nodes)
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
 
 
