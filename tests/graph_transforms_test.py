@@ -3,6 +3,7 @@ import backend as T
 from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
+from graph_ops.utils import einsum_equal
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
@@ -347,8 +348,4 @@ def test_einsum_equal():
     x = ad.einsum('ik,kj->ij', a1, a2)
     y = ad.einsum('ml,sm->sl', a2, a1)
 
-    rewrite_einsum_expr(x)
-    rewrite_einsum_expr(y)
-
-    assert x.einsum_subscripts == y.einsum_subscripts
-    assert x.inputs == y.inputs
+    assert einsum_equal(x, y) == True
