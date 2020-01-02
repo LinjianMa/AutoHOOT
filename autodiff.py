@@ -244,7 +244,7 @@ class CloneNode(OpNode):
             jacobian = ScalarNode(1.)
             jacobian.set_in_indices_length(0)
         else:
-            # see the autodiff cheatsheet for the details
+            # similar to the jacobian of AddNode
             dim = len(self.shape)
             input_nodes = [identity(self.shape[i]) for i in range(dim)]
             input_indices = [[i, i + dim] for i in range(dim)]
@@ -639,20 +639,15 @@ class EinsumNode(OpNode):
         return T.einsum(self.einsum_subscripts, *input_vals)
 
     def _output_shape(self, subscripts, nodes):
-        in_shapes = []
-        for node in nodes:
-            in_shapes = in_shapes + node.shape
         in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
         if out_subs == '':
             return []
+        in_shapes, out_shape = [], []
+        for node in nodes:
+            in_shapes = in_shapes + node.shape
         in_subs_split = in_subs.split(',')
-        in_subs_list = []
-        for i in in_subs_split:
-            if i != '':
-                in_subs_list = in_subs_list + list(i)
-        out_subs_list = list(out_subs)
-        out_shape = []
-        for out_sub in out_subs_list:
+        in_subs_list = list(''.join(in_subs_split))
+        for out_sub in list(out_subs):
             for index, in_sub in enumerate(in_subs_list):
                 if out_sub == in_sub:
                     out_shape.append(in_shapes[index])
@@ -1196,7 +1191,13 @@ def hvp(output_node, node_list, vector_list):
 
 def hessian(output_node, node_list):
     """
-    explicit hessian expression
+    explicit Hessian expression
+
+    Returns
+    -------
+    hessian_outputs: 2-d list.
+    hessian_outputs[i][j] represents the sub-Hessian w.r.t.
+    node_list[i] and node_list[j]
     """
     jacobian_outputs = jacobians(output_node, node_list)
     hessian_outputs = []
