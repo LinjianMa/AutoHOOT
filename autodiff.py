@@ -671,10 +671,70 @@ class EinsumNode(OpNode):
         new_subscripts = new_input_subs + '->' + subs_wrt
         return einsum(new_subscripts, *new_operands)
 
+    def _jacobian_einsum(self, target_node, output_jacobian):
+        """
+        Parameters
+        ----------
+        argnum_wrt: The node that is taken gradient w.r.t
+
+        Returns
+        -------
+        Returns a einsum node.
+
+        Idea: Define the subscript of each node as the einsum string of that node.
+        For each character of the self.inputs[argnum_wrt] 's subscript,
+        if it is contained in self.subscript, then
+        1. assign a new character to all the input nodes' subscripts
+            to replace the old character.
+        2. include an identity node into the jacobian einsum inputs,
+            and its subscript consists of the old and the new character.
+        """
+        from graph_ops.graph_transformer import rewrite_einsum_expr
+
+        uf = rewrite_einsum_expr(self)
+        other_nodes = list(filter(lambda x: x != target_node, self.inputs))
+        subs_wrt = target_node.subscripts
+        identity_nodes = []
+        for i, char in enumerate(subs_wrt):
+            if char in self.subscripts:
+                # Assign a new char that is not present in the existing einsum
+                # string.
+                new_char = uf.cg.getchar()
+                # step 1: assign a new character to all the input nodes'
+                # subscripts to replace the old character.
+                for input_node in self.inputs:
+                    input_node.subscripts = input_node.subscripts.replace(
+                        char, new_char)
+                # step 2: include an identity node into the jacobian einsum
+                # inputs, and its subscript consists of the old and the new
+                # character.
+                new_identity_node = identity(target_node.shape[i])
+                new_identity_node.subscripts = f"{char}{new_char}"
+                identity_nodes.append(new_identity_node)
+
+        output_subscripts = f"{self.subscripts}{target_node.subscripts}"
+
+        new_input_subs = [node.subscripts for node in other_nodes]
+        new_input_subs += [node.subscripts for node in identity_nodes]
+        new_input_subs = ','.join(new_input_subs)
+        new_subscripts = new_input_subs + '->' + output_subscripts
+
+        new_operands = other_nodes + identity_nodes
+        jacobian = einsum(new_subscripts, *new_operands)
+        jacobian.set_in_indices_length(len(self.shape))
+
+        return chainjacobian(output_jacobian, jacobian)
+
     def transposed_vjp(self, output_grad):
         return [
             self.grad_einsum(i, self, output_grad)
             for i in range(len(self.inputs))
+        ]
+
+    def jacobian(self, output_jacobian):
+        return [
+            self._jacobian_einsum(node, output_jacobian)
+            for node in self.inputs
         ]
 
     def s2s_expr(self, inputs):

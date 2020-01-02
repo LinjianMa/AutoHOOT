@@ -145,10 +145,14 @@ def copy_tree(node):
 def rewrite_einsum_expr(einsum_node):
     """
         Rewrites the einsum expression of a node.
-
         Inplace update.
+
         Args:
             einsum_node: All inputs must be unique.
+
+        Returns:
+            uf (type: graph_ops.graph_optimizer.UF): 
+            the union_find set of the input
         
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
@@ -183,6 +187,8 @@ def rewrite_einsum_expr(einsum_node):
     einsum_node.einsum_subscripts = new_subscripts
     einsum_node.set_inputs(input_nodes)
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
+
+    return uf
 
 
 def optimize(node):
