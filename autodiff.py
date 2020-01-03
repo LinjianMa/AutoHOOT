@@ -474,7 +474,7 @@ class MulNode(OpNode):
             input_scalar = self.inputs[1]
             input_tensor = self.inputs[0]
             left_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
-        elif self.scalar_A is True and self.scalar_B is False:
+        if self.scalar_A is True and self.scalar_B is False:
             """
             Example:
             For the case C["ijkl"] = A*B["ijkl"],
@@ -484,7 +484,7 @@ class MulNode(OpNode):
             input_scalar = self.inputs[0]
             input_tensor = self.inputs[1]
             right_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
-        else:
+        if self.scalar_A is False and self.scalar_B is False:
             """
             Example:
             For the case C["ijkl"] = A["ijkl"]*B["ijkl"],
