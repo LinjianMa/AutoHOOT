@@ -445,84 +445,73 @@ class MulNode(OpNode):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
-    def jacobian(self, output_jacobian):
-        def jacobian_one_scalar(order, input_scalar, input_tensor):
-            input_indices = [[i, i + order] for i in range(order)]
-            out_index = [i for i in range(2 * order)]
-            subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
-            jacobian_tensor = input_scalar * einsum(subscripts, *input_nodes)
-            jacobian_tensor.set_in_indices_length(order)
-
-            input_indices.append([i + order for i in range(order)])
-            out_index = [i for i in range(order)]
-            subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
-            input_nodes_B = input_nodes + [input_tensor]
-            jacobian_scalar = einsum(subscripts, *input_nodes_B)
-            jacobian_scalar.set_in_indices_length(order)
-            return jacobian_tensor, jacobian_scalar
-
-        if self.scalar_A is True and self.scalar_B is True:
-            return [
-                chainjacobian(output_jacobian, self.inputs[1]),
-                chainjacobian(output_jacobian, self.inputs[0])
-            ]
+    def _jacobian_tensor_scalar(self, input_scalar, input_tensor):
+        # Computes the Jacobian for scalar * tensor w.r.t tensor
+        #   For the case C["ijkl"] = A["ijkl"]*S or S*A["ijkl"],
+        #   Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*S.
         order = len(self.shape)
-        input_nodes = [identity(self.shape[i]) for i in range(order)]
+        identity_nodes = [identity(self.shape[i]) for i in range(order)]
+        input_indices = [[i, i + order] for i in range(order)]
+        out_index = [i for i in range(2 * order)]
+        subscripts = indices_to_subscripts(input_indices, out_index, 2 * order)
+        jacobian_tensor = input_scalar * einsum(subscripts, *identity_nodes)
+        jacobian_tensor.set_in_indices_length(order)
+        return jacobian_tensor
+
+    def jacobian(self, output_jacobian):
+        # When a scalar presents, the jacobian w.r.t to the scalar is always
+        # the the other input.
+        left_op = self.inputs[1]
+        right_op = self.inputs[0]
+
         if self.scalar_A is False and self.scalar_B is True:
             """
             Example:
             For the case C["ijkl"] = A["ijkl"]*B,
             Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B.
-            Jacobian(C_B)["abcd"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*A["ijkl"].
+            Jacobian(C_B) = A.
             """
             input_scalar = self.inputs[1]
             input_tensor = self.inputs[0]
-            jacobian_tensor, jacobian_scalar = jacobian_one_scalar(
-                order, input_scalar, input_tensor)
-            return [
-                chainjacobian(output_jacobian, jacobian_tensor),
-                chainjacobian(output_jacobian, jacobian_scalar)
-            ]
-        elif self.scalar_A is True and self.scalar_B is False:
+            left_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+        if self.scalar_A is True and self.scalar_B is False:
             """
             Example:
             For the case C["ijkl"] = A*B["ijkl"],
             Jacobian(C_B)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*A.
-            Jacobian(C_A)["abcd"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B["ijkl"].
+            Jacobian(C_A) = B.
             """
             input_scalar = self.inputs[0]
             input_tensor = self.inputs[1]
-            jacobian_tensor, jacobian_scalar = jacobian_one_scalar(
-                order, input_scalar, input_tensor)
-            return [
-                chainjacobian(output_jacobian, jacobian_scalar),
-                chainjacobian(output_jacobian, jacobian_tensor)
-            ]
-        else:
+            right_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+        if self.scalar_A is False and self.scalar_B is False:
             """
             Example:
             For the case C["ijkl"] = A["ijkl"]*B["ijkl"],
             Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B["ijkl"].
             """
+            order = len(self.shape)
+            identity_nodes = [identity(self.shape[i]) for i in range(order)]
             input_indices = [[i, i + order] for i in range(order)]
             input_indices.append([i + order for i in range(order)])
             out_index = [i for i in range(2 * order)]
             subscripts = indices_to_subscripts(input_indices, out_index,
                                                2 * order)
 
-            input_nodes_A = input_nodes + [self.inputs[1]]
-            input_nodes_B = input_nodes + [self.inputs[0]]
+            input_nodes_A = identity_nodes + [self.inputs[1]]
+            input_nodes_B = identity_nodes + [self.inputs[0]]
 
             jacobian_A = einsum(subscripts, *input_nodes_A)
             jacobian_B = einsum(subscripts, *input_nodes_B)
             jacobian_A.set_in_indices_length(order)
             jacobian_B.set_in_indices_length(order)
-            return [
-                chainjacobian(output_jacobian, jacobian_A),
-                chainjacobian(output_jacobian, jacobian_B)
-            ]
+            left_op = chainjacobian(output_jacobian, jacobian_A)
+            right_op = chainjacobian(output_jacobian, jacobian_B)
+
+        return [
+            chainjacobian(output_jacobian, left_op),
+            chainjacobian(output_jacobian, right_op)
+        ]
 
 
 class MulByConstNode(OpNode):
