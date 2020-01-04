@@ -318,6 +318,9 @@ def test_jacobian_einsum():
         x2 = ad.Variable(name="x2", shape=[3, 3, 3])
         y = ad.einsum("ikl,jkl->ijk", x1, x2)
 
+        jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
+        executor = ad.Executor([y, jacobian_x1, jacobian_x2])
+
         x1_val = T.random((3, 3, 3))
         x2_val = T.random((3, 3, 3))
         y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
