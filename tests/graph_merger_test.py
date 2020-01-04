@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
-from graph_ops.graph_transformer import linearize, rewrite_einsum_expr
+from graph_ops.graph_transformer import linearize
 from utils import find_topo_sort
 from utils import replace_node, OutputInjectedMode
 from tests.test_utils import tree_eq, gen_dict, float_eq
@@ -138,11 +138,6 @@ def test_einsum_fuse_w_identity():
         out, ins = tree
         new_z = fuse_einsums(out, ins)
         assert tree_eq(out, new_z, [a])
-
-        out_expected = ad.einsum('ai,ik,kj->aj', a, ad.identity(3), ad.identity(3))
-        rewrite_einsum_expr(new_z)
-        rewrite_einsum_expr(out_expected)
-        assert new_z.einsum_subscripts == out_expected.einsum_subscripts
 
 
 def test_einsum_multiuse():
