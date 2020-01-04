@@ -1,6 +1,8 @@
 import autodiff as ad
 import backend as T
 
+from graph_ops.graph_transformer import linearize
+
 BACKEND_TYPES = ['numpy', 'ctf']
 
 
@@ -259,15 +261,14 @@ def test_hessian_quadratic():
 
         x = ad.Variable(name="x", shape=[3])
         H = ad.Variable(name="H", shape=[3, 3])
-        z = x.clone()
-        # TODO: implement linerization in the einsum jacobian
-        y = ad.einsum("i,ij,j->", z, H, x)
+        y = ad.einsum("i,ij,j->", x, H, x)
+        linearize(y)
 
         hessian = ad.hessian(y, [x])
         executor = ad.Executor([hessian[0][0]])
 
         x_val = T.random(3)
         H_val = T.random((3, 3))
-        hessian_val = executor.run(feed_dict={x: x_val, H: H_val})
+        hessian_val, = executor.run(feed_dict={x: x_val, H: H_val})
 
-        assert T.array_equal(hessian_val[0], H_val + T.transpose(H_val))
+        assert T.array_equal(hessian_val, H_val + T.transpose(H_val))

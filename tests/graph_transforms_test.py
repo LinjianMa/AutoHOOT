@@ -100,6 +100,39 @@ def test_einsum_find_subtree_after_linearization():
         assert (len(tree[1]) == 3)
 
 
+def test_linearization_multiple_same_output():
+    """
+        An einsum graph like
+        A      inputs
+        |\
+        | \
+        |  \
+        |   |
+        |  /
+        | /
+        output
+
+        will produce
+
+        An einsum graph like
+        A      inputs
+        |\
+        | \
+        |  \
+        A1  A2
+        |  /
+        | /
+        output
+
+        The subtree inputs must then be [A1, A2] rather than A.
+    """
+    x = ad.Variable(name="x", shape=[3])
+    y = ad.einsum("i,i->", x, x)
+    linearize(y)
+    tree, = find_sub_einsumtree(y)
+    assert (len(tree[1]) == 2)
+
+
 def test_tree_distribution():
     """
         [Distributive] An einsum graph like
