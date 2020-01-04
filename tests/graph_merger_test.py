@@ -1,9 +1,10 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descdants
+from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
 from graph_ops.graph_transformer import linearize
 from utils import find_topo_sort
 from utils import replace_node, OutputInjectedMode
+from tests.test_utils import tree_eq, gen_dict, float_eq
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
@@ -32,7 +33,7 @@ def get_tree(prefix=""):
 ###############################################################################
 
 
-def test_find_all_einsum_descdants():
+def test_find_all_einsum_descendants():
     """
         Find all einsum nodes.
     """
@@ -41,10 +42,10 @@ def test_find_all_einsum_descdants():
 
     x = ad.einsum('ik,kj->ij', a1, a2)
 
-    assert [x] == get_all_einsum_descdants(x)
+    assert [x] == get_all_einsum_descendants(x)
 
     inputs, output = get_tree()
-    all_einsum_nodes = get_all_einsum_descdants(output)
+    all_einsum_nodes = get_all_einsum_descendants(output)
     assert len(all_einsum_nodes) == 3
 
 
@@ -58,24 +59,9 @@ def test_einsum_simple_rewrite():
 
         a1 = ad.Variable(name="a1", shape=[3, 2])
         a2 = ad.Variable(name="a2", shape=[2, 3])
-
         x = ad.einsum('ik,kj->ij', a1, a2)
-
-        executor = ad.Executor([x])
-
-        a1_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        a2_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        x_val, = executor.run(feed_dict={a1: a1_val, a2: a2_val})
-
-        # New graph
-        x_new, input_nodes = fuse_einsums(x, [a1, a2])
-        a1_new, a2_new = input_nodes
-
-        executor = ad.Executor([x_new])
-        x_new_val, = executor.run(feed_dict={a1_new: a1_val, a2_new: a2_val})
-
-        assert T.array_equal(x_val, x_new_val)
+        x_new = fuse_einsums(x, [a1, a2])
+        assert tree_eq(x, x_new, [a1, a2])
 
 
 def test_einsum():
@@ -84,25 +70,8 @@ def test_einsum():
         T.set_backend(datatype)
 
         input_nodes, z = get_tree()
-        executor = ad.Executor([z])
-
-        input_values = [
-            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
-            T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
-            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
-            T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
-        ]
-        z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
-
-        # New graph
-        z_new, input_nodes = fuse_einsums(z, input_nodes)
-        assert z_new.inputs == input_nodes
-
-        executor = ad.Executor([z_new])
-        z_new_val, = executor.run(
-            feed_dict=dict(zip(input_nodes, input_values)))
-
-        assert T.array_equal(z_val, z_new_val)
+        z_new = fuse_einsums(z, input_nodes)
+        assert tree_eq(z, z_new, input_nodes)
 
 
 def test_einsum_fuse_graph():
@@ -133,24 +102,12 @@ def test_einsum_fuse_graph():
 
         out = ad.einsum('jk, ki->ji', ABC, BC)  # 3x3
 
-        executor = ad.Executor([out])
-
         linearize(out)
-
         tree, = find_sub_einsumtree(out)
         out, ins = tree
-        new_z, ins = fuse_einsums(out, ins)
+        new_z = fuse_einsums(out, ins)
 
-        a_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[1, 2, 3], [4, 5, 6]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        executor = ad.Executor([new_z])
-        new_out_val, = executor.run(feed_dict={a: a_val, b: b_val, c: c_val})
-
-        assert (out_val == new_out_val).all()
+        assert tree_eq(out, new_z, [a, b, c])
 
 
 def test_einsum_multiuse():
@@ -177,27 +134,9 @@ def test_einsum_multiuse():
 
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a_copy, c)
-
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, a_copy: a_val, b: b_val})
-
         # New graph
-        out_new, input_nodes = fuse_einsums(output, [a, a_copy, b])
-        a_new, a_copy_new, b_new = input_nodes
-        assert out_new.inputs == input_nodes
-
-        executor = ad.Executor([out_new])
-        out_new_val, = executor.run(feed_dict={
-            a_new: a_val,
-            a_copy_new: a_val,
-            b_new: b_val
-        })
-
-        assert T.array_equal(out_val, out_new_val)
+        out_new = fuse_einsums(output, [a, a_copy, b])
+        assert tree_eq(output, out_new, [a, a_copy, b])
 
 
 def test_einsum_multiuse_auto_copy():
@@ -224,28 +163,17 @@ def test_einsum_multiuse_auto_copy():
         c = ad.einsum('ik,kj->ij', a, b)
         output = ad.einsum('ik,ij->kj', a, c)
 
-        executor = ad.Executor([output])
-
-        a_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        b_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        out_val, = executor.run(feed_dict={a: a_val, b: b_val})
-
         linearize(output)
         all_nodes = find_topo_sort([output])
         cloned_nodes = [
             tmp for tmp in all_nodes if isinstance(tmp, ad.CloneNode)
         ]
 
-        out_new, input_nodes = fuse_einsums(output, [*cloned_nodes, b])
+        out_new = fuse_einsums(output, [*cloned_nodes, b])
         # Test that every inputs is now fused.
         assert all([not isinstance(x, ad.EinsumNode) for x in out_new.inputs])
 
-        executor = ad.Executor([out_new])
-        # Should only run part of the graph.
-        out_new_val, = executor.run(feed_dict={a: a_val, b: b_val})
-
-        assert T.array_equal(out_val, out_new_val)
+        assert tree_eq(output, out_new, [*cloned_nodes, b])
 
 
 def test_einsum_multitier():
@@ -263,28 +191,22 @@ def test_einsum_multitier():
         out = ad.einsum("ij, jk->ik", out1, out2)
         input_nodes = input_nodes1 + input_nodes2 + input_nodes3 + input_nodes4
 
-        executor = ad.Executor([out])
+        generated_feed_dict = gen_dict(input_nodes)
 
-        input_values = [
-            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 a1
-            T.tensor([[7, 8, 9], [10, 11, 12]]),  # 2x3 a2
-            T.tensor([[1, 2], [3, 4], [5, 6]]),  # 3x2 b1
-            T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3 b2
-        ] * 4
-        z_val, = executor.run(feed_dict=dict(zip(input_nodes, input_values)))
+        executor = ad.Executor([out])
+        z_val, = executor.run(feed_dict=generated_feed_dict)
 
         with OutputInjectedMode(find_topo_sort([out])):
             trees = find_sub_einsumtree(out)
             for tree in trees:
                 out_node, in_nodes = tree
-                new_z, _ = fuse_einsums(out_node, in_nodes)
+                new_z = fuse_einsums(out_node, in_nodes)
                 replace_node(out_node, new_z)
 
         executor = ad.Executor([out])
-        z_new_val, = executor.run(
-            feed_dict=dict(zip(input_nodes, input_values)))
+        z_new_val, = executor.run(feed_dict=generated_feed_dict)
 
-        assert T.array_equal(z_val, z_new_val)
+        assert float_eq(z_val, z_new_val)
 
 
 def test_einsum_subtree_clone():
@@ -319,34 +241,20 @@ def test_einsum_subtree_clone():
 
         out = ABC + BCD
 
+        input_nodes = [a, b, c, d]
+        generated_feed_dict = gen_dict(input_nodes)
+
         executor = ad.Executor([out])
+        out_val, = executor.run(feed_dict=generated_feed_dict)
 
         with OutputInjectedMode(find_topo_sort([out])):
             trees = find_sub_einsumtree(out)
             assert len(trees) == 2
             for tree in trees:
                 out_node, in_nodes = tree
-                new_z, _ = fuse_einsums(out_node, in_nodes)
+                new_z = fuse_einsums(out_node, in_nodes)
                 replace_node(out_node, new_z)
 
-        a_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
-        b_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        c_val = T.tensor([[1, 2, 3], [4, 5, 6]])  # 2x3
-        d_val = T.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])  # 3x3
+        new_out_val, = executor.run(feed_dict=generated_feed_dict)
 
-        out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            c: c_val,
-            d: d_val
-        })
-
-        executor = ad.Executor([out])
-        new_out_val, = executor.run(feed_dict={
-            a: a_val,
-            b: b_val,
-            c: c_val,
-            d: d_val
-        })
-
-        assert (out_val == new_out_val).all()
+        assert float_eq(out_val, new_out_val)

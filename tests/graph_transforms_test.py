@@ -1,42 +1,11 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree
+from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr
 from graph_ops.graph_optimizer import find_sub_einsumtree
-
-import numpy as np  # This is used for generate random numbers.
+from tests.test_utils import tree_eq, gen_dict
 
 BACKEND_TYPES = ['numpy', 'ctf']
 BACKEND_TYPES = ['numpy']
-
-# TODO(yejiayu): Find a test engine that generate the test func name as prefix.
-
-###############################################################################
-# Helper functions.
-
-
-def gen_dict(input_nodes):
-    feed_dict = {}
-    for i_node in input_nodes:
-        feed_dict[i_node] = T.tensor(np.asarray(np.random.rand(*i_node.shape)))
-    return feed_dict
-
-
-def float_eq(A, B):
-    return (abs(A - B) < 1e-8).all()
-
-
-def tree_eq(out, new_out, input_nodes):
-    feed_dict = gen_dict(input_nodes)
-
-    executor = ad.Executor([out])
-    out_val, = executor.run(feed_dict=feed_dict)
-
-    executor = ad.Executor([new_out])
-    new_out_val, = executor.run(feed_dict=feed_dict)
-    return float_eq(out_val, new_out_val)
-
-
-###############################################################################
 
 
 def test_einsum_multiuse():
@@ -351,3 +320,35 @@ def test_copy_tree():
         new_node = copy_tree(output)
         # The cloned variable names must be different since the clone.
         assert new_node.name != output.name
+
+
+def test_rewrite_expr():
+    """
+        Test rewrite the einsum expression.
+    """
+
+    a1 = ad.Variable(name="a1", shape=[3, 2])
+    a2 = ad.Variable(name="a2", shape=[2, 3])
+
+    x = ad.einsum('ik,kj->ij', a1, a2)
+
+    y = ad.einsum('sm,ml->sl', a1, a2)
+
+    rewrite_einsum_expr(x)
+    rewrite_einsum_expr(y)
+    assert x.einsum_subscripts == y.einsum_subscripts
+
+
+def test_einsum_equal():
+
+    a1 = ad.Variable(name="a1", shape=[3, 2])
+    a2 = ad.Variable(name="a2", shape=[2, 3])
+
+    x = ad.einsum('ik,kj->ij', a1, a2)
+    y = ad.einsum('ml,sm->sl', a2, a1)
+
+    rewrite_einsum_expr(x)
+    rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs

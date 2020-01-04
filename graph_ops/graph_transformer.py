@@ -5,12 +5,21 @@
     Currently it includes 
         * Linearization
 """
+import logging
+
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
+from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_dedup import dedup, declone
 import autodiff as ad
 import copy
 
+FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
+
+logger = logging.getLogger('optimizer')
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
 
 
 def linearize(output_node):
@@ -133,6 +142,55 @@ def copy_tree(node):
     return new_node
 
 
+def rewrite_einsum_expr(einsum_node):
+    """
+        Rewrites the einsum expression of a node.
+        Inplace update.
+
+        Args:
+            einsum_node: All inputs must be unique.
+
+        Returns:
+            uf (type: graph_ops.graph_optimizer.UF): 
+            the union_find set of the input
+        
+    """
+    assert (isinstance(einsum_node, ad.EinsumNode))
+    input_nodes = einsum_node.inputs
+    assert len(input_nodes) == len(set(input_nodes))
+    input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
+
+    # TODO: Get all the einsum nodes in the computation graph.
+    # Note that the order doesn't matter!
+    all_nodes = [einsum_node] + input_nodes
+
+    # Create a map
+    for node in all_nodes:
+        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+
+    literal_names = []
+    for node in all_nodes:
+        literal_names += node.literals
+
+    # For any literal that are the same, get their pos and connect.
+    uf = UF(literal_names)
+    cross_einsum_connect(uf, einsum_node)
+
+    uf.assign()
+    # Assign literals
+    for node in all_nodes:
+        node.subscripts = "".join(
+            [uf.rootval(literal_name) for literal_name in node.literals])
+
+    new_input_subs = [node.subscripts for node in input_nodes]
+    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
+    einsum_node.einsum_subscripts = new_subscripts
+    einsum_node.set_inputs(input_nodes)
+    logger.info(f"Rewrite to new subscript: {new_subscripts}")
+
+    return uf
+
+
 def optimize(node):
     """Optimize a graph with a single output node.
 
@@ -148,6 +206,14 @@ def optimize(node):
         trees = find_sub_einsumtree(node)
         for tree in trees:
             out_node, in_nodes = tree
-            new_z, _ = fuse_einsums(out_node, in_nodes)
+            new_z = fuse_einsums(out_node, in_nodes)
+            new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
+    linearize(node)
+    all_nodes = find_topo_sort([node])
+    for node in all_nodes:
+        if isinstance(node, ad.EinsumNode):
+            rewrite_einsum_expr(node)
+    node = declone(node)
+    dedup(node)
     return node

@@ -6,7 +6,7 @@ import copy
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter
-from utils import get_leaves
+from utils import get_leaves, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -86,8 +86,7 @@ def fuse_einsums(output_node, input_nodes):
             representation.
         Returns:
             A graph with fused intermediate einsum nodes. Represented by
-            output_node and input_nodes
-    TODO(yejiayu): work on extend to multiple dimensions.
+            output_node.
     """
     # First assume everything einsum.
     logger.info('Start fusing einsum')
@@ -97,16 +96,12 @@ def fuse_einsums(output_node, input_nodes):
     # of input nodes
     assert (isinstance(output_node, ad.EinsumNode))
 
-    # Assume the graph is independent of others, while all are einsums.
-    # Assume input are variables.
-    for node in input_nodes:
-        assert (not isinstance(node, ad.EinsumNode))
-
-    # TODO: Get all the einsum nodes in the computation graph.
+    # Get all the einsum nodes except the input nodes in the computation graph.
     # Note that the order doesn't matter!
     all_nodes = find_topo_sort([output_node], input_nodes)
+    intermediate_nodes = list(set(all_nodes) - set(input_nodes))
     einsum_nodes = list(
-        filter(lambda x: isinstance(x, ad.EinsumNode), all_nodes))
+        filter(lambda x: isinstance(x, ad.EinsumNode), intermediate_nodes))
 
     # We first treat each literal as a different character, and then union.
     # Create a map
@@ -134,31 +129,13 @@ def fuse_einsums(output_node, input_nodes):
     ##########################################
     output_node = ad.einsum(new_subscripts, *input_nodes)
 
-    return output_node, input_nodes
-
-
-def get_all_einsum_descdants(node):
-    """Returns all the einsum descdants including himself.
-    Args:
-        A node in the graph.
-    Returns:
-        A list of all connected einsum nodes in the graph.
-    """
-    assert isinstance(node, ad.EinsumNode)
-    tree_nodes = [node]
-    for i_node in node.inputs:
-        if isinstance(i_node, ad.EinsumNode):
-            nodes = get_all_einsum_descdants(i_node)
-            tree_nodes += nodes
-    return tree_nodes
+    return output_node
 
 
 def find_sub_einsumtree(output_node):
     """
     Finds all the subtrees from the given graph definition.
-
     There can be overlap of different subtrees.
-
     Arguments:
         output_node: the root of the tree
         input_nodes: leaf of the tree
@@ -167,7 +144,7 @@ def find_sub_einsumtree(output_node):
     """
     trees = []
     if isinstance(output_node, ad.EinsumNode):
-        tree_nodes = get_all_einsum_descdants(output_node)
+        tree_nodes = get_all_einsum_descendants(output_node)
         leaves = get_leaves(tree_nodes)
         for leaf in leaves:
             new_trees = find_sub_einsumtree(leaf)
