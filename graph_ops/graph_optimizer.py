@@ -2,6 +2,7 @@
 import autodiff as ad
 import logging
 import copy
+import uuid
 
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
@@ -106,7 +107,8 @@ def fuse_einsums(output_node, input_nodes):
     # We first treat each literal as a different character, and then union.
     # Create a map
     for node in all_nodes:
-        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+        nodeid = uuid.uuid4()
+        node.literals = [str(nodeid) + str(i) for i in range(len(node.shape))]
 
     literal_names = []
     for node in all_nodes:

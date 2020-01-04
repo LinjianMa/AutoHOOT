@@ -14,6 +14,7 @@ from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_dedup import dedup, declone
 import autodiff as ad
 import copy
+import uuid
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -166,7 +167,8 @@ def rewrite_einsum_expr(einsum_node):
 
     # Create a map
     for node in all_nodes:
-        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+        nodeid = uuid.uuid4()
+        node.literals = [str(nodeid) + str(i) for i in range(len(node.shape))]
 
     literal_names = []
     for node in all_nodes:
