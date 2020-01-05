@@ -166,31 +166,43 @@ class ConstantNode(Node):
 
 
 class ScalarNode(ConstantNode):
+    suffix_getter = IntGetter()
+
     @staticmethod
     def create(*args, **kwargs):
         return ScalarNode(*args, **kwargs)
 
     def __init__(self, value):
         name = f"{value}"
+        name += f"_{ScalarNode.suffix_getter.getint()}"
         self.value = value
         super().__init__(name, [])
 
     def compute(self):
         return T.tensor(self.value)
 
+    def s2s_expr(self, inputs):
+        return f"{self.value}"
+
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
+    suffix_getter = IntGetter()
+
     @staticmethod
     def create(*args, **kwargs):
         return IdentityNode(*args, **kwargs)
 
     def __init__(self, size):
         name = f"T.identity({size})"
+        name += f"_{IdentityNode.suffix_getter.getint()}"
         super().__init__(name, [size, size])
 
     def compute(self):
         return T.identity(self.shape[0])
+
+    def s2s_expr(self, inputs):
+        return f"T.identity({self.shape[0]})"
 
 
 class EmptyNode(ConstantNode):

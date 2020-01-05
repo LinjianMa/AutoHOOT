@@ -110,6 +110,36 @@ def test_einsum_fuse_graph():
         assert tree_eq(out, new_z, [a, b, c])
 
 
+def test_einsum_fuse_w_identity():
+    """
+        [Fuse einsum with multiple identities]
+        We want to fuse
+            A   identity  identity
+            |    \       /
+            |     \     /
+            |      \   /
+            |       es
+            |     /
+            |    /
+            |   /
+            |  /
+            es
+        Here es is einsum.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 3])
+        es_identity = ad.einsum('ik,kj->ij', ad.identity(3), ad.identity(3))
+        out = ad.einsum('ai,ij->aj', a, es_identity)
+
+        tree, = find_sub_einsumtree(out)
+        out, ins = tree
+        new_out = fuse_einsums(out, ins)
+        assert tree_eq(out, new_out, [a])
+
+
 def test_einsum_multiuse():
     """
         Test manual fuse.
