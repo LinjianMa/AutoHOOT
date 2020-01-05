@@ -27,7 +27,7 @@ def linearize(output_node):
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
     all_nodes = find_topo_sort([output_node])
-    # Inject outpus relationship.
+    # Inject outputs relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
             if len(n.outputs) > 1:

@@ -129,8 +129,7 @@ def test_linearization_multiple_same_output():
     x = ad.Variable(name="x", shape=[3])
     y = ad.einsum("i,i->", x, x)
     linearize(y)
-    tree, = find_sub_einsumtree(y)
-    assert (len(tree[1]) == 2)
+    assert len(y.inputs) == 2
 
 
 def test_tree_distribution():
