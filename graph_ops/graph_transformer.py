@@ -36,14 +36,13 @@ def linearize(output_node):
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
     all_nodes = find_topo_sort([output_node])
-    # Inject outpus relationship.
+    # Inject outputs relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
             if len(n.outputs) > 1:
-                for n_o in n.outputs:
-                    n_new = copy_tree(n)
+                for n_o in set(n.outputs):
                     n_o.set_inputs([
-                        tmp if tmp.name != n.name else n_new
+                        tmp if tmp.name != n.name else copy_tree(n)
                         for tmp in n_o.inputs
                     ])
 
