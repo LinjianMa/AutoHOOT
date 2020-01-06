@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr
+from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -384,3 +384,37 @@ def test_einsum_equal():
 
     assert x.einsum_subscripts == y.einsum_subscripts
     assert x.inputs == y.inputs
+
+
+def test_prune_identity():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a1 = ad.Variable(name="a1", shape=[3, 3])
+        a2 = ad.Variable(name="a2", shape=[3, 3])
+        i1 = ad.identity(3)
+        i2 = ad.identity(3)
+        i3 = ad.identity(3)
+
+        out = ad.einsum("ab,cd,ac,be,ef->abdf", a1, a2, i1, i2, i3)
+        prune_identity_nodes(out)
+        """
+        explanation to the einsum above:
+        the identity node i1 means that a and c should be the same dim.
+        we can get rid of i1 and rewrite the expr as 
+        ad.einsum("ab,ad,be,ef->abdf", a1, a2, i2, i3).
+        we can also combine i2 and i3 cuz e is useless. Therefore,
+        we can rewrite the expr as
+        ad.einsum("ab,ad,bf->abdf", a1, a2, i2).
+        """
+        out_expect = ad.einsum("ab,ad,bf->abdf", a1, a2, i2)
+        print(out)
+        assert len(out.inputs) == 3
+
+        feed_dict = gen_dict([a1, a2])
+        executor = ad.Executor([out])
+        out_val, = executor.run(feed_dict=feed_dict)
+        executor = ad.Executor([out_expect])
+        out_val_pect, = executor.run(feed_dict=feed_dict)
+
+        assert T.array_equal(out_val, out_val_pect)
