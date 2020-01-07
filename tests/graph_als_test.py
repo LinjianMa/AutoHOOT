@@ -1,7 +1,8 @@
 import autodiff as ad
-from graph_ops.graph_als_optimizer import split_einsum, dimension_tree
+from graph_ops.graph_als_optimizer import split_einsum, generate_sequential_optiaml_tree
 from utils import find_topo_sort
 from graph_ops.utils import einsum_equal
+from visualizer import print_computation_graph
 
 
 def test_split_einsum():
@@ -35,8 +36,12 @@ def test_dimension_tree():
     einsum_node_C = ad.einsum("abcd,am,bm,dm->cm", X, A, B, D)
     einsum_node_D = ad.einsum("abcd,am,bm,cm->dm", X, A, B, C)
 
-    dt = dimension_tree([einsum_node_A, einsum_node_B, einsum_node_C],
-                        [A, B, C])
+    dt = generate_sequential_optiaml_tree({
+        einsum_node_A: A,
+        einsum_node_B: B,
+        einsum_node_C: C
+    })
+
     intermediate_nodes = list(
         filter(lambda x: isinstance(x, ad.OpNode),
                find_topo_sort(dt, [A, B, C, D])))

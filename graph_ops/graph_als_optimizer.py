@@ -8,6 +8,7 @@ import autodiff as ad
 from graph_ops.graph_transformer import rewrite_einsum_expr
 from graph_ops.graph_optimizer import fuse_einsums
 from graph_ops.utils import einsum_equal
+from graph_ops.graph_dedup import dedup
 
 from numpy.core.einsumfunc import _parse_einsum_input
 
@@ -119,7 +120,7 @@ def einsum_partial_contract(contract_nodes, input_nodes, einsum_node):
     return output_node_fuse
 
 
-def split_einsum(einsum_node, split_input_nodes, first_einsum_dup=None):
+def split_einsum(einsum_node, split_input_nodes):
     """
     Split the einsum node into two einsum nodes.
     Parameters
@@ -160,16 +161,38 @@ def split_einsum(einsum_node, split_input_nodes, first_einsum_dup=None):
 
     first_einsum = einsum_partial_contract(first_contract_nodes, input_nodes,
                                            einsum_node)
-
-    if first_einsum_dup != None and einsum_equal(first_einsum,
-                                                 first_einsum_dup):
-        first_einsum_dup.substring = first_einsum.substring
-        first_einsum = first_einsum_dup
-
     second_einsum = einsum_partial_contract(split_input_nodes + [first_einsum],
                                             split_input_nodes + [first_einsum],
                                             einsum_node)
     return first_einsum, second_einsum
+
+
+def generate_sequential_optiaml_tree(einsum_node_map={}):
+    """Generates a list of nodes in-order. 
+    Args: 
+        einsum_node_map: a dict that maps from an output node to a input node.
+     
+    Returns:
+        einsum_nodes: a list of newly generated einsum nodes.
+
+    All the output nodes are evaluated in order and whenever an output node is
+    evaluated, the mapped input node value is invalidated (hence will invalid
+    any intermediate cached result that composed of that input node).
+    
+    Examples:
+    >>> einsum_node_A = ad.einsum("bm,cm,dm->am", B, C, D)
+    >>> einsum_node_B = ad.einsum("am,cm,dm->bm", A, C, D)
+    >>> einsum_node_C = ad.einsum("am,bm,dm->cm", A, B, D)
+    >>> dt = generate_sequential_optiaml_tree({einsum_node_A:A, 
+    >>>                                        einsum_node_B:B, 
+    >>>                                        einsum_node_C:C})    
+    
+    This will produce an intermediate node that contract (C,D).
+    """
+    dt = dimension_tree(list(einsum_node_map.keys()),
+                        list(einsum_node_map.values()))
+    dedup(*dt)
+    return dt
 
 
 def dimension_tree(einsum_nodes, input_nodes):
@@ -203,17 +226,12 @@ def dimension_tree(einsum_nodes, input_nodes):
     if len(einsum_nodes) == 1 and len(input_nodes) == 1:
         return einsum_nodes
 
-    input_node_subset = list(set(input_nodes) & set(einsum_nodes[0].inputs))
-    input_node_subset = sorted(input_node_subset, key=lambda node: node.name)
-    first_einsum, second_einsum = split_einsum(einsum_nodes[0],
-                                               input_node_subset)
-    second_einsums = [second_einsum]
-    for einsum_node in einsum_nodes[1:]:
+    second_einsums = []
+    for einsum_node in einsum_nodes:
         input_node_subset = list(set(input_nodes) & set(einsum_node.inputs))
         input_node_subset = sorted(input_node_subset,
                                    key=lambda node: node.name)
-        _, second_einsum = split_einsum(einsum_node, input_node_subset,
-                                        first_einsum)
+        _, second_einsum = split_einsum(einsum_node, input_node_subset)
         second_einsums.append(second_einsum)
 
     return dimension_tree(second_einsums[:-1],
