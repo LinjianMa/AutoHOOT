@@ -1,5 +1,6 @@
 import autodiff as ad
 import backend as T
+from graph_ops.graph_transformer import linearize
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
@@ -377,7 +378,7 @@ def test_einsum_3op():
 
         x2 = ad.Variable(name="x2", shape=[3, 2])
         x3 = ad.Variable(name="x3", shape=[2, 3])
-        x4 = ad.Variable(name="x3", shape=[3, 2])
+        x4 = ad.Variable(name="x4", shape=[3, 2])
         matmul = ad.einsum('ik,kj,jl->il', x2, x3, x4)
         y = ad.sum(matmul)
 
@@ -554,6 +555,7 @@ def test_inner_product_einsum():
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3])
         x_inner = ad.einsum('i,i->', x, x)
+        linearize(x_inner)
 
         grad_x, = ad.gradients(x_inner, [x])
 
