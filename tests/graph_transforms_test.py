@@ -399,8 +399,8 @@ def test_prune_identity():
         out = ad.einsum("ab,cd,ac,be,ef->abdf", a1, a2, i1, i2, i3)
         prune_identity_nodes(out)
         """
-        explanation to the einsum above:
-        the identity node i1 means that a and c should be the same dim.
+        Explanation to the einsum above:
+        The identity node i1 means that a and c should be the same dim.
         we can get rid of i1 and rewrite the expr as 
         ad.einsum("ab,ad,be,ef->abdf", a1, a2, i2, i3).
         we can also combine i2 and i3 cuz e is useless. Therefore,
@@ -408,13 +408,6 @@ def test_prune_identity():
         ad.einsum("ab,ad,bf->abdf", a1, a2, i2).
         """
         out_expect = ad.einsum("ab,ad,bf->abdf", a1, a2, i2)
-        print(out)
         assert len(out.inputs) == 3
 
-        feed_dict = gen_dict([a1, a2])
-        executor = ad.Executor([out])
-        out_val, = executor.run(feed_dict=feed_dict)
-        executor = ad.Executor([out_expect])
-        out_val_pect, = executor.run(feed_dict=feed_dict)
-
-        assert T.array_equal(out_val, out_val_pect)
+        assert tree_eq(out, out_expect, [a1, a2])
