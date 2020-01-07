@@ -131,16 +131,15 @@ def split_einsum(einsum_node, split_input_nodes):
         List of input nodes that are split out from the first einsum contraction
     Returns
     -------
-    first_einsum : ad.EinsumNode
-        Einsum of all the input nodes except those in the split_input_nodes
     second_einsum : ad.EinsumNode
-        Einsum of the first einsum and all nodes in the split_input_nodes
+        A newly written einsum composed of an intermediate node composed of
+        input nodes except split_input_nodes.
     Examples
     --------
     >>> einsum_node = ad.einsum("ab,bc,cd,de->ae", A,B,C,D)
     >>> split_input_nodes = [A, B]
     >>> split_einsum(einsum_node, split_input_nodes)
-    (ad.einsum("cd,de->ce", C,D), ad.einsum("ab,bc,ce->ae", A,B,ad.einsum("cd,de->ce",C,D)))
+    ad.einsum("ab,bc,ce->ae", A,B,ad.einsum("cd,de->ce",C,D))
     """
 
     # set the substring
@@ -164,7 +163,7 @@ def split_einsum(einsum_node, split_input_nodes):
     second_einsum = einsum_partial_contract(split_input_nodes + [first_einsum],
                                             split_input_nodes + [first_einsum],
                                             einsum_node)
-    return first_einsum, second_einsum
+    return second_einsum
 
 
 def generate_sequential_optiaml_tree(einsum_node_map={}):
@@ -231,7 +230,7 @@ def dimension_tree(einsum_nodes, input_nodes):
         input_node_subset = list(set(input_nodes) & set(einsum_node.inputs))
         input_node_subset = sorted(input_node_subset,
                                    key=lambda node: node.name)
-        _, second_einsum = split_einsum(einsum_node, input_node_subset)
+        second_einsum = split_einsum(einsum_node, input_node_subset)
         second_einsums.append(second_einsum)
 
     return dimension_tree(second_einsums[:-1],
