@@ -142,6 +142,49 @@ def copy_tree(node):
     return new_node
 
 
+def generate_uf(einsum_node):
+    """
+        Generates the uf backbone of an einsum node.
+
+        Args:
+            einsum_node: All inputs must be unique.
+
+        Returns:
+            uf (type: graph_ops.graph_optimizer.UF): 
+            the union_find set of the input
+        
+    """
+    assert (isinstance(einsum_node, ad.EinsumNode))
+    input_nodes = einsum_node.inputs
+    assert len(input_nodes) == len(set(input_nodes))
+
+    input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
+
+    # TODO: Get all the einsum nodes in the computation graph.
+    # Note that the order doesn't matter!
+    all_nodes = [einsum_node] + input_nodes
+
+    # Create a map
+    for node in all_nodes:
+        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+
+    literal_names = []
+    for node in all_nodes:
+        literal_names += node.literals
+
+    # For any literal that are the same, get their pos and connect.
+    uf = UF(literal_names)
+    cross_einsum_connect(uf, einsum_node)
+
+    uf.assign()
+    # Assign literals
+    for node in all_nodes:
+        node.subscripts = "".join(
+            [uf.rootval(literal_name) for literal_name in node.literals])
+
+    return uf
+
+
 def rewrite_einsum_expr(einsum_node):
     """
         Rewrites the einsum expression of a node.
@@ -168,6 +211,9 @@ def rewrite_einsum_expr(einsum_node):
         node for node, in_sub in removable_identity_nodes
         if not all(x in out_subs for x in in_sub)
     ]
+    removable_identity_nodes = list(
+        filter(lambda x: isinstance(x, ad.IdentityNode),
+               removable_identity_nodes))
 
     input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
 

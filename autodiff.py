@@ -779,9 +779,9 @@ class EinsumNode(OpNode):
         2. include an identity node into the jacobian einsum inputs,
             and its subscript consists of the old and the new character.
         """
-        from graph_ops.graph_transformer import rewrite_einsum_expr
+        from graph_ops.graph_transformer import generate_uf
 
-        uf = rewrite_einsum_expr(self)
+        uf = generate_uf(self)
         other_nodes = list(filter(lambda x: x != target_node, self.inputs))
         subs_wrt = target_node.subscripts
         identity_nodes = []
