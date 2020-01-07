@@ -147,6 +147,8 @@ def rewrite_einsum_expr(einsum_node):
         Rewrites the einsum expression of a node.
         Inplace update.
 
+        Also remove the excessive identity nodes.
+
         Args:
             einsum_node: All inputs must be unique.
 
@@ -158,6 +160,15 @@ def rewrite_einsum_expr(einsum_node):
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
     assert len(input_nodes) == len(set(input_nodes))
+
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    removable_identity_nodes = zip(einsum_node.inputs, in_subs)
+    removable_identity_nodes = [
+        node for node, in_sub in removable_identity_nodes
+        if not all(x in out_subs for x in in_sub)
+    ]
+
     input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
 
     # TODO: Get all the einsum nodes in the computation graph.
@@ -176,82 +187,24 @@ def rewrite_einsum_expr(einsum_node):
     uf = UF(literal_names)
     cross_einsum_connect(uf, einsum_node)
 
+    for node in removable_identity_nodes:
+        uf.connect(node.literals[0], node.literals[1])
+
     uf.assign()
     # Assign literals
     for node in all_nodes:
         node.subscripts = "".join(
             [uf.rootval(literal_name) for literal_name in node.literals])
 
-    new_input_subs = [node.subscripts for node in input_nodes]
+    new_input_nodes = (set(input_nodes) - set(removable_identity_nodes))
+
+    new_input_subs = [node.subscripts for node in new_input_nodes]
     new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
     einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs(input_nodes)
+    einsum_node.set_inputs(new_input_nodes)
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
 
     return uf
-
-
-def prune_identity_nodes(einsum_node):
-    """
-        reduce the number of identity nodes in the
-        einsum_node's inputs. Inplace update.
-
-        Args:
-            einsum_node: An fused einsum node.
-    """
-    assert (isinstance(einsum_node, ad.EinsumNode))
-    # used to assign new characters
-    uf_str = rewrite_einsum_expr(einsum_node)
-
-    in_subs, out_subs, _ = _parse_einsum_input(
-        (einsum_node.einsum_subscripts, *einsum_node.inputs))
-    in_subs_list = in_subs.split(',')
-    whole_str = out_subs + "".join(in_subs_list)
-
-    for i, node in enumerate(einsum_node.inputs):
-        node.subscripts = in_subs_list[i]
-
-    identity_nodes = list(
-        filter(lambda node: isinstance(node, ad.IdentityNode),
-               einsum_node.inputs))
-    variable_nodes = list(set(einsum_node.inputs) - set(identity_nodes))
-
-    # each disjoint set in uf_identity represents the indices
-    # linked by identity node
-    uf_identity = UF(list(whole_str))
-    for node in identity_nodes:
-        uf_identity.connect(node.subscripts[0], node.subscripts[1])
-
-    input_indices_set, output_indices_set = set(), set()
-    for node in variable_nodes:
-        # replace subscripts by the root chars
-        sub_list = [uf_identity.root(char) for char in node.subscripts]
-        node.subscripts = "".join(sub_list)
-        input_indices_set |= set(sub_list)
-
-    updated_inputs = variable_nodes
-    out_sub_list = []
-    for i, char in enumerate(out_subs):
-        uf_root_char = uf_identity.root(char)
-        if uf_root_char in output_indices_set:
-            # we cannot assign the same char to two indices in the
-            # output. Therefore, assign a new char, and add one
-            # identity node to the inputs to show the constraint.
-            new_char = uf_str.cg.getchar()
-            out_sub_list.append(new_char)
-            identity_node = ad.identity(einsum_node.shape[i])
-            identity_node.subscripts = f"{uf_root_char}{new_char}"
-            updated_inputs.append(identity_node)
-        else:
-            # directly assign the root char to the subscripts
-            out_sub_list.append(uf_root_char)
-            output_indices_set.add(uf_root_char)
-    einsum_node.subscripts = "".join(out_sub_list)
-
-    new_input_subs = [node.subscripts for node in updated_inputs]
-    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
-    einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs(updated_inputs)
 
 
 def optimize(node):

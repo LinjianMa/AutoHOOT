@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
+from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -397,7 +397,7 @@ def test_prune_identity():
         i3 = ad.identity(3)
 
         out = ad.einsum("ab,cd,ac,be,ef->abdf", a1, a2, i1, i2, i3)
-        prune_identity_nodes(out)
+        rewrite_einsum_expr(out)
         """
         Explanation to the einsum above:
         The identity node i1 means that a and c should be the same dim.
