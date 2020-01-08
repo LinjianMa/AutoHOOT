@@ -103,6 +103,23 @@ class OutputInjectedMode:
             n.outputs = []
 
 
+class SubscriptsGeneratedMode:
+    """
+    Generate subscripts for the einsum node and its inputs.
+    """
+    def __init__(self, node):
+        self.node = node
+
+    def __enter__(self):
+        from graph_ops.graph_transformer import rewrite_einsum_expr
+        rewrite_einsum_expr(self.node)
+
+    def __exit__(self, type, value, traceback):
+        self.node.subscripts = None
+        for n in self.node.inputs:
+            n.subscripts = None
+
+
 def get_root(nodes):
     """
         Returns the root of a set of nodes. Nodes is connected and a tree.

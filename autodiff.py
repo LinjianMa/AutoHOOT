@@ -1,6 +1,6 @@
 import backend as T
 from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts
+from utils import IntGetter, indices_to_subscripts, SubscriptsGeneratedMode
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import rewrite_einsum_expr
 
@@ -746,12 +746,12 @@ class EinsumNode(OpNode):
         -------
         Returns a einsum node.
         """
-        rewrite_einsum_expr(self)
-        output_grad.subscripts = self.subscripts
-        other_nodes = list(filter(lambda x: x != target_node,
-                                  self.inputs)) + [output_grad]
-        new_input_subs = ','.join([node.subscripts for node in other_nodes])
-        new_subscripts = new_input_subs + '->' + target_node.subscripts
+        with SubscriptsGeneratedMode(self):
+            output_grad.subscripts = self.subscripts
+            other_nodes = list(filter(lambda x: x != target_node,
+                                      self.inputs)) + [output_grad]
+            new_input_subs = ','.join([node.subscripts for node in other_nodes])
+            new_subscripts = new_input_subs + '->' + target_node.subscripts
         return einsum(new_subscripts, *other_nodes)
 
     def _jacobian_einsum(self, target_node, output_jacobian):
@@ -807,9 +807,17 @@ class EinsumNode(OpNode):
         return chainjacobian(output_jacobian, jacobian)
 
     def transposed_vjp(self, output_grad):
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the vjp calculation.
+        """
         return [self._grad_einsum(node, output_grad) for node in self.inputs]
 
     def jacobian(self, output_jacobian):
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the jacobian calculation.
+        """
         return [
             self._jacobian_einsum(node, output_jacobian)
             for node in self.inputs
