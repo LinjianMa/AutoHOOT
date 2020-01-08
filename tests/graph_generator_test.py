@@ -49,6 +49,4 @@ def test_einsum_gen_custom_3operands():
                                                (1, 2),
                                                (0, 1, 2),
                                            ])
-        print_computation_graph([new_output])
-        assert False
         assert tree_eq(output, new_output, [a, b, c, d])
