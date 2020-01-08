@@ -1,6 +1,8 @@
 import autodiff as ad
 import backend as T
 
+from graph_ops.graph_transformer import linearize
+
 BACKEND_TYPES = ['numpy', 'ctf']
 
 
@@ -219,6 +221,96 @@ def test_sub_jacobian_w_chain():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
+
+def test_mul_jacobian():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[2, 2])
+        x2 = ad.Variable(name="x2", shape=[2, 2])
+        y = x1 * x2
+
+        jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
+        executor = ad.Executor([y, jacobian_x1, jacobian_x2])
+
+        x1_val = T.tensor([[1, 2], [3, 4]])
+        x2_val = T.tensor([[5, 6], [7, 8]])
+        y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val
+        })
+
+        I = T.identity(2)
+        expected_jacobian_x1_val = T.einsum("ai,bj,ij->abij", I, I, x2_val)
+        expected_jacobian_x2_val = T.einsum("ai,bj,ij->abij", I, I, x1_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, x1_val * x2_val)
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+        assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
+def test_mul_jacobian_scalars():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[])
+        x2 = ad.Variable(name="x2", shape=[])
+        y = x1 * x2
+
+        jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
+
+        executor = ad.Executor([y, jacobian_x1, jacobian_x2])
+
+        x1_val = T.tensor(1.)
+        x2_val = T.tensor(2.)
+        y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val
+        })
+
+        expected_jacobian_x1_val = x2_val
+        expected_jacobian_x2_val = x1_val
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, x1_val * x2_val)
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+        assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
+def test_mul_jacobian_one_scalar():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[])
+        x2 = ad.Variable(name="x2", shape=[2, 2])
+
+        # test both cases of left and right multiply a scalar
+        for y in [x1 * x2, x2 * x1]:
+
+            jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
+            executor = ad.Executor([y, jacobian_x1, jacobian_x2])
+
+            x1_val = T.tensor(2.)
+            x2_val = T.tensor([[5, 6], [7, 8]])
+            y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
+                x1: x1_val,
+                x2: x2_val
+            })
+
+            I = T.identity(2)
+            expected_jacobian_x1_val = T.einsum("ai,bj,ij->ab", I, I, x2_val)
+            expected_jacobian_x2_val = x1_val * T.einsum("ai,bj->abij", I, I)
+
+            assert isinstance(y, ad.Node)
+            assert T.array_equal(y_val, x1_val * x2_val)
+            assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+            assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
 def test_jacobian_einsum():
 
     for datatype in BACKEND_TYPES:
@@ -229,7 +321,6 @@ def test_jacobian_einsum():
         y = ad.einsum("ikl,jkl->ijk", x1, x2)
 
         jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
-
         executor = ad.Executor([y, jacobian_x1, jacobian_x2])
 
         x1_val = T.random((3, 3, 3))
@@ -243,10 +334,27 @@ def test_jacobian_einsum():
         expected_jacobian_x1_val = T.einsum("im,kn,jno->ijkmno", I, I, x2_val)
         expected_jacobian_x2_val = T.einsum("jm,kn,ino->ijkmno", I, I, x1_val)
 
-        print(jacobian_x1_val.shape)
-        print(expected_jacobian_x1_val.shape)
-
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val, T.einsum("ikl,jkl->ijk", x1_val, x2_val))
         assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
+def test_hessian_quadratic():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x = ad.Variable(name="x", shape=[3])
+        H = ad.Variable(name="H", shape=[3, 3])
+        y = ad.einsum("i,ij,j->", x, H, x)
+        linearize(y)
+
+        hessian = ad.hessian(y, [x])
+        executor = ad.Executor([hessian[0][0]])
+
+        x_val = T.random(3)
+        H_val = T.random((3, 3))
+        hessian_val, = executor.run(feed_dict={x: x_val, H: H_val})
+
+        assert T.array_equal(hessian_val, H_val + T.transpose(H_val))

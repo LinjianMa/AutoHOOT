@@ -9,6 +9,7 @@ import logging
 
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
+from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_dedup import dedup, declone
@@ -36,14 +37,13 @@ def linearize(output_node):
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
     all_nodes = find_topo_sort([output_node])
-    # Inject outpus relationship.
+    # Inject outputs relationship.
     with OutputInjectedMode(all_nodes):
         for n in all_nodes:
             if len(n.outputs) > 1:
-                for n_o in n.outputs:
-                    n_new = copy_tree(n)
+                for n_o in set(n.outputs):
                     n_o.set_inputs([
-                        tmp if tmp.name != n.name else n_new
+                        tmp if tmp.name != n.name else copy_tree(n)
                         for tmp in n_o.inputs
                     ])
 
@@ -189,6 +189,69 @@ def rewrite_einsum_expr(einsum_node):
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
 
     return uf
+
+
+def prune_identity_nodes(einsum_node):
+    """
+        reduce the number of identity nodes in the
+        einsum_node's inputs. Inplace update.
+
+        Args:
+            einsum_node: An fused einsum node.
+    """
+    assert (isinstance(einsum_node, ad.EinsumNode))
+    # used to assign new characters
+    uf_str = rewrite_einsum_expr(einsum_node)
+
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+    whole_str = out_subs + "".join(in_subs_list)
+
+    for i, node in enumerate(einsum_node.inputs):
+        node.subscripts = in_subs_list[i]
+
+    identity_nodes = list(
+        filter(lambda node: isinstance(node, ad.IdentityNode),
+               einsum_node.inputs))
+    variable_nodes = list(set(einsum_node.inputs) - set(identity_nodes))
+
+    # each disjoint set in uf_identity represents the indices
+    # linked by identity node
+    uf_identity = UF(list(whole_str))
+    for node in identity_nodes:
+        uf_identity.connect(node.subscripts[0], node.subscripts[1])
+
+    input_indices_set, output_indices_set = set(), set()
+    for node in variable_nodes:
+        # replace subscripts by the root chars
+        sub_list = [uf_identity.root(char) for char in node.subscripts]
+        node.subscripts = "".join(sub_list)
+        input_indices_set |= set(sub_list)
+
+    updated_inputs = variable_nodes
+    out_sub_list = []
+    for i, char in enumerate(out_subs):
+        uf_root_char = uf_identity.root(char)
+        if uf_root_char in output_indices_set:
+            # we cannot assign the same char to two indices in the
+            # output. Therefore, assign a new char, and add one
+            # identity node to the inputs to show the constraint.
+            new_char = uf_str.cg.getchar()
+            out_sub_list.append(new_char)
+            identity_node = ad.identity(einsum_node.shape[i])
+            identity_node.subscripts = f"{uf_root_char}{new_char}"
+            updated_inputs.append(identity_node)
+        else:
+            # directly assign the root char to the subscripts
+            out_sub_list.append(uf_root_char)
+            output_indices_set.add(uf_root_char)
+    einsum_node.subscripts = "".join(out_sub_list)
+
+    new_input_subs = [node.subscripts for node in updated_inputs]
+    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
+    einsum_node.einsum_subscripts = new_subscripts
+    einsum_node.set_inputs(updated_inputs)
 
 
 def optimize(node):

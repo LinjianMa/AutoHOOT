@@ -1,7 +1,8 @@
 import backend as T
 from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts
+from utils import IntGetter, indices_to_subscripts, SubscriptsGeneratedMode
 from numpy.core.einsumfunc import _parse_einsum_input
+from graph_ops.graph_transformer import rewrite_einsum_expr
 
 
 class Node(object):
@@ -166,31 +167,43 @@ class ConstantNode(Node):
 
 
 class ScalarNode(ConstantNode):
+    suffix_getter = IntGetter()
+
     @staticmethod
     def create(*args, **kwargs):
         return ScalarNode(*args, **kwargs)
 
     def __init__(self, value):
         name = f"{value}"
+        name += f"_{ScalarNode.suffix_getter.getint()}"
         self.value = value
         super().__init__(name, [])
 
     def compute(self):
         return T.tensor(self.value)
 
+    def s2s_expr(self, inputs):
+        return f"{self.value}"
+
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
+    suffix_getter = IntGetter()
+
     @staticmethod
     def create(*args, **kwargs):
         return IdentityNode(*args, **kwargs)
 
     def __init__(self, size):
         name = f"T.identity({size})"
+        name += f"_{IdentityNode.suffix_getter.getint()}"
         super().__init__(name, [size, size])
 
     def compute(self):
         return T.identity(self.shape[0])
+
+    def s2s_expr(self, inputs):
+        return f"T.identity({self.shape[0]})"
 
 
 class EmptyNode(ConstantNode):
@@ -238,6 +251,23 @@ class CloneNode(OpNode):
     def s2s_expr(self, inputs):
         """source_to_source expression: used for source generation"""
         return "%s" % (inputs[0].name)
+
+    def jacobian(self, output_jacobian):
+        if self.shape == []:
+            jacobian = ScalarNode(1.)
+            jacobian.set_in_indices_length(0)
+        else:
+            # similar to the jacobian of AddNode
+            dim = len(self.shape)
+            input_nodes = [identity(self.shape[i]) for i in range(dim)]
+            input_indices = [[i, i + dim] for i in range(dim)]
+            out_index = [i for i in range(2 * dim)]
+
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * dim)
+            jacobian = einsum(subscripts, *input_nodes)
+            jacobian.set_in_indices_length(dim)
+        return [chainjacobian(output_jacobian, jacobian)]
 
 
 class AddNode(OpNode):
@@ -445,6 +475,74 @@ class MulNode(OpNode):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
+    def _jacobian_tensor_scalar(self, input_scalar, input_tensor):
+        # Computes the Jacobian for scalar * tensor w.r.t tensor
+        #   For the case C["ijkl"] = A["ijkl"]*S or S*A["ijkl"],
+        #   Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*S.
+        order = len(self.shape)
+        identity_nodes = [identity(self.shape[i]) for i in range(order)]
+        input_indices = [[i, i + order] for i in range(order)]
+        out_index = [i for i in range(2 * order)]
+        subscripts = indices_to_subscripts(input_indices, out_index, 2 * order)
+        jacobian_tensor = input_scalar * einsum(subscripts, *identity_nodes)
+        jacobian_tensor.set_in_indices_length(order)
+        return jacobian_tensor
+
+    def jacobian(self, output_jacobian):
+        # When a scalar presents, the jacobian w.r.t to the scalar is always
+        # the the other input.
+        left_op = self.inputs[1]
+        right_op = self.inputs[0]
+
+        if self.scalar_A is False and self.scalar_B is True:
+            """
+            Example:
+            For the case C["ijkl"] = A["ijkl"]*B,
+            Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B.
+            Jacobian(C_B) = A.
+            """
+            input_scalar = self.inputs[1]
+            input_tensor = self.inputs[0]
+            left_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+        if self.scalar_A is True and self.scalar_B is False:
+            """
+            Example:
+            For the case C["ijkl"] = A*B["ijkl"],
+            Jacobian(C_B)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*A.
+            Jacobian(C_A) = B.
+            """
+            input_scalar = self.inputs[0]
+            input_tensor = self.inputs[1]
+            right_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+        if self.scalar_A is False and self.scalar_B is False:
+            """
+            Example:
+            For the case C["ijkl"] = A["ijkl"]*B["ijkl"],
+            Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B["ijkl"].
+            """
+            order = len(self.shape)
+            identity_nodes = [identity(self.shape[i]) for i in range(order)]
+            input_indices = [[i, i + order] for i in range(order)]
+            input_indices.append([i + order for i in range(order)])
+            out_index = [i for i in range(2 * order)]
+            subscripts = indices_to_subscripts(input_indices, out_index,
+                                               2 * order)
+
+            input_nodes_A = identity_nodes + [self.inputs[1]]
+            input_nodes_B = identity_nodes + [self.inputs[0]]
+
+            jacobian_A = einsum(subscripts, *input_nodes_A)
+            jacobian_B = einsum(subscripts, *input_nodes_B)
+            jacobian_A.set_in_indices_length(order)
+            jacobian_B.set_in_indices_length(order)
+            left_op = chainjacobian(output_jacobian, jacobian_A)
+            right_op = chainjacobian(output_jacobian, jacobian_B)
+
+        return [
+            chainjacobian(output_jacobian, left_op),
+            chainjacobian(output_jacobian, right_op)
+        ]
+
 
 class MulByConstNode(OpNode):
     """Node to element-wise multiply a nodes by a constant."""
@@ -622,75 +720,58 @@ class EinsumNode(OpNode):
         return T.einsum(self.einsum_subscripts, *input_vals)
 
     def _output_shape(self, subscripts, nodes):
-        in_shapes = []
-        for node in nodes:
-            in_shapes = in_shapes + node.shape
         in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
         if out_subs == '':
-            return [1]
+            return []
+        in_shapes, out_shape = [], []
+        for node in nodes:
+            in_shapes = in_shapes + node.shape
         in_subs_split = in_subs.split(',')
-        in_subs_list = []
-        for i in in_subs_split:
-            if i != '':
-                in_subs_list = in_subs_list + list(i)
-            else:
-                in_subs_list = in_subs_list + ['']
-        out_subs_list = list(out_subs)
-        out_shape = []
-        for out_sub in out_subs_list:
+        in_subs_list = list(''.join(in_subs_split))
+        for out_sub in list(out_subs):
             for index, in_sub in enumerate(in_subs_list):
                 if out_sub == in_sub:
                     out_shape.append(in_shapes[index])
                     break
         return out_shape
 
-    def grad_einsum(self, argnum_wrt, node, output_grad):
+    def _grad_einsum(self, target_node, output_grad):
         """
 
         Parameters
         ----------
-        argnum_wrt: The node that is taken gradient w.r.t
+        target_node: The node that is taken gradient w.r.t
 
         Returns
         -------
         Returns a einsum node.
         """
-        in_subs, out_subs, _ = _parse_einsum_input(
-            (node.einsum_subscripts, *node.inputs))
-        in_subs_list = in_subs.split(',')
-
-        op_num = argnum_wrt
-        subs_wrt = in_subs_list[op_num]
-
-        rest_of_ops = node.inputs[:op_num] + node.inputs[op_num + 1:]
-
-        rest_of_subs = in_subs_list[:op_num] + in_subs_list[op_num + 1:]
-        # This is non naked sum version first.
-        new_input_subs = ','.join([out_subs] + rest_of_subs)
-        new_operands = (output_grad, ) + tuple(rest_of_ops)
-        new_subscripts = new_input_subs + '->' + subs_wrt
-        return einsum(new_subscripts, *new_operands)
+        with SubscriptsGeneratedMode(self):
+            output_grad.subscripts = self.subscripts
+            other_nodes = list(filter(lambda x: x != target_node,
+                                      self.inputs)) + [output_grad]
+            new_input_subs = ','.join([node.subscripts for node in other_nodes])
+            new_subscripts = new_input_subs + '->' + target_node.subscripts
+        return einsum(new_subscripts, *other_nodes)
 
     def _jacobian_einsum(self, target_node, output_jacobian):
         """
         Parameters
         ----------
-        argnum_wrt: The node that is taken gradient w.r.t
+        target_node: The node that is taken gradient w.r.t
 
         Returns
         -------
         Returns a einsum node.
 
         Idea: Define the subscript of each node as the einsum string of that node.
-        For each character of the self.inputs[argnum_wrt] 's subscript,
+        For each character of the target_node 's subscript,
         if it is contained in self.subscript, then
         1. assign a new character to all the input nodes' subscripts
             to replace the old character.
         2. include an identity node into the jacobian einsum inputs,
             and its subscript consists of the old and the new character.
         """
-        from graph_ops.graph_transformer import rewrite_einsum_expr
-
         uf = rewrite_einsum_expr(self)
         other_nodes = list(filter(lambda x: x != target_node, self.inputs))
         subs_wrt = target_node.subscripts
@@ -726,12 +807,17 @@ class EinsumNode(OpNode):
         return chainjacobian(output_jacobian, jacobian)
 
     def transposed_vjp(self, output_grad):
-        return [
-            self.grad_einsum(i, self, output_grad)
-            for i in range(len(self.inputs))
-        ]
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the vjp calculation.
+        """
+        return [self._grad_einsum(node, output_grad) for node in self.inputs]
 
     def jacobian(self, output_jacobian):
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the jacobian calculation.
+        """
         return [
             self._jacobian_einsum(node, output_jacobian)
             for node in self.inputs
@@ -1142,7 +1228,7 @@ def gradients(output_node, node_list):
         Therefore, this function CANNOT be used to calculate the gradients
         when output_node is not a scalar.
     """
-    assert output_node.shape == [1]
+    assert output_node.shape == [1] or output_node.shape == []
     ret_nodes = transposed_vjps(output_node, node_list, oneslike(output_node))
     for (ret_node, node) in zip(ret_nodes, node_list):
         assert ret_node.shape == node.shape
@@ -1157,3 +1243,20 @@ def hvp(output_node, node_list, vector_list):
     g_v_inner_product = inner_product(vector_list, gradient_list)
 
     return gradients(g_v_inner_product, node_list)
+
+
+def hessian(output_node, node_list):
+    """
+    explicit Hessian expression
+
+    Returns
+    -------
+    hessian_outputs: 2-d list.
+    hessian_outputs[i][j] represents the sub-Hessian w.r.t.
+    node_list[i] and node_list[j]
+    """
+    jacobian_outputs = jacobians(output_node, node_list)
+    hessian_outputs = []
+    for jacobian in jacobian_outputs:
+        hessian_outputs.append(jacobians(jacobian, node_list))
+    return hessian_outputs

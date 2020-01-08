@@ -8,6 +8,21 @@ python -m pytest tests/*.py
 # You can specify the python file as well.
 ```
 
+## Notations
+This repo involves a lot of tensor contraction operations. We use the following notations in our documentation:
+
+For the matrix multiplication `C = A @ B`, the following expressions are equal:
+
+```
+C = einsum("ij,jk->ik", A, B)
+```
+```
+C["ik"] = A["ij"] * B["jk"]
+```
+```
+C[0,2] = A[0,1] * B[1,2]
+```
+
 ## Overview of Module API and Data Structures
 
 Suppose our expression is y=x1*x2+x1, we first define our variables x1 and x2 symbolically,
