@@ -5,11 +5,12 @@ import copy
 import numpy as np
 
 
-def generate_optimal_tree(node):
+def generate_optimal_tree(node, path=None):
     """Generates the descendants of the optimal path.
     
     Args:
         node: The einsum node we are interested about.
+        path: If specified, will be used to generate tree.
     Returns:
         final_node: The newly generated node.
     """
@@ -22,9 +23,17 @@ def generate_optimal_tree(node):
     # This is a numpy specific tweak because this function relies on numpy
     # implementation of parse_einsum_input.
     np_inputs = [np.zeros(i_node.shape) for i_node in node.inputs]
-    _, contract_list = np.einsum_path(node.einsum_subscripts,
-                                      *np_inputs,
-                                      einsum_call=True)
+
+    if path is None:
+        _, contract_list = np.einsum_path(node.einsum_subscripts,
+                                          *np_inputs,
+                                          einsum_call=True)
+    else:
+        assert len(path) > 0
+        _, contract_list = np.einsum_path(node.einsum_subscripts,
+                                          *np_inputs,
+                                          optimize=path,
+                                          einsum_call=True)
 
     original_inputs = [i for i in node.inputs]
     final_node = None
