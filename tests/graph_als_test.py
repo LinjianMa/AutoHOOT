@@ -1,7 +1,6 @@
 import autodiff as ad
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 from utils import find_topo_sort
-from graph_ops.utils import einsum_equal
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
