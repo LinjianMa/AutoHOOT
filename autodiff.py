@@ -1,7 +1,8 @@
 import backend as T
 from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts
+from utils import IntGetter, indices_to_subscripts, SubscriptsGeneratedMode
 from numpy.core.einsumfunc import _parse_einsum_input
+from graph_ops.graph_transformer import rewrite_einsum_expr
 
 
 class Node(object):
@@ -734,53 +735,43 @@ class EinsumNode(OpNode):
                     break
         return out_shape
 
-    def grad_einsum(self, argnum_wrt, node, output_grad):
+    def _grad_einsum(self, target_node, output_grad):
         """
 
         Parameters
         ----------
-        argnum_wrt: The node that is taken gradient w.r.t
+        target_node: The node that is taken gradient w.r.t
 
         Returns
         -------
         Returns a einsum node.
         """
-        in_subs, out_subs, _ = _parse_einsum_input(
-            (node.einsum_subscripts, *node.inputs))
-        in_subs_list = in_subs.split(',')
-
-        op_num = argnum_wrt
-        subs_wrt = in_subs_list[op_num]
-
-        rest_of_ops = node.inputs[:op_num] + node.inputs[op_num + 1:]
-
-        rest_of_subs = in_subs_list[:op_num] + in_subs_list[op_num + 1:]
-        # This is non naked sum version first.
-        new_input_subs = ','.join([out_subs] + rest_of_subs)
-        new_operands = (output_grad, ) + tuple(rest_of_ops)
-        new_subscripts = new_input_subs + '->' + subs_wrt
-        return einsum(new_subscripts, *new_operands)
+        with SubscriptsGeneratedMode(self):
+            output_grad.subscripts = self.subscripts
+            other_nodes = list(filter(lambda x: x != target_node,
+                                      self.inputs)) + [output_grad]
+            new_input_subs = ','.join([node.subscripts for node in other_nodes])
+            new_subscripts = new_input_subs + '->' + target_node.subscripts
+        return einsum(new_subscripts, *other_nodes)
 
     def _jacobian_einsum(self, target_node, output_jacobian):
         """
         Parameters
         ----------
-        argnum_wrt: The node that is taken gradient w.r.t
+        target_node: The node that is taken gradient w.r.t
 
         Returns
         -------
         Returns a einsum node.
 
         Idea: Define the subscript of each node as the einsum string of that node.
-        For each character of the self.inputs[argnum_wrt] 's subscript,
+        For each character of the target_node 's subscript,
         if it is contained in self.subscript, then
         1. assign a new character to all the input nodes' subscripts
             to replace the old character.
         2. include an identity node into the jacobian einsum inputs,
             and its subscript consists of the old and the new character.
         """
-        from graph_ops.graph_transformer import rewrite_einsum_expr
-
         uf = rewrite_einsum_expr(self)
         other_nodes = list(filter(lambda x: x != target_node, self.inputs))
         subs_wrt = target_node.subscripts
@@ -816,12 +807,17 @@ class EinsumNode(OpNode):
         return chainjacobian(output_jacobian, jacobian)
 
     def transposed_vjp(self, output_grad):
-        return [
-            self.grad_einsum(i, self, output_grad)
-            for i in range(len(self.inputs))
-        ]
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the vjp calculation.
+        """
+        return [self._grad_einsum(node, output_grad) for node in self.inputs]
 
     def jacobian(self, output_jacobian):
+        """
+        NOTE: linearization of the einsum node is necessary before
+        the jacobian calculation.
+        """
         return [
             self._jacobian_einsum(node, output_jacobian)
             for node in self.inputs
