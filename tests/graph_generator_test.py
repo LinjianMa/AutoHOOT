@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_generator import generate_optimal_tree, split_einsum
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
@@ -50,3 +50,18 @@ def test_einsum_gen_custom_3operands():
                                                (0, 1, 2),
                                            ])
         assert tree_eq(output, new_output, [a, b, c, d])
+
+
+def test_split_einsum():
+
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+    C = ad.Variable(name="C", shape=[2, 2])
+    D = ad.Variable(name="D", shape=[2, 2])
+    E = ad.Variable(name="E", shape=[2, 2])
+
+    einsum_node = ad.einsum("ab,bc,cd,de,ef->af", A, B, C, D, E)
+    split_input_nodes = [A, B]
+    new_einsum = split_einsum(einsum_node, split_input_nodes)
+    assert len(new_einsum.inputs) == 3  # A, B, einsum(C, D, E)
+    assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
