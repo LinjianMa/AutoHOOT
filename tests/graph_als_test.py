@@ -1,24 +1,9 @@
 import autodiff as ad
-from graph_ops.graph_als_optimizer import split_einsum, generate_sequential_optiaml_tree
+from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 from utils import find_topo_sort
 from graph_ops.utils import einsum_equal
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
-
-
-def test_split_einsum():
-
-    A = ad.Variable(name="A", shape=[2, 2])
-    B = ad.Variable(name="B", shape=[2, 2])
-    C = ad.Variable(name="C", shape=[2, 2])
-    D = ad.Variable(name="D", shape=[2, 2])
-    E = ad.Variable(name="E", shape=[2, 2])
-
-    einsum_node = ad.einsum("ab,bc,cd,de,ef->af", A, B, C, D, E)
-    split_input_nodes = [A, B]
-    new_einsum = split_einsum(einsum_node, split_input_nodes)
-    assert len(new_einsum.inputs) == 3  # A, B, einsum(C, D, E)
-    assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
 
 
 def test_dimension_tree():
@@ -39,22 +24,6 @@ def test_dimension_tree():
         einsum_node_C: C
     })
 
-    intermediate_nodes = list(
-        filter(lambda x: isinstance(x, ad.OpNode),
-               find_topo_sort(dt, [A, B, C, D])))
-
-    dt_output_expected_0 = ad.einsum("abcd,dm->mabc", X, D)
-    assert einsum_equal(dt_output_expected_0, intermediate_nodes[0])
-
-    dt_output_expected_1 = ad.einsum("cm,mabc->mab", C, intermediate_nodes[0])
-    assert einsum_equal(dt_output_expected_1, intermediate_nodes[1])
-
-    dt_output_expected_2 = ad.einsum("bm,mab->am", B, intermediate_nodes[1])
-    assert einsum_equal(dt_output_expected_2, intermediate_nodes[2])
-
-    dt_output_expected_3 = ad.einsum("am,mab->bm", A, intermediate_nodes[1])
-    assert einsum_equal(dt_output_expected_3, intermediate_nodes[3])
-
-    dt_output_expected_4 = ad.einsum("am,bm,mabc->cm", A, B,
-                                     intermediate_nodes[0])
-    assert einsum_equal(dt_output_expected_4, intermediate_nodes[4])
+    assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
+    assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
+    assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, X])
