@@ -572,6 +572,67 @@ def test_inner_product_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
+def test_summation_einsum():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x", shape=[2, 2])
+        x_sum = ad.einsum('ij->', x)
+
+        grad_x, = ad.gradients(x_sum, [x])
+
+        executor = ad.Executor([x_sum, grad_x])
+        x_val = T.tensor([[1., 2.], [3., 4.]])
+
+        x_sum_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_x_sum_val = T.sum(x_val)
+        expected_grad_x_val = T.ones_like(x_val)
+
+        assert T.array_equal(x_sum_val, expected_x_sum_val)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
+def test_summation_einsum_2():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x", shape=[2, 2])
+        y = ad.Variable(name="y", shape=[2, 2])
+        out = ad.sum(ad.einsum('ij,ab->ab', x, y))
+
+        grad_x, = ad.gradients(out, [x])
+        executor = ad.Executor([out, grad_x])
+        x_val = T.tensor([[1., 2.], [3., 4.]])
+        y_val = T.tensor([[5., 6.], [7., 8.]])
+
+        out_val, grad_x_val = executor.run(feed_dict={x: x_val, y: y_val})
+
+        expected_out_val = T.sum(T.einsum('ij,ab->ab', x_val, y_val))
+        expected_grad_x_val = T.sum(y_val) * T.ones_like(x_val)
+
+        assert T.array_equal(out_val, expected_out_val)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
+def test_diagonal_sum_einsum():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        x = ad.Variable(name="x", shape=[2, 2])
+        x_sum = ad.einsum('ii->', x)
+
+        grad_x, = ad.gradients(x_sum, [x])
+
+        executor = ad.Executor([x_sum, grad_x])
+        x_val = T.tensor([[1., 2.], [3., 4.]])
+
+        x_sum_val, grad_x_val = executor.run(feed_dict={x: x_val})
+
+        expected_x_sum_val = T.einsum('ii->', x_val)
+        expected_grad_x_val = T.eye(2)
+
+        assert T.array_equal(x_sum_val, expected_x_sum_val)
+        assert T.array_equal(grad_x_val, expected_grad_x_val)
+
+
 def test_vjps():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
