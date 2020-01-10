@@ -381,23 +381,23 @@ def test_jacobian_summation_einsum_2():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_jacobian_diagonal_sum_einsum():
+def test_jacobian_trace_einsum():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
-        x_sum = ad.einsum('ii->', x)
+        trace = ad.einsum('ii->', x)
 
-        grad_x, = ad.jacobians(x_sum, [x])
+        grad_x, = ad.jacobians(trace, [x])
 
-        executor = ad.Executor([x_sum, grad_x])
+        executor = ad.Executor([trace, grad_x])
         x_val = T.tensor([[1., 2.], [3., 4.]])
 
-        x_sum_val, grad_x_val = executor.run(feed_dict={x: x_val})
+        trace_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
-        expected_x_sum_val = T.einsum('ii->', x_val)
+        expected_trace_val = T.einsum('ii->', x_val)
         expected_grad_x_val = T.eye(2)
 
-        assert T.array_equal(x_sum_val, expected_x_sum_val)
+        assert T.array_equal(trace_val, expected_trace_val)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 

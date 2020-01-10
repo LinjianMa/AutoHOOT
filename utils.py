@@ -106,6 +106,10 @@ class OutputInjectedMode:
 class StandardEinsumExprMode:
     """
     Change the einsum node to its stardard format.
+
+    Within the mode, we provide subscripts and generated
+    union-find data structure for optimization purposes.
+    Input and einsum subscripts will not change after exiting the mode.
     """
     def __init__(self, node):
         self.node = node

@@ -759,8 +759,9 @@ class EinsumNode(OpNode):
         """
         Modify the einsum expression when the generated out subscripts has
         duplicated chars.
-        For example: will change einsum("ab->ii", A) into
-            einsum("ab,ij->ij", A, identity).
+        When we take gradients of an einsum expression like einsum('ii->i', A)
+        w.r.t A, then the grad einsum generated is like einsum('i->ii', v) which is invalid.
+        We would need to add an identity node to make this valid, a.k.a einsum('i,ij->ij', v, I).
 
         Parameters
         ----------
@@ -795,8 +796,9 @@ class EinsumNode(OpNode):
         """
         Modify the einsum expression when the generated out subscripts has
         chars input subscripts don't have.
-        For example: will change einsum("->ij", A) into
-            einsum(",ij->ij", A, onesNode).
+        When we take gradients of an einsum expression like einsum('ij->', A)
+        w.r.t A, then the grad einsum generated is like einsum('->ij', v) which is invalid.
+        We would need to add an ones node to make this valid, a.k.a einsum(',ij->ij', v, O).
 
         Parameters
         ----------
@@ -812,8 +814,7 @@ class EinsumNode(OpNode):
         """
         grad_isolated_indices_set = set(out_subscripts)
         for node in input_nodes:
-            grad_isolated_indices_set = grad_isolated_indices_set - set(
-                node.subscripts)
+            grad_isolated_indices_set -= set(node.subscripts)
         if len(grad_isolated_indices_set) > 0:
             ones_node = ones([
                 length for i, length in enumerate(shape)
@@ -821,6 +822,7 @@ class EinsumNode(OpNode):
             ])
             ones_node.subscripts = "".join(list(grad_isolated_indices_set))
             input_nodes.append(ones_node)
+        return out_subscripts, input_nodes
 
     def _grad_einsum(self, target_node, output_grad):
         """
@@ -837,10 +839,13 @@ class EinsumNode(OpNode):
             input_nodes = list(filter(lambda x: x != target_node,
                                       self.inputs)) + [output_grad]
             out_subscripts, input_nodes = self._dedup_out_subs(
-                target_node.subscripts, input_nodes, self.uf, target_node.shape)
-            self._connect_out_subs(out_subscripts, input_nodes, target_node.shape)
+                target_node.subscripts, input_nodes, self.uf,
+                target_node.shape)
+            out_subscripts, input_nodes = self._connect_out_subs(
+                out_subscripts, input_nodes, target_node.shape)
 
-            new_input_subs = ','.join([node.subscripts for node in input_nodes])
+            new_input_subs = ','.join(
+                [node.subscripts for node in input_nodes])
             new_subscripts = new_input_subs + '->' + out_subscripts
         return einsum(new_subscripts, *input_nodes)
 
@@ -887,9 +892,10 @@ class EinsumNode(OpNode):
             new_operands = other_nodes + identity_nodes
 
             out_subscripts, new_operands = self._dedup_out_subs(
-                out_subscripts, new_operands, self.uf, self.shape + target_node.shape)
-            self._connect_out_subs(out_subscripts, new_operands,
-                                   self.shape + target_node.shape)
+                out_subscripts, new_operands, self.uf,
+                self.shape + target_node.shape)
+            out_subscripts, new_operands = self._connect_out_subs(
+                out_subscripts, new_operands, self.shape + target_node.shape)
 
             new_input_subs = [node.subscripts for node in new_operands]
             new_input_subs = ','.join(new_input_subs)
