@@ -3,21 +3,10 @@ import backend as T
 from graph_ops.graph_transformer import optimize, linearize
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
+from examples.cpd import cpd_graph
 
 BACKEND_TYPES = ['numpy', 'ctf']
 size, rank = 20, 5
-
-
-def cpd_graph(size, rank):
-    A = ad.Variable(name='A', shape=[size, rank])
-    B = ad.Variable(name='B', shape=[size, rank])
-    C = ad.Variable(name='C', shape=[size, rank])
-    input_tensor = ad.Variable(name='input_tensor', shape=[size, size, size])
-    output_tensor = ad.einsum("ia,ja,ka->ijk", A, B, C)
-    residual = output_tensor - input_tensor
-    loss = ad.einsum("ijk,ijk->", residual, residual)
-    linearize(loss)
-    return A, B, C, input_tensor, loss, residual
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):

@@ -10,29 +10,33 @@ import time
 BACKEND_TYPES = ['numpy']
 
 
+def cpd_graph(size, rank):
+    A = ad.Variable(name='A', shape=[size, rank])
+    B = ad.Variable(name='B', shape=[size, rank])
+    C = ad.Variable(name='C', shape=[size, rank])
+    input_tensor = ad.Variable(name='input_tensor', shape=[size, size, size])
+    output_tensor = ad.einsum("ia,ja,ka->ijk", A, B, C)
+    residual = output_tensor - input_tensor
+    loss = ad.einsum("ijk,ijk->", residual, residual)
+    linearize(loss)
+    return A, B, C, input_tensor, loss, residual
+
+
 def cpd_gradient_descent(size, rank, learning_rate):
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-
-        A = ad.Variable(name='A', shape=[size, rank])
-        B = ad.Variable(name='B', shape=[size, rank])
-        C = ad.Variable(name='C', shape=[size, rank])
-
-        contract_A_B = ad.einsum("ia,ja->ija", A, B)
-        output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
-        residual = output_tensor - input_tensor
-        loss = ad.einsum("ijk,ijk->", residual, residual)
-        linearize(loss)
-
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
+
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         for i in range(100):
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
                 feed_dict={
+                    input_tensor: input_tensor_val,
                     A: A_val,
                     B: B_val,
                     C: C_val
@@ -53,27 +57,16 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         T.set_backend(datatype)
         T.seed(1)
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-
-        A = ad.Variable(name='A', shape=[size, rank])
-        B = ad.Variable(name='B', shape=[size, rank])
-        C = ad.Variable(name='C', shape=[size, rank])
-        input_tensor = ad.Variable(name='input_tensor',
-                                   shape=[size, size, size])
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
-
-        contract_A_B = ad.einsum("ia,ja->ija", A, B)
-        output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
-        residual = output_tensor - input_tensor
-        loss = ad.einsum("ijk,ijk->", residual, residual)
-        linearize(loss)
-
         grads = ad.gradients(loss, [A, B, C])
         JtJvps = ad.jtjvps(output_node=residual,
                            node_list=[A, B, C],
                            vector_list=[v_A, v_B, v_C])
+
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         if mode == 'jax':
             from source import SourceToSource
@@ -173,23 +166,10 @@ def cpd_newton(size, rank):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-
-        A = ad.Variable(name='A', shape=[size, rank])
-        B = ad.Variable(name='B', shape=[size, rank])
-        C = ad.Variable(name='C', shape=[size, rank])
-        input_tensor = ad.Variable(name='input_tensor',
-                                   shape=[size, size, size])
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
-
-        contract_A_B = ad.einsum("ia,ja->ija", A, B)
-        output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
-        residual = output_tensor - input_tensor
-        loss = ad.einsum("ijk,ijk->", residual, residual)
-        linearize(loss)
-
         grads = ad.gradients(loss, [A, B, C])
         Hvps = ad.hvp(output_node=loss,
                       node_list=[A, B, C],
@@ -197,6 +177,8 @@ def cpd_newton(size, rank):
 
         executor_grads = ad.Executor([loss] + grads)
         executor_Hvps = ad.Executor(Hvps)
+
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         for i in range(100):
 
@@ -234,6 +216,5 @@ def cpd_newton(size, rank):
 
 if __name__ == "__main__":
     # cpd_gradient_descent(size=20, rank=5, learning_rate=1e-3)
-    # cpd_NLS(size=64, rank=10, optimized=False)
     # cpd_newton(size=20, rank=5)
     cpd_nls_benchmark()
