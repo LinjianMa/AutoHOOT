@@ -1,6 +1,6 @@
 import backend as T
 from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts, SubscriptsGeneratedMode
+from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import rewrite_einsum_expr
 
@@ -204,6 +204,26 @@ class IdentityNode(ConstantNode):
 
     def s2s_expr(self, inputs):
         return f"T.identity({self.shape[0]})"
+
+
+class OnesNode(ConstantNode):
+    """Op that represents a constant T.ones."""
+    suffix_getter = IntGetter()
+
+    @staticmethod
+    def create(*args, **kwargs):
+        return OnesNode(*args, **kwargs)
+
+    def __init__(self, shape):
+        name = f"T.ones({shape})"
+        name += f"_{OnesNode.suffix_getter.getint()}"
+        super().__init__(name, shape)
+
+    def compute(self):
+        return T.ones(self.shape)
+
+    def s2s_expr(self, inputs):
+        return f"T.ones({self.shape})"
 
 
 class EmptyNode(ConstantNode):
@@ -735,9 +755,77 @@ class EinsumNode(OpNode):
                     break
         return out_shape
 
+    def _dedup_out_subs(self, out_subscripts, input_nodes, uf, shape):
+        """
+        Modify the einsum expression when the generated out subscripts has
+        duplicated chars.
+        When we take gradients of an einsum expression like einsum('ii->i', A)
+        w.r.t A, then the grad einsum generated is like einsum('i->ii', v) which is invalid.
+        We would need to add an identity node to make this valid, a.k.a einsum('i,ij->ij', v, I).
+
+        Parameters
+        ----------
+        out_subscripts: The subscripts of the generated einsum node.
+        input_nodes: The input nodes of the einsum node to be corrected.
+        uf: The union find object of the self node.
+        shape: The shape of the output einsum node.
+
+        Returns
+        -------
+        out_subscripts: The corrected subscripts of the einsum node.
+        input_nodes: The input nodes of the corrected einsum node.
+        """
+        out_sub_list, output_indices_set = [], set()
+        for i, char in enumerate(out_subscripts):
+            if char in output_indices_set:
+                # we cannot assign the same char to two indices in the
+                # output. Therefore, assign a new char, and add one
+                # identity node to the inputs to show the constraint.
+                new_char = uf.cg.getchar()
+                out_sub_list.append(new_char)
+                identity_node = identity(shape[i])
+                identity_node.subscripts = f"{char}{new_char}"
+                input_nodes.append(identity_node)
+            else:
+                out_sub_list.append(char)
+                output_indices_set.add(char)
+        out_subscripts = "".join(out_sub_list)
+        return out_subscripts, input_nodes
+
+    def _connect_out_subs(self, out_subscripts, input_nodes, shape):
+        """
+        Modify the einsum expression when the generated out subscripts has
+        chars input subscripts don't have.
+        When we take gradients of an einsum expression like einsum('ij->', A)
+        w.r.t A, then the grad einsum generated is like einsum('->ij', v) which is invalid.
+        We would need to add an ones node to make this valid, a.k.a einsum(',ij->ij', v, O).
+
+        Parameters
+        ----------
+        out_subscripts: The subscripts of the generated einsum node.
+        input_nodes: The input nodes of the einsum node to be corrected.
+        uf: The union find object of the self node.
+        shape: The shape of the output einsum node.
+
+        Returns
+        -------
+        out_subscripts: The corrected subscripts of the einsum node.
+        input_nodes: The input nodes of the corrected einsum node.
+        """
+        grad_isolated_indices_set = set(out_subscripts)
+        for node in input_nodes:
+            grad_isolated_indices_set -= set(node.subscripts)
+        if len(grad_isolated_indices_set) > 0:
+            ones_node = ones([
+                length for i, length in enumerate(shape)
+                if out_subscripts[i] in grad_isolated_indices_set
+            ])
+            ones_node.subscripts = "".join(list(grad_isolated_indices_set))
+            input_nodes.append(ones_node)
+        return out_subscripts, input_nodes
+
     def _grad_einsum(self, target_node, output_grad):
         """
-
         Parameters
         ----------
         target_node: The node that is taken gradient w.r.t
@@ -746,13 +834,20 @@ class EinsumNode(OpNode):
         -------
         Returns a einsum node.
         """
-        with SubscriptsGeneratedMode(self):
+        with StandardEinsumExprMode(self):
             output_grad.subscripts = self.subscripts
-            other_nodes = list(filter(lambda x: x != target_node,
+            input_nodes = list(filter(lambda x: x != target_node,
                                       self.inputs)) + [output_grad]
-            new_input_subs = ','.join([node.subscripts for node in other_nodes])
-            new_subscripts = new_input_subs + '->' + target_node.subscripts
-        return einsum(new_subscripts, *other_nodes)
+            out_subscripts, input_nodes = self._dedup_out_subs(
+                target_node.subscripts, input_nodes, self.uf,
+                target_node.shape)
+            out_subscripts, input_nodes = self._connect_out_subs(
+                out_subscripts, input_nodes, target_node.shape)
+
+            new_input_subs = ','.join(
+                [node.subscripts for node in input_nodes])
+            new_subscripts = new_input_subs + '->' + out_subscripts
+        return einsum(new_subscripts, *input_nodes)
 
     def _jacobian_einsum(self, target_node, output_jacobian):
         """
@@ -772,37 +867,41 @@ class EinsumNode(OpNode):
         2. include an identity node into the jacobian einsum inputs,
             and its subscript consists of the old and the new character.
         """
-        uf = rewrite_einsum_expr(self)
-        other_nodes = list(filter(lambda x: x != target_node, self.inputs))
-        subs_wrt = target_node.subscripts
-        identity_nodes = []
-        for i, char in enumerate(subs_wrt):
-            if char in self.subscripts:
-                # Assign a new char that is not present in the existing einsum
-                # string.
-                new_char = uf.cg.getchar()
-                # step 1: assign a new character to all the input nodes'
-                # subscripts to replace the old character.
-                for input_node in self.inputs:
-                    input_node.subscripts = input_node.subscripts.replace(
-                        char, new_char)
-                # step 2: include an identity node into the jacobian einsum
-                # inputs, and its subscript consists of the old and the new
-                # character.
-                new_identity_node = identity(target_node.shape[i])
-                new_identity_node.subscripts = f"{char}{new_char}"
-                identity_nodes.append(new_identity_node)
+        with StandardEinsumExprMode(self):
+            other_nodes = list(filter(lambda x: x != target_node, self.inputs))
+            subs_wrt = target_node.subscripts
+            identity_nodes = []
+            for i, char in enumerate(subs_wrt):
+                if char in self.subscripts:
+                    # Assign a new char that is not present in the existing einsum
+                    # string.
+                    new_char = self.uf.cg.getchar()
+                    # step 1: assign a new character to all the input nodes'
+                    # subscripts to replace the old character.
+                    for input_node in self.inputs:
+                        input_node.subscripts = input_node.subscripts.replace(
+                            char, new_char)
+                    # step 2: include an identity node into the jacobian einsum
+                    # inputs, and its subscript consists of the old and the new
+                    # character.
+                    new_identity_node = identity(target_node.shape[i])
+                    new_identity_node.subscripts = f"{char}{new_char}"
+                    identity_nodes.append(new_identity_node)
 
-        output_subscripts = f"{self.subscripts}{target_node.subscripts}"
+            out_subscripts = f"{self.subscripts}{target_node.subscripts}"
+            new_operands = other_nodes + identity_nodes
 
-        new_input_subs = [node.subscripts for node in other_nodes]
-        new_input_subs += [node.subscripts for node in identity_nodes]
-        new_input_subs = ','.join(new_input_subs)
-        new_subscripts = new_input_subs + '->' + output_subscripts
+            out_subscripts, new_operands = self._dedup_out_subs(
+                out_subscripts, new_operands, self.uf,
+                self.shape + target_node.shape)
+            out_subscripts, new_operands = self._connect_out_subs(
+                out_subscripts, new_operands, self.shape + target_node.shape)
 
-        new_operands = other_nodes + identity_nodes
-        jacobian = einsum(new_subscripts, *new_operands)
-        jacobian.set_in_indices_length(len(self.shape))
+            new_input_subs = [node.subscripts for node in new_operands]
+            new_input_subs = ','.join(new_input_subs)
+            new_subscripts = new_input_subs + '->' + out_subscripts
+            jacobian = einsum(new_subscripts, *new_operands)
+            jacobian.set_in_indices_length(len(self.shape))
 
         return chainjacobian(output_jacobian, jacobian)
 
@@ -1005,6 +1104,7 @@ add_byconst = AddByConstNode.create
 mul_byconst = MulByConstNode.create
 sub_byconst = SubByConstNode.create
 matmul = MatMulNode.create
+ones = OnesNode.create
 oneslike = OnesLikeNode.create
 zeroslike = ZerosLikeNode.create
 negative = NegativeNode.create

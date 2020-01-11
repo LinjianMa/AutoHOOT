@@ -103,21 +103,30 @@ class OutputInjectedMode:
             n.outputs = []
 
 
-class SubscriptsGeneratedMode:
+class StandardEinsumExprMode:
     """
-    Generate subscripts for the einsum node and its inputs.
+    Change the einsum node to its stardard format.
+
+    Within the mode, we provide subscripts and generated
+    union-find data structure for optimization purposes.
+    Input and einsum subscripts will not change after exiting the mode.
     """
     def __init__(self, node):
         self.node = node
 
     def __enter__(self):
         from graph_ops.graph_transformer import rewrite_einsum_expr
-        rewrite_einsum_expr(self.node)
+        self.einsum_subscripts = self.node.einsum_subscripts
+        self.input_nodes = self.node.inputs
+        self.node.uf = rewrite_einsum_expr(self.node)
 
     def __exit__(self, type, value, traceback):
         self.node.subscripts = None
         for n in self.node.inputs:
             n.subscripts = None
+        self.node.uf = None
+        self.node.einsum_subscripts = self.einsum_subscripts
+        self.node.set_inputs(self.input_nodes)
 
 
 def get_root(nodes):
