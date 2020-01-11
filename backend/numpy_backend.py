@@ -38,6 +38,10 @@ class NumpyBackend(Backend):
         return a.dot(b)
 
     @staticmethod
+    def einsum(subscripts, *operands, optimize=True):
+        return np.einsum(subscripts, *operands, optimize=optimize)
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         # handle difference in default axis notation
         if axis == ():
@@ -77,7 +81,7 @@ for name in [
         'reshape', 'moveaxis', 'where', 'copy', 'transpose', 'arange', 'ones',
         'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
         'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
-        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power', 'einsum',
+        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power',
         'identity'
 ]:
     NumpyBackend.register_method(name, getattr(np, name))

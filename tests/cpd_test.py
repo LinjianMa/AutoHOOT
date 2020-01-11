@@ -1,10 +1,11 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import optimize
+from graph_ops.graph_transformer import optimize, linearize
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
 
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf']
+size, rank = 20, 5
 
 
 def cpd_graph(size, rank):
@@ -14,29 +15,25 @@ def cpd_graph(size, rank):
     input_tensor = ad.Variable(name='input_tensor', shape=[size, size, size])
     output_tensor = ad.einsum("ia,ja,ka->ijk", A, B, C)
     residual = output_tensor - input_tensor
-    norm_error = ad.norm(residual)
-    loss = norm_error * norm_error
+    loss = ad.einsum("ijk,ijk->", residual, residual)
+    linearize(loss)
     return A, B, C, input_tensor, loss, residual
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
-    jtjvp_A = T.einsum(
-        'ia,ja,ka,kb,jb->ib', v_A, B, C, C, B, optimize=True) + T.einsum(
-            'ja,ia,ka,kb,jb->ib', v_B, A, C, C, B, optimize=True) + T.einsum(
-                'ka,ia,ja,kb,jb->ib', v_C, A, B, C, B, optimize=True)
-    jtjvp_B = T.einsum(
-        'ia,ja,ka,kb,ib->jb', v_A, B, C, C, A, optimize=True) + T.einsum(
-            'ja,ia,ka,kb,ib->jb', v_B, A, C, C, A, optimize=True) + T.einsum(
-                'ka,ia,ja,kb,ib->jb', v_C, A, B, C, A, optimize=True)
-    jtjvp_C = T.einsum(
-        'ia,ja,ka,ib,jb->kb', v_A, B, C, A, B, optimize=True) + T.einsum(
-            'ja,ia,ka,ib,jb->kb', v_B, A, C, A, B, optimize=True) + T.einsum(
-                'ka,ia,ja,ib,jb->kb', v_C, A, B, A, B, optimize=True)
+    jtjvp_A = T.einsum('ia,ja,ka,kb,jb->ib', v_A, B, C, C, B) + T.einsum(
+        'ja,ia,ka,kb,jb->ib', v_B, A, C, C, B) + T.einsum(
+            'ka,ia,ja,kb,jb->ib', v_C, A, B, C, B)
+    jtjvp_B = T.einsum('ia,ja,ka,kb,ib->jb', v_A, B, C, C, A) + T.einsum(
+        'ja,ia,ka,kb,ib->jb', v_B, A, C, C, A) + T.einsum(
+            'ka,ia,ja,kb,ib->jb', v_C, A, B, C, A)
+    jtjvp_C = T.einsum('ia,ja,ka,ib,jb->kb', v_A, B, C, A, B) + T.einsum(
+        'ja,ia,ka,ib,jb->kb', v_B, A, C, A, B) + T.einsum(
+            'ka,ia,ja,ib,jb->kb', v_C, A, B, A, B)
     return [jtjvp_A, jtjvp_B, jtjvp_C]
 
 
 def test_cpd_grad():
-    size, rank = 20, 5
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
@@ -72,14 +69,13 @@ def test_cpd_grad():
         expected_grad_C = T.einsum("ajk,ja->ka", expected_contract_residual_A,
                                    B_val)
 
-        assert T.array_equal(loss_val, expected_loss)
+        assert abs(loss_val - expected_loss) < 1e-8
         assert T.norm(grad_A_val - expected_grad_A) < 1e-8
         assert T.norm(grad_B_val - expected_grad_B) < 1e-8
         assert T.norm(grad_C_val - expected_grad_C) < 1e-8
 
 
 def test_cpd_jtjvp():
-    size, rank = 20, 5
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
@@ -116,7 +112,6 @@ def test_cpd_jtjvp():
 
 
 def test_cpd_jtjvp_optimize():
-    size, rank = 20, 5
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 

@@ -3,6 +3,8 @@ import autodiff as ad
 import backend as T
 from tensors.synthetic_tensors import init_rand_3d
 from utils import conjugate_gradient, cp_nls_optimizer
+from graph_ops.graph_transformer import optimize, linearize
+from graph_ops.graph_dedup import dedup
 import time
 
 BACKEND_TYPES = ['numpy']
@@ -21,8 +23,9 @@ def cpd_gradient_descent(size, rank, learning_rate):
 
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
-        norm_error = ad.norm(output_tensor - input_tensor_val)
-        loss = norm_error * norm_error
+        residual = output_tensor - input_tensor
+        loss = ad.einsum("ijk,ijk->", residual, residual)
+        linearize(loss)
 
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
@@ -64,8 +67,8 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
         residual = output_tensor - input_tensor
-        norm_error = ad.norm(residual)
-        loss = norm_error * norm_error
+        loss = ad.einsum("ijk,ijk->", residual, residual)
+        linearize(loss)
 
         grads = ad.gradients(loss, [A, B, C])
         JtJvps = ad.jtjvps(output_node=residual,
@@ -81,6 +84,8 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                         backend='jax')
 
         executor_grads = ad.Executor([loss] + grads)
+        JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
+        dedup(*JtJvps)
         executor_JtJvps = ad.Executor(JtJvps)
         optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
 
@@ -109,7 +114,7 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                         })
                 elif mode == 'jax':
                     from examples.jax_jtjvp import jtjvp
-                    return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
+                    return jtjvp([B_val, C_val, v[0], A_val, v[1], v[2]])
 
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
                 feed_dict={
@@ -145,12 +150,12 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
         return total_cg_time, fitness
 
 
-def cpd_nls_benchmark():
-    cg_time_ad, fitness_ad = cpd_nls(size=64, rank=10, mode='ad')
-    cg_time_optimized, fitness_optimized = cpd_nls(size=64,
-                                                   rank=10,
+def cpd_nls_benchmark(size=100, rank=100):
+    cg_time_ad, fitness_ad = cpd_nls(size, rank, mode='ad')
+    cg_time_optimized, fitness_optimized = cpd_nls(size,
+                                                   rank,
                                                    mode='optimized')
-    cg_time_jax, fitness_jax = cpd_nls(size=64, rank=10, mode='jax')
+    cg_time_jax, fitness_jax = cpd_nls(size, rank, mode='jax')
 
     assert (abs(fitness_ad - fitness_optimized) < 1e-3)
     assert (abs(fitness_jax - fitness_optimized) < 1e-3)
@@ -181,8 +186,9 @@ def cpd_newton(size, rank):
 
         contract_A_B = ad.einsum("ia,ja->ija", A, B)
         output_tensor = ad.einsum("ija,ka->ijk", contract_A_B, C)
-        norm_error = ad.norm(output_tensor - input_tensor)
-        loss = norm_error * norm_error
+        residual = output_tensor - input_tensor
+        loss = ad.einsum("ijk,ijk->", residual, residual)
+        linearize(loss)
 
         grads = ad.gradients(loss, [A, B, C])
         Hvps = ad.hvp(output_node=loss,
