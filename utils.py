@@ -115,10 +115,10 @@ class StandardEinsumExprMode:
         self.node = node
 
     def __enter__(self):
-        from graph_ops.graph_transformer import rewrite_einsum_expr
+        from graph_ops.graph_transformer import generate_einsum_info
         self.einsum_subscripts = self.node.einsum_subscripts
         self.input_nodes = self.node.inputs
-        self.node.uf = rewrite_einsum_expr(self.node)
+        self.node.uf = generate_einsum_info(self.node)
 
     def __exit__(self, type, value, traceback):
         self.node.subscripts = None
