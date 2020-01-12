@@ -85,7 +85,7 @@ def distribute_tree(output):
         output: The output of a tree.
 
     Returns:
-        output: a newly generated einsum tree with operands distributed. 
+        output: a newly generated node with add operands distributed.
     
     Idea:
         1. Construct the output tree.
@@ -101,9 +101,6 @@ def distribute_tree(output):
                 if has_einsum_nodes:
                     return node
         return None
-
-    assert isinstance(output, ad.EinsumNode)
-
     while 1:
         all_nodes = find_topo_sort([output])
         with OutputInjectedMode(all_nodes):
@@ -270,6 +267,7 @@ def optimize(node):
         for tree in trees:
             out_node, in_nodes = tree
             new_z = fuse_einsums(out_node, in_nodes)
+            prune_identity_nodes(new_z)
             new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
     linearize(node)
@@ -279,4 +277,36 @@ def optimize(node):
             rewrite_einsum_expr(node)
     node = declone(node)
     dedup(node)
+    return node
+
+
+def simplify(node):
+    """Simplify a graph with a single output node.
+    The simplified form will distribute selected operations
+    (+), and fuse all connected einsums.
+
+    Args:
+        node: The output node.
+    Returns:
+        node: The newly generated node.
+    """
+    node = distribute_tree(node)
+    # TODO (issue #101): when the expression is too long, will produce
+    # "RecursionError: maximum recursion depth exceeded while calling a Python object"
+    # for the copy_tree function.
+    linearize(node)
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        trees = find_sub_einsumtree(node)
+        for tree in trees:
+            out_node, in_nodes = tree
+            new_z = fuse_einsums(out_node, in_nodes)
+            prune_identity_nodes(new_z)
+            replace_node(out_node, new_z)
+    linearize(node)
+    all_nodes = find_topo_sort([node])
+    for node in all_nodes:
+        if isinstance(node, ad.EinsumNode):
+            rewrite_einsum_expr(node)
+    node = declone(node)
     return node

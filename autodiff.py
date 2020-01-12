@@ -301,6 +301,10 @@ class AddNode(OpNode):
         super().__init__()
         self.set_inputs([node_A, node_B])
         self.shape = node_A.shape
+        # used for chainjacobian function.
+        if node_A.input_indices_length != None:
+            assert node_A.input_indices_length == node_B.input_indices_length
+            self.input_indices_length = node_A.input_indices_length
 
     def set_inputs(self, inputs):
         assert len(inputs) == 2

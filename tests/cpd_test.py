@@ -1,9 +1,10 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import optimize, linearize
+from graph_ops.graph_transformer import optimize, linearize, simplify
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
 from examples.cpd import cpd_graph
+from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf']
 size, rank = 20, 5
@@ -139,3 +140,84 @@ def test_cpd_jtjvp_optimize():
         assert T.norm(jtjvp_val[0] - expected_hvp_val[0]) < 1e-8
         assert T.norm(jtjvp_val[1] - expected_hvp_val[1]) < 1e-8
         assert T.norm(jtjvp_val[2] - expected_hvp_val[2]) < 1e-8
+
+
+def test_cpd_hessian_simplify():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+
+        hessian = ad.hessian(loss, [A, B, C])
+        # TODO (issue #101): test the off-diagonal elements
+        hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
+        for node in hessian_diag:
+            simplify(node)
+            assert isinstance(node, ad.AddNode)
+            for input_node in node.inputs:
+                assert len(input_node.inputs) == 5
+
+        executor = ad.Executor(hessian_diag)
+        hes_diag_vals = executor.run(feed_dict={
+            A: A_val,
+            B: B_val,
+            C: C_val,
+            input_tensor: input_tensor_val,
+        })
+
+        expected_hes_diag_val = [
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', B_val, B_val, C_val, C_val,
+                         T.identity(size)),
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, C_val, C_val,
+                         T.identity(size)),
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, B_val, B_val,
+                         T.identity(size))
+        ]
+        assert T.norm(hes_diag_vals[0] - expected_hes_diag_val[0]) < 1e-8
+        assert T.norm(hes_diag_vals[1] - expected_hes_diag_val[1]) < 1e-8
+        assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
+
+
+def test_cpd_hessian_optimize():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+
+        hessian = ad.hessian(loss, [A, B, C])
+        # TODO (issue #101): test the off-diagonal elements
+        hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
+        for node in hessian_diag:
+            optimize(node)
+            assert isinstance(node, ad.AddNode)
+            num_operations = len(
+                list(
+                    filter(lambda x: isinstance(x, ad.OpNode),
+                           find_topo_sort([node]))))
+            # Use this assertion to test the optimize function.
+            # Each Hessian diagonal term consists of addition of two einsums.
+            # Each einsum consists of 4 contractions.
+            # Overall 9 operations are necessary.
+            assert num_operations == 9
+
+        executor = ad.Executor(hessian_diag)
+        hes_diag_vals = executor.run(feed_dict={
+            A: A_val,
+            B: B_val,
+            C: C_val,
+            input_tensor: input_tensor_val,
+        })
+
+        expected_hes_diag_val = [
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', B_val, B_val, C_val, C_val,
+                         T.identity(size)),
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, C_val, C_val,
+                         T.identity(size)),
+            2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, B_val, B_val,
+                         T.identity(size))
+        ]
+        assert T.norm(hes_diag_vals[0] - expected_hes_diag_val[0]) < 1e-8
+        assert T.norm(hes_diag_vals[1] - expected_hes_diag_val[1]) < 1e-8
+        assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8

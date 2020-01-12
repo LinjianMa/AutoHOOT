@@ -196,6 +196,33 @@ def test_tree_distribution_order():
         assert tree_eq(output, new_output, [a, b, c])
 
 
+def test_tree_distribution_w_add_output():
+    """
+        Test C * (A + B) + F * (D + E)
+            = (C * A + C * B) + (F * D + F * E)
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 3])
+        b = ad.Variable(name="b", shape=[3, 3])
+        c = ad.Variable(name="c", shape=[3, 3])
+
+        d = ad.Variable(name="d", shape=[3, 3])
+        e = ad.Variable(name="e", shape=[3, 3])
+        f = ad.Variable(name="f", shape=[3, 3])
+
+        out1 = ad.einsum('ik,kj->ij', c, a + b)
+        out2 = ad.einsum('ik,kj->ij', d, e + f)
+        output = out1 + out2
+        new_output = distribute_tree(output)
+        assert isinstance(new_output, ad.AddNode)
+        for input_node in new_output.inputs:
+            assert isinstance(input_node, ad.AddNode)
+        assert tree_eq(output, new_output, [a, b, c, d, e, f])
+
+
 def test_tree_distribution_four_terms():
     """
         [Distributive] (A + B) * (C + D) 
