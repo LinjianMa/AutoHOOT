@@ -6,8 +6,6 @@ import logging
 import autodiff as ad
 
 from graph_ops.graph_generator import split_einsum
-from graph_ops.graph_transformer import rewrite_einsum_expr
-from graph_ops.graph_optimizer import fuse_einsums
 from graph_ops.graph_dedup import dedup
 
 from numpy.core.einsumfunc import _parse_einsum_input
