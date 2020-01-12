@@ -40,6 +40,12 @@ class CTFBackend(Backend):
     def max(tensor):
         raise NotImplementedError
 
+    @staticmethod
+    def inv(matrix):
+        U, s, V = ctf.svd(matrix)
+        return ctf.dot(ctf.transpose(V),
+                       ctf.dot(ctf.diag(s**-1), ctf.transpose(U)))
+
     # @staticmethod
     # def clip(tensor, a_min=None, a_max=None, inplace=False):
     #     return np.clip(tensor, a_min, a_max)
