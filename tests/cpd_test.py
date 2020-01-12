@@ -150,7 +150,7 @@ def test_cpd_hessian_simplify():
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         hessian = ad.hessian(loss, [A, B, C])
-        # TODO: test the off-diagonal elements
+        # TODO (issue #101): test the off-diagonal elements
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
             simplify(node)
@@ -187,7 +187,7 @@ def test_cpd_hessian_optimize():
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         hessian = ad.hessian(loss, [A, B, C])
-        # TODO: test the off-diagonal elements
+        # TODO (issue #101): test the off-diagonal elements
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
             optimize(node)

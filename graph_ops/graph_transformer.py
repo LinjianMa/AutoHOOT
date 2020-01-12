@@ -85,7 +85,7 @@ def distribute_tree(output):
         output: The output of a tree.
 
     Returns:
-        output: a newly generated einsum tree with operands distributed. 
+        output: a newly generated node with add operands distributed.
     
     Idea:
         1. Construct the output tree.
