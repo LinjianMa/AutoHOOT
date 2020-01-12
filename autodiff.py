@@ -1129,7 +1129,7 @@ class InverseNode(OpNode):
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
-        return f"T.reshape(T.inv(T.reshape({node_A.name}, ({self.matrix_size},{self.matrix_size}))), {self.shape})"
+        return f"T.reshape(T.inv(T.reshape({inputs[0].name}, ({self.matrix_size},{self.matrix_size}))), {self.shape})"
 
     def compute(self, input_vals):
         """Returns inverse of the same shape as input."""
