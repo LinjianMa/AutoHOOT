@@ -233,6 +233,7 @@ array_equal = dispatch(Backend.array_equal)
 einsum = dispatch(Backend.einsum)
 random = dispatch(Backend.random)
 seed = dispatch(Backend.seed)
+inv = dispatch(Backend.inv)
 
 # Initialise the backend to the default one
 initialize_backend()
