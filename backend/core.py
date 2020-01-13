@@ -511,7 +511,7 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
-    def inv(a):
+    def tensorinv(a, ind=2):
         raise NotImplementedError
 
     @staticmethod

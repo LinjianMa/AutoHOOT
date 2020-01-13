@@ -23,7 +23,7 @@ jobs:
         git clone https://github.com/cyclops-community/ctf.git
         mkdir install install/include install/lib
         cd ctf
-        # install scalapack.
+        # Download scalapack.
         wget http://www.netlib.org/scalapack/scalapack-2.1.0.tgz -O scalapack.tgz
         mkdir scalapack;
         tar -xzf scalapack.tgz -C scalapack --strip-components 1;

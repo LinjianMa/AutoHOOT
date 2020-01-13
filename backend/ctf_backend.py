@@ -46,6 +46,19 @@ class CTFBackend(Backend):
         return ctf.dot(ctf.transpose(V),
                        ctf.dot(ctf.diag(s**-1), ctf.transpose(U)))
 
+    @staticmethod
+    def tensorinv(tensor, ind=2):
+        oldshape = tensor.shape
+        if ind > 0:
+            invshape = oldshape[ind:] + oldshape[:ind]
+            prod = np.prod(oldshape[:ind])
+            assert prod == np.prod(oldshape[ind:])
+        else:
+            raise ValueError("Invalid ind argument.")
+        tensor = tensor.reshape(prod, -1)
+        invtensor = CTFBackend.inv(tensor)
+        return invtensor.reshape(*invshape)
+
     # @staticmethod
     # def clip(tensor, a_min=None, a_max=None, inplace=False):
     #     return np.clip(tensor, a_min, a_max)

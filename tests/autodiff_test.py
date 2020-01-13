@@ -820,12 +820,12 @@ def test_hvp2():
         assert T.array_equal(Hv_val, expected_hv_val)
 
 
-def test_inv_matrix():
+def test_tensorinv_matrix():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 3])
         x.input_indices_length = 1
-        inv_x = ad.inv(x)
+        inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
         x_val = T.random([3, 3])
@@ -833,16 +833,14 @@ def test_inv_matrix():
         assert T.array_equal(inv_x_val, T.inv(x_val))
 
 
-def test_inv_tensor():
+def test_tensorinv_tensor():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 2, 3, 2])
         x.input_indices_length = 2
-        inv_x = ad.inv(x)
+        inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
         x_val = T.random([3, 2, 3, 2])
         inv_x_val, = executor.run(feed_dict={x: x_val})
-        assert T.array_equal(
-            inv_x_val, T.reshape(T.inv(T.reshape(x_val, (6, 6))),
-                                 (3, 2, 3, 2)))
+        assert T.array_equal(inv_x_val, T.tensorinv(x_val))
