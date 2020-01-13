@@ -101,6 +101,7 @@ def distribute_tree(output):
                 if has_einsum_nodes:
                     return node
         return None
+
     while 1:
         all_nodes = find_topo_sort([output])
         with OutputInjectedMode(all_nodes):
@@ -137,6 +138,49 @@ def copy_tree(node):
     new_node = copy.deepcopy(node)
     new_node.set_inputs(new_inputs)
     return new_node
+
+
+def generate_einsum_info(einsum_node):
+    """
+        Generates the einsum information for easier programming.
+
+        No update to the graph.
+
+        Args:
+            einsum_node: All inputs must be unique.
+
+        Returns:
+            uf (type: graph_ops.graph_optimizer.UF): 
+            the union_find set of the input
+        
+    """
+    assert (isinstance(einsum_node, ad.EinsumNode))
+    input_nodes = einsum_node.inputs
+    assert len(input_nodes) == len(set(input_nodes))
+
+    # TODO: Get all the einsum nodes in the computation graph.
+    # Note that the order doesn't matter!
+    all_nodes = [einsum_node] + input_nodes
+
+    # Create a map
+    for node in all_nodes:
+        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+
+    literal_names = []
+    for node in all_nodes:
+        literal_names += node.literals
+
+    # For any literal that are the same, get their pos and connect.
+    uf = UF(literal_names)
+    cross_einsum_connect(uf, einsum_node)
+
+    uf.assign()
+    # Assign literals
+    for node in all_nodes:
+        node.subscripts = "".join(
+            [uf.rootval(literal_name) for literal_name in node.literals])
+
+    return uf
 
 
 def rewrite_einsum_expr(einsum_node):
@@ -198,7 +242,7 @@ def prune_identity_nodes(einsum_node):
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     # used to assign new characters
-    uf_str = rewrite_einsum_expr(einsum_node)
+    uf_str = generate_einsum_info(einsum_node)
 
     in_subs, out_subs, _ = _parse_einsum_input(
         (einsum_node.einsum_subscripts, *einsum_node.inputs))

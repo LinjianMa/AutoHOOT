@@ -2,7 +2,6 @@ import backend as T
 from utils import find_topo_sort, sum_node_list, inner_product
 from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode
 from numpy.core.einsumfunc import _parse_einsum_input
-from graph_ops.graph_transformer import rewrite_einsum_expr
 
 
 class Node(object):
