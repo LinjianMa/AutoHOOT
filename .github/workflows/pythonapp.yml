@@ -22,9 +22,13 @@ jobs:
       run: |
         git clone https://github.com/cyclops-community/ctf.git
         mkdir install install/include install/lib
-        # Install CTF.
         cd ctf
-        ./configure --install-dir="$GITHUB_WORKSPACE/install"
+        # install scalapack.
+        wget http://www.netlib.org/scalapack/scalapack-2.1.0.tgz -O scalapack.tgz
+        mkdir scalapack;
+        tar -xzf scalapack.tgz -C scalapack --strip-components 1;
+        # Install CTF.
+        ./configure --install-dir="$GITHUB_WORKSPACE/install" --build-scalapack
         pip install cython
         make python
         make python_install
