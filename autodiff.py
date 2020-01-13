@@ -1,4 +1,5 @@
 import backend as T
+import numpy as np
 from utils import find_topo_sort, sum_node_list, inner_product
 from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode
 from numpy.core.einsumfunc import _parse_einsum_input
@@ -1096,6 +1097,51 @@ class NegativeNode(OpNode):
         return [-output_grad]
 
 
+class TensorInverseNode(OpNode):
+    """
+        Node that represents inverting the input node.
+        When the input node represents a matrix, the returned value is
+        just the inverse of this matrix;
+        When the input node represents a tensor, this node will first
+        reshape the tensor into a matrix, then perform the inverse, then
+        reshape the matrix back to the tensor.
+        NOTE: This node currently doesn't support transposed_vjp and jacobian calculations.
+    """
+    @staticmethod
+    def create(*args, **kwargs):
+        return TensorInverseNode(*args, **kwargs)
+
+    def __init__(self, node_A):
+        """Creates a node that inverts node_A."""
+        super().__init__()
+        self.inputs = [node_A]
+        # This assert makes sure that this tensor can be reshaped
+        # into a squared matrix.
+        assert node_A.input_indices_length == len(node_A.shape) / 2
+        self.input_indices_length = node_A.input_indices_length
+        self.shape = node_A.shape[self.input_indices_length:] + \
+            node_A.shape[:self.input_indices_length]
+        self.matrix_size = np.prod(self.shape[:self.input_indices_length])
+        assert self.matrix_size == np.prod(
+            self.shape[self.input_indices_length:])
+        self.name = f"T.tensorinv({node_A.name}, ind={self.input_indices_length})"
+
+    def s2s_expr(self, inputs):
+        assert len(inputs) == 1
+        return f"T.tensorinv({inputs[0].name}, ind={self.input_indices_length})"
+
+    def compute(self, input_vals):
+        """Returns inverse of the same shape as input."""
+        assert T.is_tensor(input_vals[0])
+        return T.tensorinv(input_vals[0], ind=self.input_indices_length)
+
+    def transposed_vjp(self, output_grad):
+        raise Exception('InverseNode does not allow vjp calculation')
+
+    def jacobian(self, output_jacobian):
+        raise Exception('InverseNode does not allow jacobian calculation')
+
+
 # Create global singletons of operators.
 Variable = VariableNode.create
 Constant = ConstantNode.create
@@ -1117,6 +1163,7 @@ norm = NormNode.create
 sum = SumNode.create
 transpose = TransposeNode.create
 identity = IdentityNode.create
+tensorinv = TensorInverseNode.create
 
 
 def chainjacobian(node_A, node_B):

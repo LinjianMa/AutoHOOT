@@ -511,6 +511,10 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def tensorinv(a, ind=2):
+        raise NotImplementedError
+
+    @staticmethod
     def stack(arrays, axis=0):
         """
         Join a sequence of arrays along a new axis.
