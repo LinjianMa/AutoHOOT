@@ -223,7 +223,7 @@ def rewrite_einsum_expr(einsum_node):
 
     pseudo_nodes = []
     einsum_node_literals = [
-        einsum_node.name + str(i) for i in range(len(einsum_node.shape))
+        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
     ]
     pseudo_nodes.append(
         PseudoNode(node=einsum_node, literals=einsum_node_literals))
