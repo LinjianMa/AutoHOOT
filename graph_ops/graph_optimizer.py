@@ -51,9 +51,16 @@ class UFNodes(UFBase):
                 self.roots[rootnode] = self.ig.getint()
 
 
-def cross_einsum_connect(uf, output_node):
+def cross_einsum_connect(uf, output_node, literal_names):
     """
         Link the literal relationship for an einsum op.
+        
+        Args: 
+            uf: union find data structure.
+            output_node: An einsum node.
+            literals: A list of all the literals including the output_node.
+        
+        Inputs of the einsum node can have duplicates.
     """
     assert (isinstance(output_node, ad.EinsumNode))
     # for child in output_node.inputs:
@@ -65,9 +72,6 @@ def cross_einsum_connect(uf, output_node):
     whole_str = out_subs + "".join(in_subs_list)
 
     record = {}
-    literal_names = copy.deepcopy(output_node.literals)
-    for node in output_node.inputs:
-        literal_names += node.literals
 
     for pos, pair in enumerate(zip(whole_str, literal_names)):
         char, litername = pair
@@ -115,7 +119,9 @@ def fuse_einsums(output_node, input_nodes):
     # For any literal that are the same, get their pos and connect.
     uf = UF(literal_names)
     for node in einsum_nodes:
-        cross_einsum_connect(uf, node)
+        cross_einsum_connect(
+            uf, node,
+            node.literals + sum([x.literals for x in node.inputs], []))
 
     uf.assign()
     # Assign literals
