@@ -7,14 +7,15 @@
 """
 import logging
 
+import copy
+
+import autodiff as ad
+from graph_ops.graph_dedup import dedup, declone
+from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
+from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
-from numpy.core.einsumfunc import _parse_einsum_input
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
-from graph_ops.graph_generator import generate_optimal_tree
-from graph_ops.graph_dedup import dedup, declone
-import autodiff as ad
-import copy
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -172,7 +173,11 @@ def generate_einsum_info(einsum_node):
 
     # For any literal that are the same, get their pos and connect.
     uf = UF(literal_names)
-    cross_einsum_connect(uf, einsum_node)
+
+    cross_einsum_connect(
+        uf, einsum_node,
+        einsum_node.literals + sum([x.literals
+                                    for x in einsum_node.inputs], []))
 
     uf.assign()
     # Assign literals
@@ -183,13 +188,27 @@ def generate_einsum_info(einsum_node):
     return uf
 
 
+import attr
+
+
+@attr.s
+class PseudoNode(object):
+    node = attr.ib()
+    literals = attr.ib(default=[])
+    subscript = attr.ib(default='')
+
+    def generate_subscript(self, uf):
+        self.subscript = "".join(
+            [uf.rootval(literal_name) for literal_name in self.literals])
+
+
 def rewrite_einsum_expr(einsum_node):
     """
         Rewrites the einsum expression of a node.
         Inplace update.
 
         Args:
-            einsum_node: All inputs must be unique.
+            einsum_node: Allow duplicate inputs of the einsum node.
 
         Returns:
             uf (type: graph_ops.graph_optimizer.UF): 
@@ -198,35 +217,47 @@ def rewrite_einsum_expr(einsum_node):
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
-    assert len(input_nodes) == len(set(input_nodes))
-    input_nodes = sorted(input_nodes, key=lambda input_node: input_node.name)
 
     # TODO: Get all the einsum nodes in the computation graph.
-    # Note that the order doesn't matter!
-    all_nodes = [einsum_node] + input_nodes
+    # Note that the order matters!
 
-    # Create a map
-    for node in all_nodes:
-        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+    pseudo_nodes = []
+    einsum_node_literals = [
+        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
+    ]
+    pseudo_nodes.append(
+        PseudoNode(node=einsum_node, literals=einsum_node_literals))
 
-    literal_names = []
-    for node in all_nodes:
-        literal_names += node.literals
+    for k, node in enumerate(einsum_node.inputs):
+        literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
+        pseudo_nodes.append(PseudoNode(node=node, literals=literals))
+
+    node_literals = []
+
+    all_literals = sum([node.literals for node in pseudo_nodes], [])
 
     # For any literal that are the same, get their pos and connect.
-    uf = UF(literal_names)
-    cross_einsum_connect(uf, einsum_node)
+    uf = UF(all_literals)
+    cross_einsum_connect(uf, einsum_node, all_literals)
 
     uf.assign()
     # Assign literals
-    for node in all_nodes:
-        node.subscripts = "".join(
-            [uf.rootval(literal_name) for literal_name in node.literals])
+    for node in pseudo_nodes:
+        node.generate_subscript(uf)
 
-    new_input_subs = [node.subscripts for node in input_nodes]
-    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
+    einsum_node_subscript = pseudo_nodes[0].subscript
+
+    # Remove the einsum node.
+    pseudo_nodes.pop(0)
+
+    # Sort based on both the node name and subscript.
+    pseudo_nodes = sorted(pseudo_nodes,
+                          key=lambda pnode: pnode.node.name + pnode.subscript)
+
+    new_input_subs = [pnode.subscript for pnode in pseudo_nodes]
+    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node_subscript
     einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs(input_nodes)
+    einsum_node.set_inputs([pnode.node for pnode in pseudo_nodes])
     logger.info(f"Rewrite to new subscript: {new_subscripts}")
 
     return uf

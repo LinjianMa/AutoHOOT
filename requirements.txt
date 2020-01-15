@@ -1,3 +1,4 @@
+attrs
 jax
 jaxlib
 graphviz

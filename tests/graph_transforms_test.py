@@ -413,6 +413,19 @@ def test_einsum_equal():
     assert x.inputs == y.inputs
 
 
+def test_einsum_rewrite_duplicate_input():
+
+    a = ad.Variable(name="a", shape=[3, 2])
+
+    x = ad.einsum('ca,cb->ab', a, a)
+    y = ad.einsum('cb,ca->ab', a, a)
+
+    rewrite_einsum_expr(x)
+    rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+
+
 def test_prune_identity():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
