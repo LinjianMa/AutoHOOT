@@ -345,12 +345,11 @@ def optimize(node):
             prune_identity_nodes(new_z)
             new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
-    linearize(node)
+    node = declone(node)
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
-    node = declone(node)
     dedup(node)
     return node
 
