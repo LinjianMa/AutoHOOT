@@ -199,8 +199,8 @@ def test_cpd_hessian_optimize():
             # Use this assertion to test the optimize function.
             # Each Hessian diagonal term consists of addition of two einsums.
             # Each einsum consists of 4 contractions.
-            # Overall 9 operations are necessary.
-            assert num_operations == 9
+            # Overall 6 operations are necessary.
+            assert num_operations == 6
 
         executor = ad.Executor(hessian_diag)
         hes_diag_vals = executor.run(feed_dict={
