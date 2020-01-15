@@ -13,6 +13,7 @@ import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
+from graph_ops.graph_util import PseudoNode
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode
 from utils import replace_node
@@ -186,20 +187,6 @@ def generate_einsum_info(einsum_node):
             [uf.rootval(literal_name) for literal_name in node.literals])
 
     return uf
-
-
-import attr
-
-
-@attr.s
-class PseudoNode(object):
-    node = attr.ib()
-    literals = attr.ib(default=[])
-    subscript = attr.ib(default='')
-
-    def generate_subscript(self, uf):
-        self.subscript = "".join(
-            [uf.rootval(literal_name) for literal_name in self.literals])
 
 
 def rewrite_einsum_expr(einsum_node):
