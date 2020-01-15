@@ -377,10 +377,9 @@ def simplify(node):
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
             replace_node(out_node, new_z)
-    linearize(node)
+    node = declone(node)
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
-    node = declone(node)
     return node
