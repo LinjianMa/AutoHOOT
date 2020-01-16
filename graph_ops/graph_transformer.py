@@ -179,33 +179,32 @@ def generate_einsum_info(einsum_node):
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     input_nodes = einsum_node.inputs
-    assert len(input_nodes) == len(set(input_nodes))
 
-    # TODO: Get all the einsum nodes in the computation graph.
-    # Note that the order doesn't matter!
-    all_nodes = [einsum_node] + input_nodes
+    pseudo_nodes = []
+    einsum_node_literals = [
+        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
+    ]
+    pseudo_nodes.append(
+        PseudoNode(node=einsum_node, literals=einsum_node_literals))
 
-    # Create a map
-    for node in all_nodes:
-        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+    for k, node in enumerate(einsum_node.inputs):
+        literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
+        pseudo_nodes.append(PseudoNode(node=node, literals=literals))
 
-    literal_names = []
-    for node in all_nodes:
-        literal_names += node.literals
+    node_literals = []
+
+    all_literals = sum([node.literals for node in pseudo_nodes], [])
 
     # For any literal that are the same, get their pos and connect.
-    uf = UF(literal_names)
-
-    cross_einsum_connect(
-        uf, einsum_node,
-        einsum_node.literals + sum([x.literals
-                                    for x in einsum_node.inputs], []))
+    uf = UF(all_literals)
+    cross_einsum_connect(uf, einsum_node, all_literals)
 
     uf.assign()
     # Assign literals
-    for node in all_nodes:
-        node.subscripts = "".join(
-            [uf.rootval(literal_name) for literal_name in node.literals])
+    for node in pseudo_nodes:
+        node.generate_subscript(uf)
+        # TODO(yejiayu): Remove this after cleaning up the callers.
+        node.node.subscripts = node.subscript
 
     return uf
 
