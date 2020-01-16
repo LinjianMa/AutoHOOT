@@ -116,8 +116,6 @@ class StandardEinsumExprMode:
 
     def __enter__(self):
         from graph_ops.graph_transformer import generate_einsum_info
-        self.einsum_subscripts = self.node.einsum_subscripts
-        self.input_nodes = self.node.inputs
         self.node.uf = generate_einsum_info(self.node)
 
     def __exit__(self, type, value, traceback):
@@ -125,8 +123,6 @@ class StandardEinsumExprMode:
         for n in self.node.inputs:
             n.subscripts = None
         self.node.uf = None
-        self.node.einsum_subscripts = self.einsum_subscripts
-        self.node.set_inputs(self.input_nodes)
 
 
 def get_root(nodes):
