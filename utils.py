@@ -1,4 +1,6 @@
 from functools import reduce
+
+import attr
 import autodiff as ad
 import backend as T
 import logging
@@ -116,13 +118,30 @@ class StandardEinsumExprMode:
 
     def __enter__(self):
         from graph_ops.graph_transformer import generate_einsum_info
-        self.node.uf = generate_einsum_info(self.node)
+        uf, p_outnode, p_innodes = generate_einsum_info(self.node)
+        self.node.uf = uf
+        self.p_outnode = p_outnode
+        self.p_innodes = p_innodes
+        return self
 
     def __exit__(self, type, value, traceback):
         self.node.subscripts = None
         for n in self.node.inputs:
             n.subscripts = None
         self.node.uf = None
+        self.p_outnode = None
+        self.p_innodes = None
+
+
+@attr.s
+class PseudoNode(object):
+    node = attr.ib()
+    literals = attr.ib(default=[])
+    subscript = attr.ib(default='')
+
+    def generate_subscript(self, uf):
+        self.subscript = "".join(
+            [uf.rootval(literal_name) for literal_name in self.literals])
 
 
 def get_root(nodes):
