@@ -150,10 +150,7 @@ def copy_tree(node):
         new_tmp = node_map[tmp]
         new_inputs = []
 
-        if isinstance(tmp, ad.VariableNode):
-            node_map[tmp] = tmp.clone()
-            continue
-        if isinstance(tmp, ad.CloneNode):
+        if not isinstance(tmp, ad.OpNode):
             node_map[tmp] = copy_node(tmp)
             continue
 
