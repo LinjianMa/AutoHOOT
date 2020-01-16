@@ -8,6 +8,7 @@
 import logging
 
 import copy
+from collections import deque
 
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
@@ -123,23 +124,44 @@ def distribute_tree(output):
     return output
 
 
+def copy_node(node):
+    if isinstance(node, ad.CloneNode):
+        assert len(node.inputs) == 1
+        return copy_node(node.inputs[0])
+    if isinstance(node, ad.VariableNode):
+        return node.clone()
+    return copy.deepcopy(node)
+
+
 def copy_tree(node):
     """
         Copies a tree, creating new nodes for each one in the tree.
     """
-    # Track back the original Variable node.
-    if isinstance(node, ad.CloneNode):
-        assert len(node.inputs) == 1
-        return copy_tree(node.inputs[0])
-    if isinstance(node, ad.VariableNode):
-        return node.clone()
-    new_inputs = []
-    for i_node in node.inputs:
-        new_i_node = copy_tree(i_node)
-        new_inputs.append(new_i_node)
-    new_node = copy.deepcopy(node)
-    new_node.set_inputs(new_inputs)
-    return new_node
+    node_map = {}
+    visited = set()
+    q = deque()
+    q.append(node)
+    while len(q) > 0:
+        tmp = q.popleft()
+        if tmp in visited:
+            continue
+        visited.add(tmp)
+        if tmp not in node_map:
+            node_map[tmp] = copy_node(tmp)
+        new_tmp = node_map[tmp]
+        new_inputs = []
+
+        if not isinstance(tmp, ad.OpNode):
+            node_map[tmp] = copy_node(tmp)
+            continue
+
+        for t in tmp.inputs:
+            if t not in node_map:
+                node_map[t] = copy_node(t)
+            new_inputs.append(node_map[t])
+            q.append(t)
+        new_tmp.set_inputs(new_inputs)
+    return node_map[node]
 
 
 def generate_einsum_info(einsum_node):
@@ -364,10 +386,9 @@ def simplify(node):
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
             replace_node(out_node, new_z)
-    linearize(node)
+    node = declone(node)
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
-    node = declone(node)
     return node
