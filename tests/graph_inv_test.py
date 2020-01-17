@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 from graph_ops.graph_inv_optimizer import optimize_inverse
-from test_utils import tree_eq
+from tests.test_utils import tree_eq
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
