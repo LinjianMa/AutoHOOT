@@ -44,7 +44,7 @@ def optimize_inverse(node):
 
     Returns
     -------
-    If the input node cannot be optinized, then return the input node.
+    If the input node cannot be optimized, then return the input node.
     If it can be optimized, return the optimized node.
     """
 
