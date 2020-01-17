@@ -13,7 +13,7 @@ def gen_dict(input_nodes):
 
 
 def float_eq(A, B):
-    return (abs(A - B) < 1e-8).all()
+    return (abs(A - B) < 1e-6).all()
 
 
 def tree_eq(out, new_out, input_nodes):
