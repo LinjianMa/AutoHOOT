@@ -1,6 +1,5 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
@@ -555,7 +554,6 @@ def test_inner_product_einsum():
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3])
         x_inner = ad.einsum('i,i->', x, x)
-        linearize(x_inner)
 
         grad_x, = ad.gradients(x_inner, [x])
 
