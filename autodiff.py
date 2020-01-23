@@ -378,9 +378,6 @@ class AddByConstNode(OpNode):
         self.name = "(%s+%s)" % (node_A.name, str(const_val))
         self.shape = node_A.shape
 
-    def __deepcopy__(self, memo):
-        return create(self.inputs, self.const_attr)
-
     def compute(self, input_vals):
         """Given values of input node, return result of element-wise addition."""
         assert len(input_vals) == 1
