@@ -26,6 +26,26 @@ def test_kronecker_product_inv():
         assert tree_eq(inv, newinv, [A, B], tol=1e-6)
 
 
+def test_kronecker_product_repeated_inputs():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,cd->acbd", A, A)
+        out.input_indices_length = 2
+
+        inv = ad.tensorinv(out)
+        newinv = optimize_inverse(inv)
+
+        assert isinstance(newinv, ad.EinsumNode)
+        for node in newinv.inputs:
+            assert isinstance(node, ad.TensorInverseNode)
+
+        assert tree_eq(inv, newinv, [A], tol=1e-6)
+
+
 def test_complex_product_inv():
 
     for datatype in BACKEND_TYPES:
