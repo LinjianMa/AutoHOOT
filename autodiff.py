@@ -899,11 +899,11 @@ class EinsumNode(OpNode):
                            subscript="".join(list(grad_isolated_indices_set))))
         return out_subscripts, input_nodes
 
-    def _grad_einsum(self, target_node, k, output_grad):
+    def _grad_einsum(self, k, output_grad):
         """
         Parameters
         ----------
-        target_node: The node that is taken gradient w.r.t
+        k: The node index that is taken gradient w.r.t
 
         Returns
         -------
@@ -912,19 +912,16 @@ class EinsumNode(OpNode):
         with StandardEinsumExprMode(self) as env:
             poutput_grad = PseudoNode(node=output_grad,
                                       subscript=env.p_outnode.subscript)
-            p_target_node = None
-            pinput_nodes = []
-            for index, x in enumerate(env.p_innodes):
-                if x.node == target_node and index == k:
-                    p_target_node = x
-                else:
-                    pinput_nodes.append(x)
-            pinput_nodes.append(poutput_grad)
+            p_target_node = env.p_innodes[k]
+            pinput_nodes = env.p_innodes[:k] + env.p_innodes[k + 1:] + [
+                poutput_grad
+            ]
+
             out_subscript, pinput_nodes = self._dedup_out_subs_p(
                 p_target_node.subscript, pinput_nodes, self.uf,
-                target_node.shape)
+                p_target_node.node.shape)
             out_subscript, pinput_nodes = self._connect_out_subs_p(
-                out_subscript, pinput_nodes, target_node.shape)
+                out_subscript, pinput_nodes, p_target_node.node.shape)
             p_target_node.subscript = out_subscript
 
             new_input_subs = ','.join(
@@ -995,8 +992,8 @@ class EinsumNode(OpNode):
         the vjp calculation.
         """
         return [
-            self._grad_einsum(node, k, output_grad)
-            for k, node in enumerate(self.inputs)
+            self._grad_einsum(k, output_grad)
+            for k, _ in enumerate(self.inputs)
         ]
 
     def jacobian(self, output_jacobian):
