@@ -12,11 +12,11 @@ def gen_dict(input_nodes):
     return feed_dict
 
 
-def float_eq(A, B):
-    return (abs(A - B) < 1e-8).all()
+def float_eq(A, B, tol=1e-8):
+    return (abs(A - B) < tol).all()
 
 
-def tree_eq(out, new_out, input_nodes):
+def tree_eq(out, new_out, input_nodes, tol=1e-8):
     """Compares whether two output (based on the same set of inputs are equal.
     """
     feed_dict = gen_dict(input_nodes)
@@ -26,4 +26,4 @@ def tree_eq(out, new_out, input_nodes):
 
     executor = ad.Executor([new_out])
     new_out_val, = executor.run(feed_dict=feed_dict)
-    return float_eq(out_val, new_out_val)
+    return float_eq(out_val, new_out_val, tol)
