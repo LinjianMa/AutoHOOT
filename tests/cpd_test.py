@@ -7,7 +7,7 @@ from examples.cpd import cpd_graph
 from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf']
-size, rank = 20, 5
+size, rank = 10, 5
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
@@ -153,7 +153,7 @@ def test_cpd_hessian_simplify():
         # TODO (issue #101): test the off-diagonal elements
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
-            simplify(node)
+            node = simplify(node)
             assert isinstance(node, ad.AddNode)
             for input_node in node.inputs:
                 assert len(input_node.inputs) == 5
@@ -189,7 +189,7 @@ def test_cpd_hessian_optimize_diag():
         hessian = ad.hessian(loss, [A, B, C])
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
-            optimize(node)
+            node = optimize(node)
             assert isinstance(node, ad.AddNode)
             num_operations = len(
                 list(

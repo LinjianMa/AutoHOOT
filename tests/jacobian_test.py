@@ -1,8 +1,6 @@
 import autodiff as ad
 import backend as T
 
-from graph_ops.graph_transformer import linearize
-
 BACKEND_TYPES = ['numpy', 'ctf']
 
 
@@ -221,7 +219,6 @@ def test_sub_jacobian_w_chain():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-
 def test_mul_jacobian():
 
     for datatype in BACKEND_TYPES:
@@ -375,7 +372,8 @@ def test_jacobian_summation_einsum_2():
         out_val, grad_x_val = executor.run(feed_dict={x: x_val, y: y_val})
 
         expected_out_val = T.einsum('ij,ab->ab', x_val, y_val)
-        expected_grad_x_val = T.einsum('ij,ab->abij', T.ones(x_val.shape), y_val)
+        expected_grad_x_val = T.einsum('ij,ab->abij', T.ones(x_val.shape),
+                                       y_val)
 
         assert T.array_equal(out_val, expected_out_val)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
@@ -409,7 +407,6 @@ def test_hessian_quadratic():
         x = ad.Variable(name="x", shape=[3])
         H = ad.Variable(name="H", shape=[3, 3])
         y = ad.einsum("i,ij,j->", x, H, x)
-        linearize(y)
 
         hessian = ad.hessian(y, [x])
         executor = ad.Executor([hessian[0][0]])
