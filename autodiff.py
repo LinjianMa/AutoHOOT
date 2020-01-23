@@ -930,11 +930,11 @@ class EinsumNode(OpNode):
             input_nodes = [x.node for x in pinput_nodes]
         return einsum(new_subscripts, *input_nodes)
 
-    def _jacobian_einsum(self, target_node, k, output_jacobian):
+    def _jacobian_einsum(self, k, output_jacobian):
         """
         Parameters
         ----------
-        target_node: The node that is taken gradient w.r.t
+        k: The node index that is taken gradient w.r.t
 
         Returns
         -------
@@ -969,8 +969,6 @@ class EinsumNode(OpNode):
                     # step 2: include an identity node into the jacobian einsum
                     # inputs, and its subscript consists of the old and the new
                     # character.
-                    # new_identity_node = identity(target_node.shape[i])
-                    # new_identity_node.subscripts = f"{char}{new_char}"
                     identity_nodes.append(
                         PseudoNode(node=identity(p_target_node.node.shape[i]),
                                    subscript=f"{char}{new_char}"))
@@ -980,9 +978,10 @@ class EinsumNode(OpNode):
 
             out_subscripts, new_operands = self._dedup_out_subs_p(
                 out_subscripts, new_operands, self.uf,
-                self.shape + target_node.shape)
+                self.shape + p_target_node.node.shape)
             out_subscripts, new_operands = self._connect_out_subs_p(
-                out_subscripts, new_operands, self.shape + target_node.shape)
+                out_subscripts, new_operands,
+                self.shape + p_target_node.node.shape)
 
             new_input_subs = [node.subscript for node in new_operands]
             new_input_subs = ','.join(new_input_subs)
@@ -1009,8 +1008,8 @@ class EinsumNode(OpNode):
         the jacobian calculation.
         """
         return [
-            self._jacobian_einsum(node, k, output_jacobian)
-            for k, node in enumerate(self.inputs)
+            self._jacobian_einsum(k, output_jacobian)
+            for k, _ in enumerate(self.inputs)
         ]
 
     def s2s_expr(self, inputs):
