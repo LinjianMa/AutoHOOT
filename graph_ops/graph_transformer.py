@@ -124,15 +124,6 @@ def distribute_tree(output):
     return output
 
 
-def copy_node(node):
-    if isinstance(node, ad.CloneNode):
-        assert len(node.inputs) == 1
-        return copy_node(node.inputs[0])
-    if isinstance(node, ad.VariableNode):
-        return node.clone()
-    return copy.deepcopy(node)
-
-
 def copy_tree(node):
     """
         Copies a tree, creating new nodes for each one in the tree.
@@ -147,17 +138,17 @@ def copy_tree(node):
             continue
         visited.add(tmp)
         if tmp not in node_map:
-            node_map[tmp] = copy_node(tmp)
+            node_map[tmp] = copy.deepcopy(tmp)
         new_tmp = node_map[tmp]
         new_inputs = []
 
         if not isinstance(tmp, ad.OpNode):
-            node_map[tmp] = copy_node(tmp)
+            node_map[tmp] = copy.deepcopy(tmp)
             continue
 
         for t in tmp.inputs:
             if t not in node_map:
-                node_map[t] = copy_node(t)
+                node_map[t] = copy.deepcopy(t)
             new_inputs.append(node_map[t])
             q.append(t)
         new_tmp.set_inputs(new_inputs)

@@ -1,3 +1,5 @@
+import copy
+
 import backend as T
 import numpy as np
 from utils import find_topo_sort, sum_node_list, inner_product
@@ -112,6 +114,11 @@ class OpNode(Node):
     """Op represents operations performed on nodes."""
     def __init__(self):
         super().__init__()
+
+    def __deepcopy__(self, memo):
+        # Deep copy must be explicitly overriden for OpNode.
+        # Python deep copy will recursively copy every input nodes.
+        raise NotImplementedError
 
     def compute(self, input_vals):
         """Given values of input nodes, compute the output value.
@@ -248,6 +255,9 @@ class VariableNode(Node):
         self.shape = shape
         assert shape is not None
 
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 # This is a straight through node.
 class CloneNode(OpNode):
@@ -260,6 +270,10 @@ class CloneNode(OpNode):
         self.name = name
         self.shape = node.shape
         self.inputs = [node]
+
+    def __deepcopy__(self, memo):
+        assert len(self.inputs) == 1
+        return copy.deepcopy(self.inputs[0])
 
     def compute(self, input_vals):
         assert len(input_vals) == 1
@@ -305,6 +319,9 @@ class AddNode(OpNode):
         if node_A.input_indices_length != None:
             assert node_A.input_indices_length == node_B.input_indices_length
             self.input_indices_length = node_A.input_indices_length
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def set_inputs(self, inputs):
         assert len(inputs) == 2
@@ -386,6 +403,9 @@ class SubNode(OpNode):
         self.inputs = [node_A, node_B]
         self.name = "(%s-%s)" % (node_A.name, node_B.name)
         self.shape = node_A.shape
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def compute(self, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -726,6 +746,9 @@ class EinsumNode(OpNode):
         self.set_inputs(list(nodes))
         self.subscripts = subscripts
         self.shape = self._output_shape(subscripts, nodes)
+
+    def __deepcopy__(self, memo):
+        return self.create(self.einsum_subscripts, *self.inputs)
 
     def set_inputs(self, nodes):
         """
