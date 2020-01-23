@@ -11,6 +11,7 @@ import copy
 from collections import deque
 
 import autodiff as ad
+from utils import PseudoNode
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
@@ -184,12 +185,15 @@ def generate_einsum_info(einsum_node):
     einsum_node_literals = [
         f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
     ]
-    pseudo_nodes.append(
-        PseudoNode(node=einsum_node, literals=einsum_node_literals))
+    p_outnode = PseudoNode(node=einsum_node, literals=einsum_node_literals)
+    pseudo_nodes.append(p_outnode)
 
+    p_innodes = []
     for k, node in enumerate(einsum_node.inputs):
         literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
-        pseudo_nodes.append(PseudoNode(node=node, literals=literals))
+        p_innode = PseudoNode(node=node, literals=literals)
+        pseudo_nodes.append(p_innode)
+        p_innodes.append(p_innode)
 
     node_literals = []
 
@@ -206,7 +210,7 @@ def generate_einsum_info(einsum_node):
         # TODO(yejiayu): Remove this after cleaning up the callers.
         node.node.subscripts = node.subscript
 
-    return uf
+    return uf, p_outnode, p_innodes
 
 
 def rewrite_einsum_expr(einsum_node):
@@ -280,7 +284,7 @@ def prune_identity_nodes(einsum_node):
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
     # used to assign new characters
-    uf_str = generate_einsum_info(einsum_node)
+    uf_str, _, _ = generate_einsum_info(einsum_node)
 
     in_subs, out_subs, _ = _parse_einsum_input(
         (einsum_node.einsum_subscripts, *einsum_node.inputs))
