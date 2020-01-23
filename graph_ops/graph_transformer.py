@@ -367,9 +367,7 @@ def simplify(node):
         node: The newly generated node.
     """
     node = distribute_tree(node)
-    # TODO (issue #101): when the expression is too long, will produce
-    # "RecursionError: maximum recursion depth exceeded while calling a Python object"
-    # for the copy_tree function.
+
     linearize(node)
     all_nodes = find_topo_sort([node])
     with OutputInjectedMode(all_nodes):
