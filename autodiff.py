@@ -1315,19 +1315,25 @@ def reverse_mode_map(output_node, input_tensor, mode):
         assert node in node_to_reverse_node_list
         reverse_node = sum_node_list(node_to_reverse_node_list[node])
         node_to_reverse_node[node] = reverse_node
-        for index, input in enumerate(node.inputs):
-            # TODO: not sure how to write this in a clean way
-            if mode == "vjp":
-                output_reverse_node = node.transposed_vjp(reverse_node)[index]
-            elif mode == "jacobian":
-                output_reverse_node = node.jacobian(reverse_node)[index]
-            else:
-                raise NotImplementedError
 
+        if not isinstance(node, OpNode):
+            continue
+
+        if mode == "vjp":
+            output_reverse_nodes = node.transposed_vjp(reverse_node)
+        elif mode == "jacobian":
+            output_reverse_nodes = node.jacobian(reverse_node)
+        else:
+            raise NotImplementedError
+
+        for index, input in enumerate(node.inputs):
             if input not in node_to_reverse_node_list:
-                node_to_reverse_node_list[input] = [output_reverse_node]
+                node_to_reverse_node_list[input] = [
+                    output_reverse_nodes[index]
+                ]
             else:
-                node_to_reverse_node_list[input].append(output_reverse_node)
+                node_to_reverse_node_list[input].append(
+                    output_reverse_nodes[index])
     return node_to_reverse_node
 
 
