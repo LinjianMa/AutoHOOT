@@ -1184,7 +1184,7 @@ class TensorInverseNode(OpNode):
         matrix_size = np.prod(self.shape[:self.input_indices_length])
         assert matrix_size == np.prod(self.shape[self.input_indices_length:])
 
-        self.name = f"T.tensorinv({node_A.name}, ind={node_A.input_indices_length})"
+        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
