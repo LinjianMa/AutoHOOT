@@ -14,8 +14,6 @@ def test_kronecker_product_inv():
         B = ad.Variable(name="B", shape=[3, 3])
 
         out = ad.einsum("ab,cd->acbd", A, B)
-        out.input_indices_length = 2
-
         inv = ad.tensorinv(out)
         newinv = optimize_inverse(inv)
 
@@ -34,8 +32,6 @@ def test_kronecker_product_repeated_inputs():
         A = ad.Variable(name="A", shape=[2, 2])
 
         out = ad.einsum("ab,cd->acbd", A, A)
-        out.input_indices_length = 2
-
         inv = ad.tensorinv(out)
         newinv = optimize_inverse(inv)
 
@@ -57,8 +53,6 @@ def test_complex_product_inv():
         D = ad.Variable(name="D", shape=[2, 2])
 
         out = ad.einsum("ab,bc,de,ef->adcf", A, B, C, D)
-        out.input_indices_length = 2
-
         inv = ad.tensorinv(out)
         # T.einsum('ac,df->adcf',
         #     T.tensorinv(T.einsum('ab,bc->ac',A,B), ind=1),
@@ -81,8 +75,6 @@ def test_high_dim_inv():
         B = ad.Variable(name="B", shape=[2, 2, 2, 2])
 
         out = ad.einsum("aceg,dbhf->abcdefgh", A, B)
-        out.input_indices_length = 4
-
         inv = ad.tensorinv(out)
         # T.einsum('aceg,bdfh->abcdefgh',
         #     T.tensorinv(T.einsum('aceg->aceg',A), ind=2),

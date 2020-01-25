@@ -822,7 +822,6 @@ def test_tensorinv_matrix():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 3])
-        x.input_indices_length = 1
         inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
@@ -835,7 +834,6 @@ def test_tensorinv_tensor():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 2, 3, 2])
-        x.input_indices_length = 2
         inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
