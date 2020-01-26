@@ -1168,28 +1168,34 @@ class TensorInverseNode(OpNode):
         self.inputs = [node_A]
 
         if ind != None:
-            self.input_indices_length = ind
+            self.input_indices_length = len(node_A.shape) - ind
         elif node_A.input_indices_length == None:
             self.input_indices_length = int(len(node_A.shape) / 2)
         else:
-            self.input_indices_length = node_A.input_indices_length
+            self.input_indices_length = len(
+                node_A.shape) - node_A.input_indices_length
 
-        self.shape = node_A.shape[self.input_indices_length:] + \
-            node_A.shape[:self.input_indices_length]
-        self.matrix_size = np.prod(self.shape[:self.input_indices_length])
-        assert self.matrix_size == np.prod(
-            self.shape[self.input_indices_length:])
+        node_A_input_indices_length = len(
+            node_A.shape) - self.input_indices_length
 
-        self.name = f"T.tensorinv({node_A.name}, ind={self.input_indices_length})"
+        self.shape = node_A.shape[node_A_input_indices_length:] + \
+            node_A.shape[:node_A_input_indices_length]
+
+        matrix_size = np.prod(self.shape[:self.input_indices_length])
+        assert matrix_size == np.prod(self.shape[self.input_indices_length:])
+
+        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
-        return f"T.tensorinv({inputs[0].name}, ind={self.input_indices_length})"
+        ind = len(self.shape) - self.input_indices_length
+        return f"T.tensorinv({inputs[0].name}, ind={ind})"
 
     def compute(self, input_vals):
         """Returns inverse of the same shape as input."""
         assert T.is_tensor(input_vals[0])
-        return T.tensorinv(input_vals[0], ind=self.input_indices_length)
+        ind = len(self.shape) - self.input_indices_length
+        return T.tensorinv(input_vals[0], ind=ind)
 
     def transposed_vjp(self, output_grad):
         raise Exception('InverseNode does not allow vjp calculation')
@@ -1331,19 +1337,25 @@ def reverse_mode_map(output_node, input_tensor, mode):
         assert node in node_to_reverse_node_list
         reverse_node = sum_node_list(node_to_reverse_node_list[node])
         node_to_reverse_node[node] = reverse_node
-        for index, input in enumerate(node.inputs):
-            # TODO: not sure how to write this in a clean way
-            if mode == "vjp":
-                output_reverse_node = node.transposed_vjp(reverse_node)[index]
-            elif mode == "jacobian":
-                output_reverse_node = node.jacobian(reverse_node)[index]
-            else:
-                raise NotImplementedError
 
+        if not isinstance(node, OpNode):
+            continue
+
+        if mode == "vjp":
+            output_reverse_nodes = node.transposed_vjp(reverse_node)
+        elif mode == "jacobian":
+            output_reverse_nodes = node.jacobian(reverse_node)
+        else:
+            raise NotImplementedError
+
+        for index, input in enumerate(node.inputs):
             if input not in node_to_reverse_node_list:
-                node_to_reverse_node_list[input] = [output_reverse_node]
+                node_to_reverse_node_list[input] = [
+                    output_reverse_nodes[index]
+                ]
             else:
-                node_to_reverse_node_list[input].append(output_reverse_node)
+                node_to_reverse_node_list[input].append(
+                    output_reverse_nodes[index])
     return node_to_reverse_node
 
 
