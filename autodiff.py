@@ -1151,29 +1151,51 @@ class TensorInverseNode(OpNode):
     def create(*args, **kwargs):
         return TensorInverseNode(*args, **kwargs)
 
-    def __init__(self, node_A):
-        """Creates a node that inverts node_A."""
+    def __init__(self, node_A, ind=None):
+        """Creates a node that inverts node_A.
+
+        Parameters
+        ----------
+        node_A: The input node
+        ind: int or None, optional
+            Number of first indices that are involved in the inverse sum.
+            It is used to set self.input_indices_length.
+            Must be a positive integer or None, default is None.
+            If it is None, self.input_indices_length stays unchanged
+            or be set as len(node_A.shape) / 2 if the value is None.
+        """
         super().__init__()
         self.inputs = [node_A]
-        # This assert makes sure that this tensor can be reshaped
-        # into a squared matrix.
-        assert node_A.input_indices_length == len(node_A.shape) / 2
-        self.input_indices_length = node_A.input_indices_length
-        self.shape = node_A.shape[self.input_indices_length:] + \
-            node_A.shape[:self.input_indices_length]
-        self.matrix_size = np.prod(self.shape[:self.input_indices_length])
-        assert self.matrix_size == np.prod(
-            self.shape[self.input_indices_length:])
-        self.name = f"T.tensorinv({node_A.name}, ind={self.input_indices_length})"
+
+        if ind != None:
+            self.input_indices_length = len(node_A.shape) - ind
+        elif node_A.input_indices_length == None:
+            self.input_indices_length = int(len(node_A.shape) / 2)
+        else:
+            self.input_indices_length = len(
+                node_A.shape) - node_A.input_indices_length
+
+        node_A_input_indices_length = len(
+            node_A.shape) - self.input_indices_length
+
+        self.shape = node_A.shape[node_A_input_indices_length:] + \
+            node_A.shape[:node_A_input_indices_length]
+
+        matrix_size = np.prod(self.shape[:self.input_indices_length])
+        assert matrix_size == np.prod(self.shape[self.input_indices_length:])
+
+        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
-        return f"T.tensorinv({inputs[0].name}, ind={self.input_indices_length})"
+        ind = len(self.shape) - self.input_indices_length
+        return f"T.tensorinv({inputs[0].name}, ind={ind})"
 
     def compute(self, input_vals):
         """Returns inverse of the same shape as input."""
         assert T.is_tensor(input_vals[0])
-        return T.tensorinv(input_vals[0], ind=self.input_indices_length)
+        ind = len(self.shape) - self.input_indices_length
+        return T.tensorinv(input_vals[0], ind=ind)
 
     def transposed_vjp(self, output_grad):
         raise Exception('InverseNode does not allow vjp calculation')
