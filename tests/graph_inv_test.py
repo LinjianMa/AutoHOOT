@@ -105,4 +105,16 @@ def test_inv_multiple_decomposation():
             assert isinstance(node, ad.TensorInverseNode)
         assert len(newinv.inputs) == 3
 
-        assert tree_eq(inv, newinv, [A, B, C], tol=1e-6)
+        assert tree_eq(inv, newinv, [A, B, C], tol=1e-5)
+
+
+def test_kronecker_product_nondecomposable():
+
+    A = ad.Variable(name="A", shape=[2, 3])
+    B = ad.Variable(name="B", shape=[3, 2])
+
+    out = ad.einsum("ab,cd->acbd", A, B)
+    inv = ad.tensorinv(out)
+    newinv = optimize_inverse(inv)
+
+    assert inv is newinv

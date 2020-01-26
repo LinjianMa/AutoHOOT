@@ -17,6 +17,36 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
+def find_one_subset_sum(arr, n, sum, indices=[]):
+    """
+    Find one subset of the input array with given sum.
+
+    Parameters
+    ----------
+    arr: The input array.
+    n: The cursor position. n should be int within [0, len(arr)].
+    sum: int, the given sum of the sebset.
+    indices: the input indices.
+
+    Returns
+    -------
+    A list representing the indices of the subset.
+    """
+
+    if sum == 0 and indices != []:
+        return indices
+    if n == 0:
+        return []
+
+    new_indices = find_one_subset_sum(arr, n - 1, sum, indices)
+    if new_indices != []:
+        return new_indices
+
+    new_indices = indices.copy()
+    new_indices.append(n - 1)
+    return find_one_subset_sum(arr, n - 1, sum - arr[n - 1], new_indices)
+
+
 def inv_disjoint_sets(p_einsum_node, p_in_nodes, uf):
     """
     Get the disjoint sets for inverse optimization.
@@ -39,14 +69,45 @@ def inv_disjoint_sets(p_einsum_node, p_in_nodes, uf):
             uf.connect(node.subscript[0], char)
 
     matrix_dim = int(len(p_einsum_node.node.shape) / 2)
+
+    # For each dim in the matrix col, connect it to the corresponding dim
+    # in the matrix row.
     for i in range(matrix_dim):
         uf.connect(p_einsum_node.subscript[i],
                    p_einsum_node.subscript[i + matrix_dim])
 
+    # For the case when the size of one dim of the matrix col is different with the
+    # correspoding dim size of the matrix row, we connect it with some other dims, such
+    # that for each decomposable set, the corresponding matrix is squared.
+    shape_diff = [
+        p_einsum_node.node.shape[i] - p_einsum_node.node.shape[i + matrix_dim]
+        for i in range(matrix_dim)
+    ]
+    shape_unequal_tuple = [(i, v) for (i, v) in enumerate(shape_diff)
+                           if v != 0]
+
+    while shape_unequal_tuple != []:
+
+        _, shape_diff = list(zip(*shape_unequal_tuple))
+        indices = find_one_subset_sum(shape_diff, len(shape_diff), 0)
+
+        subset = [
+            v for (i, v) in enumerate(shape_unequal_tuple) if i in indices
+        ]
+        shape_unequal_tuple = [
+            v for (i, v) in enumerate(shape_unequal_tuple) if i not in indices
+        ]
+
+        # connect subscripts in the subset
+        indices, _ = list(zip(*subset))
+        for i in indices:
+            uf.connect(p_einsum_node.subscript[i],
+                       p_einsum_node.subscript[indices[0]])
+
     return uf.disjoint_set()
 
 
-def optimize_inverse(node):
+def optimize_inverse(inv_node):
     """
     Optimize the inverse of an einsum expression, such that
     inverse is operated on several smaller tensors.
@@ -69,8 +130,13 @@ def optimize_inverse(node):
         new_einsum = ad.einsum(new_subscripts, *inputs)
         return new_einsum
 
-    assert isinstance(node, ad.TensorInverseNode)
-    einsum_node = node.inputs[0]
+    # Note: currently, the optimization algorithm only works for the
+    # case when the matrix row and column has same number of dimension.
+    if inv_node.input_indices_length * 2 != len(inv_node.shape):
+        return inv_node
+
+    assert isinstance(inv_node, ad.TensorInverseNode)
+    einsum_node = inv_node.inputs[0]
     assert isinstance(einsum_node, ad.EinsumNode)
     # einsum_node is a fused einsum
     for node in einsum_node.inputs:
@@ -93,7 +159,7 @@ def optimize_inverse(node):
     # if the node cannot be decomposed, just return
     # the input node
     if len(dsets) == 1:
-        return node
+        return inv_node
 
     new_inputs = []
     for dset in dsets:
