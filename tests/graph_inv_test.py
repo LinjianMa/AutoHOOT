@@ -86,3 +86,23 @@ def test_high_dim_inv():
             assert isinstance(node, ad.TensorInverseNode)
 
         assert tree_eq(inv, newinv, [A, B], tol=1e-6)
+
+
+def test_inv_multiple_decomposation():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+        C = ad.Variable(name="C", shape=[2, 2])
+
+        out = ad.einsum("ab,cd,ef->acebdf", A, B, C)
+        inv = ad.tensorinv(out)
+        newinv = optimize_inverse(inv)
+
+        assert isinstance(newinv, ad.EinsumNode)
+        for node in newinv.inputs:
+            assert isinstance(node, ad.TensorInverseNode)
+        assert len(newinv.inputs) == 3
+
+        assert tree_eq(inv, newinv, [A, B, C], tol=1e-6)

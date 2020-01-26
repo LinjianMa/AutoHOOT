@@ -20,6 +20,18 @@ logger.setLevel(logging.DEBUG)
 def inv_disjoint_sets(p_einsum_node, p_in_nodes, uf):
     """
     Get the disjoint sets for inverse optimization.
+
+    Parameters
+    ----------
+    p_einsum_node: The PseudoNode for the einsum node (inv node input).
+    p_in_nodes: The PseudoNode of inputs for the einsum node.
+    uf: The union find class for subscripts of the einsum node.
+
+    Returns
+    -------
+    The disjoint sets of the subscripts. Each set represents part of the subscripts
+    that can be decomposable from other parts for the inverse.
+
     """
 
     for node in p_in_nodes:
@@ -38,13 +50,16 @@ def optimize_inverse(node):
     """
     Optimize the inverse of an einsum expression, such that
     inverse is operated on several smaller tensors.
+
     Parameters
     ----------
     node: The inverse of a fused einsum node
+
     Returns
     -------
     If the input node cannot be optimized, then return the input node.
     If it can be optimized, return the optimized node.
+
     """
     def generate_new_einsum(p_inputs, out_subs):
         new_input_subs = [node.subscript for node in p_inputs]
