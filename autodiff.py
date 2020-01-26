@@ -1167,10 +1167,13 @@ class TensorInverseNode(OpNode):
         super().__init__()
         self.inputs = [node_A]
 
+        self.ind = ind
+
         if ind != None:
             self.input_indices_length = len(node_A.shape) - ind
         elif node_A.input_indices_length == None:
             self.input_indices_length = int(len(node_A.shape) / 2)
+            self.ind = self.input_indices_length
         else:
             self.input_indices_length = len(
                 node_A.shape) - node_A.input_indices_length

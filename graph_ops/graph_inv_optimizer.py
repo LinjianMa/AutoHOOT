@@ -34,6 +34,51 @@ def inv_disjoint_sets(p_einsum_node, p_in_nodes, uf):
     return uf.disjoint_set()
 
 
+def optimize_inverse2(node):
+    assert isinstance(node, ad.TensorInverseNode)
+    einsum_node = node.inputs[0]
+    assert isinstance(einsum_node, ad.EinsumNode)
+    # einsum_node is a fused einsum
+    for inode in einsum_node.inputs:
+        assert not isinstance(inode, ad.EinsumNode)
+
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+    whole_str = out_subs + "".join(in_subs_list)
+    # Split the rightmost input node.
+    # Check if the rightmost input node has same split indices.
+    left_sub = list(out_subs[:node.ind])
+    right_sub = list(out_subs[node.ind:])
+
+    # Note that last node may not be splitable.
+    left_sub_used = [char for char in left_sub if char in in_subs_list[-1]]
+    # Work on the last node.
+    left_sub = [char for char in left_sub if char not in in_subs_list[-1]]
+    right_sub = [char for char in right_sub if char not in in_subs_list[-1]]
+
+    # TODO(yejiayu): eliminate the einsum expr if the node is singleton.
+    new_subs = ",".join(
+        in_subs_list[:-1]) + "->" + "".join(right_sub + left_sub)
+    new_inputs = einsum_node.inputs[:-1]
+    left_einsum = ad.einsum(new_subs, *new_inputs)
+
+    left_einsum_inv = ad.tensorinv(left_einsum)
+    # TODO(yejiayu): Call optimize recursively.
+    right_node = einsum_node.inputs[-1]
+    right_einsum_inv = ad.tensorinv(right_node, ind=len(left_sub_used))
+    right_inv_sub = in_subs_list[-1][right_einsum_inv.ind:] + in_subs_list[
+        -1][:right_einsum_inv.ind]
+    in_subs_list[-1] = right_inv_sub
+
+    new_in_subs_list = ["".join(subs_list) for subs_list in in_subs_list]
+    new_out_subs = out_subs[node.ind:] + out_subs[:node.ind]
+    combined_einsum_subs = ",".join(new_in_subs_list) + "->" + new_out_subs
+
+    n = ad.einsum(combined_einsum_subs, left_einsum_inv, right_einsum_inv)
+    return n
+
+
 def optimize_inverse(node):
     """
     Optimize the inverse of an einsum expression, such that
