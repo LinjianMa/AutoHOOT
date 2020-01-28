@@ -5,3 +5,4 @@ graphviz
 numpy
 pytest
 pytest-benchmark
+quimb
