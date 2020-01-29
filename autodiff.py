@@ -1228,6 +1228,55 @@ identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
 
 
+# Definition of functions based on EinsumNode
+def tensordot(node_A, node_B, axes=[]):
+    """
+    Compute tensor dot product along specified axes.
+
+    Given node_A and node_B, and an array_like object containing two array_like objects,
+    (a_axes, b_axes), sum the products of node_A’s and node_B’s elements over the axes specified.
+    If axis=[], will sum over the axes based on node_A.input_indices_length.
+
+    Example: for 4-d tensors node_A and node_B,
+    tensordot(node_A, node_B, axes=[[2,3], [0,1]]) is same as
+    einsum("abcd,cdef->abef", node_A, node_B).
+    """
+    if axes == []:
+        assert node_A.input_indices_length != None
+        input_length = node_A.input_indices_length
+        assert input_length <= len(node_B.shape)
+        axes.append([i for i in range(input_length, len(node_A.shape))])
+        axes.append([i for i in range(input_length)])
+
+    assert len(axes) == 2
+    assert len(axes[0]) == len(axes[1])
+
+    dim = len(node_A.shape) + len(node_B.shape) - len(axes[0])
+    input_indices_A = [i for i in range(len(node_A.shape))]
+
+    index_acc = len(node_A.shape)
+    input_indices_B = []
+    for i in range(len(node_B.shape)):
+        if i in axes[1]:
+            index = axes[1].index(i)
+            input_indices_B.append(input_indices_A[axes[0][index]])
+        else:
+            input_indices_B.append(index_acc)
+            index_acc += 1
+
+    assert index_acc == dim
+    out_indices = [
+        v for (i, v) in enumerate(input_indices_A) if i not in axes[0]
+    ]
+    out_indices += [
+        v for (i, v) in enumerate(input_indices_B) if i not in axes[1]
+    ]
+
+    subscripts = indices_to_subscripts([input_indices_A, input_indices_B],
+                                       out_indices, dim)
+    return einsum(subscripts, node_A, node_B)
+
+
 def chainjacobian(node_A, node_B):
     """A function that chains different jacobian matrices in a tensor format.
        Mathematically:
