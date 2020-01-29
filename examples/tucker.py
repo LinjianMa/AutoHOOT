@@ -49,4 +49,3 @@ def tucker_graph(dim, size, rank):
 
 if __name__ == "__main__":
     A_list, core, X, loss, residual = tucker_graph(4, 5, 3)
-    print(residual)
