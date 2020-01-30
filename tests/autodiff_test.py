@@ -866,7 +866,6 @@ def test_tensordot():
         a = ad.Variable(name="a", shape=[3, 3, 3, 3])
         b = ad.Variable(name="b", shape=[3, 3, 3, 3])
         result = ad.tensordot(a, b, axes=[[1, 3], [0, 1]])
-        print(result)
         result2 = ad.einsum("abcd,bdef->acef", a, b)
 
         assert tree_eq(result, result2, [a, b])

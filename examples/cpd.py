@@ -46,6 +46,53 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
+def cpd_als(size, rank, num_iter, input_val=[]):
+
+    A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+
+    hes = ad.hessian(loss, [A, B, C])
+    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+
+    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+
+    new_A = A - ad.tensordot(ad.tensorinv(hes_A), grad_A)
+    new_B = B - ad.tensordot(ad.tensorinv(hes_B), grad_B)
+    new_C = C - ad.tensordot(ad.tensorinv(hes_C), grad_C)
+
+    executor_A = ad.Executor([loss, new_A])
+    executor_B = ad.Executor([loss, new_B])
+    executor_C = ad.Executor([loss, new_C])
+
+    if input_val == []:
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+    else:
+        A_val, B_val, C_val, input_tensor_val = input_val
+
+    for i in range(num_iter):
+        # als iterations
+        loss_val, A_val = executor_A.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
+        loss_val, B_val = executor_B.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
+        loss_val, C_val = executor_C.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
+        print(f'At iteration {i} the loss is: {loss_val}')
+
+    return A_val, B_val, C_val
+
+
 def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
     """
     mode: ad / optimized / jax
