@@ -11,13 +11,11 @@ import copy
 from collections import deque
 
 import autodiff as ad
-from utils import PseudoNode
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
-from graph_ops.graph_util import PseudoNode
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode
+from utils import find_topo_sort, OutputInjectedMode, PseudoNode
 from utils import replace_node
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'

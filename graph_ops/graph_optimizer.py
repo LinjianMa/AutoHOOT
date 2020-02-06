@@ -4,9 +4,8 @@ import logging
 import copy
 
 from graph_ops.union_find import UFBase
-from graph_ops.graph_util import PseudoNode
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter, CharacterGetter
+from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode
 from utils import get_leaves, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -119,12 +118,6 @@ def fuse_einsums(output_node, input_nodes):
     # # Get all the einsum nodes except the input nodes in the computation graph.
     # # Note that the order doesn't matter!
     all_nodes = find_topo_sort([output_node], input_nodes)
-    # # Need to change.
-    # intermediate_nodes = list(set(all_nodes) - set(input_nodes))
-
-    # einsum_nodes = list(
-    #     filter(lambda x: isinstance(x, ad.EinsumNode), intermediate_nodes))
-    # assert len(einsum_nodes) == len(intermediate_nodes)
 
     pseudo_input_nodes = []
     pseudo_output_node = None
