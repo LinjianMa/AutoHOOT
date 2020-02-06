@@ -22,7 +22,7 @@ def rand_mps(num, rank, size=2):
     mps = qtn.MPS_rand_state(num, rank, phys_dim=size)
     tensors = []
 
-    for tid, tensor in mps.tensor_map.items():
+    for tensor in mps.tensor_map.values():
         data = tensor.data
         if list(tensor.tags)[0] == 'I0':
             tensors.append(T.tensor(np.transpose(data)))
@@ -43,7 +43,7 @@ def ham_heis_mpo(num):
     mpo = qtn.MPO_ham_heis(num)
     tensors = []
 
-    for tid, tensor in mpo.tensor_map.items():
+    for tensor in mpo.tensor_map.values():
         data = tensor.data
         if list(tensor.tags)[0] == 'I0':
             tensors.append(T.tensor(np.transpose(data, (1, 2, 0))))
