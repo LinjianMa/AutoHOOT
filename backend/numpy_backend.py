@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as sla
 from .core import Backend
 
 
@@ -42,6 +43,16 @@ class NumpyBackend(Backend):
         return np.einsum(subscripts, *operands, optimize=optimize)
 
     @staticmethod
+    def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
+        if not from_left:
+            return sla.solve_triangular(A.T,
+                                        B.T,
+                                        trans=transp_L,
+                                        lower=not lower).T
+        else:
+            return sla.solve_triangular(A, B, trans=transp_L, lower=lower)
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         # handle difference in default axis notation
         if axis == ():
@@ -82,11 +93,11 @@ for name in [
         'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
         'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
         'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power',
-        'identity'
+        'identity', 'diag'
 ]:
     NumpyBackend.register_method(name, getattr(np, name))
 
-for name in ['solve', 'qr', 'inv', 'tensorinv']:
+for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky']:
     NumpyBackend.register_method(name, getattr(np.linalg, name))
 
 for name in ['random', 'seed']:

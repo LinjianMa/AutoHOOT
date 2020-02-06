@@ -515,6 +515,33 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def solve_tri(L, B, lower=True, from_left=True, transp_L=False):
+        """ Triangular solver
+
+        Parameters
+        ----------
+        L: matrix
+           Triangular matrix encoding equations
+
+        B: matrix
+           Right or left hand sides
+
+        lower: bool
+           if true L is lower triangular, if false upper
+
+        from_left: bool
+           if true solve LX = B, if false, solve XL=B
+
+        transp_L: bool
+           if true solve L^TX = B or XL^T=B
+
+        Returns
+        -------
+        X: matrix
+        """
+        raise NotImplementedError
+
+    @staticmethod
     def stack(arrays, axis=0):
         """
         Join a sequence of arrays along a new axis.
