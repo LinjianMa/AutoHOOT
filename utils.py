@@ -131,7 +131,7 @@ class StandardEinsumExprMode:
         self.p_innodes = None
 
 
-@attr.s
+@attr.s(eq=False)
 class PseudoNode(object):
     node = attr.ib()
     literals = attr.ib(default=[])
