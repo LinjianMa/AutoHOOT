@@ -822,7 +822,6 @@ def test_tensorinv_matrix():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 3])
-        x.input_indices_length = 1
         inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
@@ -835,10 +834,25 @@ def test_tensorinv_tensor():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 2, 3, 2])
-        x.input_indices_length = 2
         inv_x = ad.tensorinv(x)
         executor = ad.Executor([inv_x])
 
         x_val = T.random([3, 2, 3, 2])
         inv_x_val, = executor.run(feed_dict={x: x_val})
         assert T.array_equal(inv_x_val, T.tensorinv(x_val))
+
+
+def test_tensorinv_odd_dim():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x = ad.Variable(name="x", shape=[24, 8, 3])
+        inv_x = ad.tensorinv(x, ind=1)
+
+        assert inv_x.shape == [8, 3, 24]
+        assert inv_x.input_indices_length == 2
+
+        executor = ad.Executor([inv_x])
+        x_val = T.random([24, 8, 3])
+        inv_x_val, = executor.run(feed_dict={x: x_val})
+        assert T.array_equal(inv_x_val, T.tensorinv(x_val, ind=1))

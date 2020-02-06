@@ -1,3 +1,5 @@
+import copy
+
 import backend as T
 import numpy as np
 from utils import find_topo_sort, sum_node_list, inner_product
@@ -112,6 +114,11 @@ class OpNode(Node):
     """Op represents operations performed on nodes."""
     def __init__(self):
         super().__init__()
+
+    def __deepcopy__(self, memo):
+        # Deep copy must be explicitly overriden for OpNode.
+        # Python deep copy will recursively copy every input nodes.
+        raise NotImplementedError
 
     def compute(self, input_vals):
         """Given values of input nodes, compute the output value.
@@ -248,6 +255,9 @@ class VariableNode(Node):
         self.shape = shape
         assert shape is not None
 
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 # This is a straight through node.
 class CloneNode(OpNode):
@@ -260,6 +270,10 @@ class CloneNode(OpNode):
         self.name = name
         self.shape = node.shape
         self.inputs = [node]
+
+    def __deepcopy__(self, memo):
+        assert len(self.inputs) == 1
+        return copy.deepcopy(self.inputs[0])
 
     def compute(self, input_vals):
         assert len(input_vals) == 1
@@ -305,6 +319,9 @@ class AddNode(OpNode):
         if node_A.input_indices_length != None:
             assert node_A.input_indices_length == node_B.input_indices_length
             self.input_indices_length = node_A.input_indices_length
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def set_inputs(self, inputs):
         assert len(inputs) == 2
@@ -386,6 +403,9 @@ class SubNode(OpNode):
         self.inputs = [node_A, node_B]
         self.name = "(%s-%s)" % (node_A.name, node_B.name)
         self.shape = node_A.shape
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def compute(self, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -727,6 +747,9 @@ class EinsumNode(OpNode):
         self.subscripts = subscripts
         self.shape = self._output_shape(subscripts, nodes)
 
+    def __deepcopy__(self, memo):
+        return self.create(self.einsum_subscripts, *self.inputs)
+
     def set_inputs(self, nodes):
         """
             USED DURING OPTIMIZATION
@@ -760,43 +783,6 @@ class EinsumNode(OpNode):
         return out_shape
 
     def _dedup_out_subs(self, out_subscripts, input_nodes, uf, shape):
-        """
-        Modify the einsum expression when the generated out subscripts has
-        duplicated chars.
-        When we take gradients of an einsum expression like einsum('ii->i', A)
-        w.r.t A, then the grad einsum generated is like einsum('i->ii', v) which is invalid.
-        We would need to add an identity node to make this valid, a.k.a einsum('i,ij->ij', v, I).
-
-        Parameters
-        ----------
-        out_subscripts: The subscripts of the generated einsum node.
-        input_nodes: The input nodes of the einsum node to be corrected.
-        uf: The union find object of the self node.
-        shape: The shape of the output einsum node.
-
-        Returns
-        -------
-        out_subscripts: The corrected subscripts of the einsum node.
-        input_nodes: The input nodes of the corrected einsum node.
-        """
-        out_sub_list, output_indices_set = [], set()
-        for i, char in enumerate(out_subscripts):
-            if char in output_indices_set:
-                # we cannot assign the same char to two indices in the
-                # output. Therefore, assign a new char, and add one
-                # identity node to the inputs to show the constraint.
-                new_char = uf.cg.getchar()
-                out_sub_list.append(new_char)
-                identity_node = identity(shape[i])
-                identity_node.subscripts = f"{char}{new_char}"
-                input_nodes.append(identity_node)
-            else:
-                out_sub_list.append(char)
-                output_indices_set.add(char)
-        out_subscripts = "".join(out_sub_list)
-        return out_subscripts, input_nodes
-
-    def _dedup_out_subs_p(self, out_subscripts, input_nodes, uf, shape):
         """
         Psedo Mode:
         Modify the einsum expression when the generated out subscripts has
@@ -856,38 +842,6 @@ class EinsumNode(OpNode):
         """
         grad_isolated_indices_set = set(out_subscripts)
         for node in input_nodes:
-            grad_isolated_indices_set -= set(node.subscripts)
-        if len(grad_isolated_indices_set) > 0:
-            ones_node = ones([
-                length for i, length in enumerate(shape)
-                if out_subscripts[i] in grad_isolated_indices_set
-            ])
-            ones_node.subscripts = "".join(list(grad_isolated_indices_set))
-            input_nodes.append(ones_node)
-        return out_subscripts, input_nodes
-
-    def _connect_out_subs_p(self, out_subscripts, input_nodes, shape):
-        """
-        Modify the einsum expression when the generated out subscripts has
-        chars input subscripts don't have.
-        When we take gradients of an einsum expression like einsum('ij->', A)
-        w.r.t A, then the grad einsum generated is like einsum('->ij', v) which is invalid.
-        We would need to add an ones node to make this valid, a.k.a einsum(',ij->ij', v, O).
-
-        Parameters
-        ----------
-        out_subscripts: The subscripts of the generated einsum node.
-        input_nodes: The input nodes of the einsum node to be corrected.
-        uf: The union find object of the self node.
-        shape: The shape of the output einsum node.
-
-        Returns
-        -------
-        out_subscripts: The corrected subscripts of the einsum node.
-        input_nodes: The input nodes of the corrected einsum node.
-        """
-        grad_isolated_indices_set = set(out_subscripts)
-        for node in input_nodes:
             grad_isolated_indices_set -= set(node.subscript)
         if len(grad_isolated_indices_set) > 0:
             ones_node = ones([
@@ -917,10 +871,10 @@ class EinsumNode(OpNode):
                 poutput_grad
             ]
 
-            out_subscript, pinput_nodes = self._dedup_out_subs_p(
+            out_subscript, pinput_nodes = self._dedup_out_subs(
                 p_target_node.subscript, pinput_nodes, self.uf,
                 p_target_node.node.shape)
-            out_subscript, pinput_nodes = self._connect_out_subs_p(
+            out_subscript, pinput_nodes = self._connect_out_subs(
                 out_subscript, pinput_nodes, p_target_node.node.shape)
             p_target_node.subscript = out_subscript
 
@@ -930,11 +884,11 @@ class EinsumNode(OpNode):
             input_nodes = [x.node for x in pinput_nodes]
         return einsum(new_subscripts, *input_nodes)
 
-    def _jacobian_einsum(self, target_node, output_jacobian):
+    def _jacobian_einsum(self, k, output_jacobian):
         """
         Parameters
         ----------
-        target_node: The node that is taken gradient w.r.t
+        k: The node index that is taken gradient w.r.t
 
         Returns
         -------
@@ -948,40 +902,46 @@ class EinsumNode(OpNode):
         2. include an identity node into the jacobian einsum inputs,
             and its subscript consists of the old and the new character.
         """
-        with StandardEinsumExprMode(self):
-            other_nodes = list(filter(lambda x: x != target_node, self.inputs))
-            subs_wrt = target_node.subscripts
+        with StandardEinsumExprMode(self) as env:
+            poutput_grad = PseudoNode(node=output_jacobian,
+                                      subscript=env.p_outnode.subscript)
+            p_target_node = env.p_innodes[k]
+            pinput_nodes = env.p_innodes[:k] + env.p_innodes[k + 1:]
+
+            subs_wrt = p_target_node.subscript
             identity_nodes = []
             for i, char in enumerate(subs_wrt):
-                if char in self.subscripts:
+                if char in env.p_outnode.subscript:
                     # Assign a new char that is not present in the existing einsum
                     # string.
                     new_char = self.uf.cg.getchar()
                     # step 1: assign a new character to all the input nodes'
                     # subscripts to replace the old character.
-                    for input_node in self.inputs:
-                        input_node.subscripts = input_node.subscripts.replace(
+                    for input_node in env.p_innodes:
+                        input_node.subscript = input_node.subscript.replace(
                             char, new_char)
                     # step 2: include an identity node into the jacobian einsum
                     # inputs, and its subscript consists of the old and the new
                     # character.
-                    new_identity_node = identity(target_node.shape[i])
-                    new_identity_node.subscripts = f"{char}{new_char}"
-                    identity_nodes.append(new_identity_node)
+                    identity_nodes.append(
+                        PseudoNode(node=identity(p_target_node.node.shape[i]),
+                                   subscript=f"{char}{new_char}"))
 
-            out_subscripts = f"{self.subscripts}{target_node.subscripts}"
-            new_operands = other_nodes + identity_nodes
+            out_subscripts = f"{env.p_outnode.subscript}{p_target_node.subscript}"
+            new_operands = pinput_nodes + identity_nodes
 
             out_subscripts, new_operands = self._dedup_out_subs(
                 out_subscripts, new_operands, self.uf,
-                self.shape + target_node.shape)
+                self.shape + p_target_node.node.shape)
             out_subscripts, new_operands = self._connect_out_subs(
-                out_subscripts, new_operands, self.shape + target_node.shape)
+                out_subscripts, new_operands,
+                self.shape + p_target_node.node.shape)
 
-            new_input_subs = [node.subscripts for node in new_operands]
+            new_input_subs = [node.subscript for node in new_operands]
             new_input_subs = ','.join(new_input_subs)
             new_subscripts = new_input_subs + '->' + out_subscripts
-            jacobian = einsum(new_subscripts, *new_operands)
+            new_inputs = [x.node for x in new_operands]
+            jacobian = einsum(new_subscripts, *new_inputs)
             jacobian.set_in_indices_length(len(self.shape))
 
         return chainjacobian(output_jacobian, jacobian)
@@ -1002,8 +962,8 @@ class EinsumNode(OpNode):
         the jacobian calculation.
         """
         return [
-            self._jacobian_einsum(node, output_jacobian)
-            for node in self.inputs
+            self._jacobian_einsum(k, output_jacobian)
+            for k, _ in enumerate(self.inputs)
         ]
 
     def s2s_expr(self, inputs):
@@ -1191,29 +1151,51 @@ class TensorInverseNode(OpNode):
     def create(*args, **kwargs):
         return TensorInverseNode(*args, **kwargs)
 
-    def __init__(self, node_A):
-        """Creates a node that inverts node_A."""
+    def __init__(self, node_A, ind=None):
+        """Creates a node that inverts node_A.
+
+        Parameters
+        ----------
+        node_A: The input node
+        ind: int or None, optional
+            Number of first indices that are involved in the inverse sum.
+            It is used to set self.input_indices_length.
+            Must be a positive integer or None, default is None.
+            If it is None, self.input_indices_length stays unchanged
+            or be set as len(node_A.shape) / 2 if the value is None.
+        """
         super().__init__()
         self.inputs = [node_A]
-        # This assert makes sure that this tensor can be reshaped
-        # into a squared matrix.
-        assert node_A.input_indices_length == len(node_A.shape) / 2
-        self.input_indices_length = node_A.input_indices_length
-        self.shape = node_A.shape[self.input_indices_length:] + \
-            node_A.shape[:self.input_indices_length]
-        self.matrix_size = np.prod(self.shape[:self.input_indices_length])
-        assert self.matrix_size == np.prod(
-            self.shape[self.input_indices_length:])
-        self.name = f"T.tensorinv({node_A.name}, ind={self.input_indices_length})"
+
+        if ind != None:
+            self.input_indices_length = len(node_A.shape) - ind
+        elif node_A.input_indices_length == None:
+            self.input_indices_length = int(len(node_A.shape) / 2)
+        else:
+            self.input_indices_length = len(
+                node_A.shape) - node_A.input_indices_length
+
+        node_A_input_indices_length = len(
+            node_A.shape) - self.input_indices_length
+
+        self.shape = node_A.shape[node_A_input_indices_length:] + \
+            node_A.shape[:node_A_input_indices_length]
+
+        matrix_size = np.prod(self.shape[:self.input_indices_length])
+        assert matrix_size == np.prod(self.shape[self.input_indices_length:])
+
+        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
-        return f"T.tensorinv({inputs[0].name}, ind={self.input_indices_length})"
+        ind = len(self.shape) - self.input_indices_length
+        return f"T.tensorinv({inputs[0].name}, ind={ind})"
 
     def compute(self, input_vals):
         """Returns inverse of the same shape as input."""
         assert T.is_tensor(input_vals[0])
-        return T.tensorinv(input_vals[0], ind=self.input_indices_length)
+        ind = len(self.shape) - self.input_indices_length
+        return T.tensorinv(input_vals[0], ind=ind)
 
     def transposed_vjp(self, output_grad):
         raise Exception('InverseNode does not allow vjp calculation')
@@ -1355,19 +1337,25 @@ def reverse_mode_map(output_node, input_tensor, mode):
         assert node in node_to_reverse_node_list
         reverse_node = sum_node_list(node_to_reverse_node_list[node])
         node_to_reverse_node[node] = reverse_node
-        for index, input in enumerate(node.inputs):
-            # TODO: not sure how to write this in a clean way
-            if mode == "vjp":
-                output_reverse_node = node.transposed_vjp(reverse_node)[index]
-            elif mode == "jacobian":
-                output_reverse_node = node.jacobian(reverse_node)[index]
-            else:
-                raise NotImplementedError
 
+        if not isinstance(node, OpNode):
+            continue
+
+        if mode == "vjp":
+            output_reverse_nodes = node.transposed_vjp(reverse_node)
+        elif mode == "jacobian":
+            output_reverse_nodes = node.jacobian(reverse_node)
+        else:
+            raise NotImplementedError
+
+        for index, input in enumerate(node.inputs):
             if input not in node_to_reverse_node_list:
-                node_to_reverse_node_list[input] = [output_reverse_node]
+                node_to_reverse_node_list[input] = [
+                    output_reverse_nodes[index]
+                ]
             else:
-                node_to_reverse_node_list[input].append(output_reverse_node)
+                node_to_reverse_node_list[input].append(
+                    output_reverse_nodes[index])
     return node_to_reverse_node
 
 

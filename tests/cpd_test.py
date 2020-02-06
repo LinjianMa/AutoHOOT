@@ -7,7 +7,7 @@ from examples.cpd import cpd_graph
 from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf']
-size, rank = 20, 5
+size, rank = 10, 5
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
@@ -153,7 +153,7 @@ def test_cpd_hessian_simplify():
         # TODO (issue #101): test the off-diagonal elements
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
-            simplify(node)
+            node = simplify(node)
             assert isinstance(node, ad.AddNode)
             for input_node in node.inputs:
                 assert len(input_node.inputs) == 5
@@ -179,7 +179,7 @@ def test_cpd_hessian_simplify():
         assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
 
 
-def test_cpd_hessian_optimize():
+def test_cpd_hessian_optimize_diag():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
@@ -187,10 +187,9 @@ def test_cpd_hessian_optimize():
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
 
         hessian = ad.hessian(loss, [A, B, C])
-        # TODO (issue #101): test the off-diagonal elements
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
-            optimize(node)
+            node = optimize(node)
             assert isinstance(node, ad.AddNode)
             num_operations = len(
                 list(
@@ -221,3 +220,44 @@ def test_cpd_hessian_optimize():
         assert T.norm(hes_diag_vals[0] - expected_hes_diag_val[0]) < 1e-8
         assert T.norm(hes_diag_vals[1] - expected_hes_diag_val[1]) < 1e-8
         assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
+
+
+def test_cpd_hessian_optimize_offdiag():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+
+        hessian = ad.hessian(loss, [A, B, C])
+        hessian_offdiag = [hessian[0][1], hessian[1][0]]
+        for node in hessian_offdiag:
+            optimize(node)
+            assert isinstance(node, ad.AddNode)
+            num_operations = len(
+                list(
+                    filter(lambda x: isinstance(x, ad.OpNode),
+                           find_topo_sort([node]))))
+            # This is currently non-deterministic.
+            # assert num_operations == 14
+
+        executor = ad.Executor(hessian_offdiag)
+        hes_diag_vals = executor.run(feed_dict={
+            A: A_val,
+            B: B_val,
+            C: C_val,
+            input_tensor: input_tensor_val,
+        })
+
+        # TODO(linjianma): Fix the below tests.
+        # expected_hes_diag_val = [
+        #     2 * T.einsum('eb,ed,fb,fd,ac->abcd', B_val, B_val, C_val, C_val,
+        #                  T.identity(size)),
+        #     2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, C_val, C_val,
+        #                  T.identity(size)),
+        #     2 * T.einsum('eb,ed,fb,fd,ac->abcd', A_val, A_val, B_val, B_val,
+        #                  T.identity(size))
+        # ]
+        # assert T.norm(hes_diag_vals[0] - expected_hes_diag_val[0]) < 1e-8
+        # assert T.norm(hes_diag_vals[1] - expected_hes_diag_val[1]) < 1e-8
+        # assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
