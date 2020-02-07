@@ -55,9 +55,9 @@ def cpd_als(size, rank, num_iter, input_val=[]):
 
     grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
 
-    new_A = A - ad.tensordot(ad.tensorinv(hes_A), grad_A)
-    new_B = B - ad.tensordot(ad.tensorinv(hes_B), grad_B)
-    new_C = C - ad.tensordot(ad.tensorinv(hes_C), grad_C)
+    new_A = A - ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
+    new_B = B - ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
+    new_C = C - ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
 
     executor_A = ad.Executor([loss, new_A])
     executor_B = ad.Executor([loss, new_B])

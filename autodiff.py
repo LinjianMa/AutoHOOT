@@ -1229,25 +1229,17 @@ tensorinv = TensorInverseNode.create
 
 
 # Definition of functions based on EinsumNode
-def tensordot(node_A, node_B, axes=[]):
+def tensordot(node_A, node_B, axes):
     """
     Compute tensor dot product along specified axes.
 
     Given node_A and node_B, and an array_like object containing two array_like objects,
     (a_axes, b_axes), sum the products of node_A’s and node_B’s elements over the axes specified.
-    If axis=[], will sum over the axes based on node_A.input_indices_length.
 
     Example: for 4-d tensors node_A and node_B,
     tensordot(node_A, node_B, axes=[[2,3], [0,1]]) is same as
     einsum("abcd,cdef->abef", node_A, node_B).
     """
-    if axes == []:
-        assert node_A.input_indices_length != None
-        input_length = node_A.input_indices_length
-        assert input_length <= len(node_B.shape)
-        axes.append([i for i in range(input_length, len(node_A.shape))])
-        axes.append([i for i in range(input_length)])
-
     assert len(axes) == 2
     assert len(axes[0]) == len(axes[1])
 
