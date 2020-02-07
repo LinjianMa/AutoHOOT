@@ -5,8 +5,6 @@ import autodiff as ad
 import backend as T
 import logging
 import numpy as np
-import numpy.linalg as la
-import scipy.linalg as sla
 import time
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -133,7 +131,7 @@ class StandardEinsumExprMode:
         self.p_innodes = None
 
 
-@attr.s
+@attr.s(eq=False)
 class PseudoNode(object):
     node = attr.ib()
     literals = attr.ib(default=[])
@@ -333,27 +331,15 @@ def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     return x0
 
 
-# TODO: the wrapper needs to be refactored
-def solve_tri(A, B, lower=True, from_left=True, trans_left=False):
-    if not from_left:
-        return sla.solve_triangular(A.T,
-                                    B.T,
-                                    trans=trans_left,
-                                    lower=not lower).T
-    else:
-        return sla.solve_triangular(A, B, trans=trans_left, lower=lower)
-
-
 def fast_block_diag_precondition(X, P):
     ret = []
     for i in range(len(X)):
-        Y = solve_tri(P[i], X[i], lower=True, from_left=False, trans_left=True)
-        Y = solve_tri(P[i], Y, lower=True, from_left=False, trans_left=False)
+        Y = T.solve_tri(P[i], X[i], lower=True, from_left=False, transp_L=True)
+        Y = T.solve_tri(P[i], Y, lower=True, from_left=False, transp_L=False)
         ret.append(Y)
     return ret
 
 
-# TODO: this class now only supports numpy.
 class cp_nls_optimizer():
     def __init__(self, input_tensor, A, cg_tol=1e-3):
         self.input_tensor = input_tensor
@@ -397,8 +383,8 @@ class cp_nls_optimizer():
         for i in range(len(self.A)):
             self.A[i].shape[1]
             P.append(
-                la.cholesky(self.gamma[i]) +
-                regularization * np.diag(self.gamma[i].diagonal()))
+                T.cholesky(self.gamma[i]) +
+                regularization * T.diag(self.gamma[i].diagonal()))
         return P
 
     def fast_hessian_contract(self, delta, regularization, hvps):

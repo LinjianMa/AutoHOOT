@@ -11,12 +11,11 @@ import copy
 from collections import deque
 
 import autodiff as ad
-from utils import PseudoNode
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode
+from utils import find_topo_sort, OutputInjectedMode, PseudoNode
 from utils import replace_node
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -159,18 +158,17 @@ def generate_einsum_info(einsum_node):
     """
         Generates the einsum information for easier programming.
 
-        No update to the graph.
-
         Args:
             einsum_node: All inputs must be unique.
 
         Returns:
             uf (type: graph_ops.graph_optimizer.UF): 
             the union_find set of the input
+
+        Updates the subscript of the graph nodes affected.
         
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
-    input_nodes = einsum_node.inputs
 
     pseudo_nodes = []
     einsum_node_literals = [
