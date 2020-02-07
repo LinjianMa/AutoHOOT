@@ -20,8 +20,7 @@ def test_tucker():
 
         residual_val, = executor.run(feed_dict=feed_dict)
 
-        expect_residual_val = T.einsum('ae,bf,cg,dh,efgh->abcd', A_val_list[0],
-                                       A_val_list[1], A_val_list[2],
-                                       A_val_list[3], core_val) - X_val
+        expect_residual_val = T.einsum('ae,bf,cg,dh,efgh->abcd', *A_val_list,
+                                       core_val) - X_val
 
         assert T.norm(residual_val - expect_residual_val) < 1e-8
