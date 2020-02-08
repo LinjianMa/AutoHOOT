@@ -34,13 +34,7 @@ def rand_mps(num, rank, size=2):
     tensors = []
 
     for tensor in mps.tensor_map.values():
-        data = tensor.data
-        if list(tensor.tags)[0] == 'I0':
-            tensors.append(T.tensor(np.transpose(data)))
-        elif list(tensor.tags)[0] == f'I{len(mps.tensor_map)-1}':
-            tensors.append(T.tensor(data))
-        else:
-            tensors.append(T.tensor(np.transpose(data, (0, 2, 1))))
+        tensors.append(T.tensor(tensor.data))
 
     return tensors
 
@@ -55,12 +49,6 @@ def ham_heis_mpo(num):
     tensors = []
 
     for tensor in mpo.tensor_map.values():
-        data = tensor.data
-        if list(tensor.tags)[0] == 'I0':
-            tensors.append(T.tensor(np.transpose(data, (1, 2, 0))))
-        elif list(tensor.tags)[0] == f'I{len(mpo.tensor_map)-1}':
-            tensors.append(T.tensor(data))
-        else:
-            tensors.append(T.tensor(np.transpose(data, (0, 2, 3, 1))))
+        tensors.append(T.tensor(tensor.data))
 
     return tensors

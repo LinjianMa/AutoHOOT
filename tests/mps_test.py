@@ -13,7 +13,7 @@ def test_mps():
         mps, inputs = mps_graph(4, 10)
         executor = ad.Executor([mps])
 
-        expect_mps = ad.einsum('ab,bcd,def,fg->aceg', *inputs)
+        expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *inputs)
 
         assert tree_eq(mps, expect_mps, inputs)
 
@@ -25,6 +25,6 @@ def test_mpo():
         mpo, inputs = mpo_graph(4, 5)
         executor = ad.Executor([mpo])
 
-        expect_mpo = ad.einsum('abc,cdef,fghi,ijk->adgjbehk', *inputs)
+        expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik', *inputs)
 
         assert tree_eq(mpo, expect_mpo, inputs)
