@@ -1,5 +1,6 @@
 import autodiff as ad
 import backend as T
+from tests.test_utils import tree_eq
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
@@ -856,3 +857,15 @@ def test_tensorinv_odd_dim():
         x_val = T.random([24, 8, 3])
         inv_x_val, = executor.run(feed_dict={x: x_val})
         assert T.array_equal(inv_x_val, T.tensorinv(x_val, ind=1))
+
+
+def test_tensordot():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 3, 3, 3])
+        b = ad.Variable(name="b", shape=[3, 3, 3, 3])
+        result = ad.tensordot(a, b, axes=[[1, 3], [0, 1]])
+        result2 = ad.einsum("abcd,bdef->acef", a, b)
+
+        assert tree_eq(result, result2, [a, b])
