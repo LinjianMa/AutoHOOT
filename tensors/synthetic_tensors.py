@@ -15,6 +15,17 @@ def init_rand_3d(s, R):
     return [A, B, C, input_tensor]
 
 
+def init_rand_tucker(dim, size, rank):
+    X = T.random([size for _ in range(dim)])
+    core = T.random([rank for _ in range(dim)])
+
+    A_list = []
+    for i in range(dim):
+        A_list.append(T.random((size, rank)))
+
+    return A_list, core, X
+
+
 def rand_mps(num, rank, size=2):
     """
     Generate random MPS.
