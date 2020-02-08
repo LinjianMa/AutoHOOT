@@ -1244,17 +1244,17 @@ def tensordot(node_A, node_B, axes):
     assert len(axes[0]) == len(axes[1])
 
     dim = len(node_A.shape) + len(node_B.shape) - len(axes[0])
-    input_indices_A = [i for i in range(len(node_A.shape))]
+    input_indices_A = list(range(len(node_A.shape)))
 
     index_acc = len(node_A.shape)
-    input_indices_B = []
+    input_indices_B = [0] * len(node_B.shape)
+
     for i in range(len(node_B.shape)):
-        if i in axes[1]:
-            index = axes[1].index(i)
-            input_indices_B.append(input_indices_A[axes[0][index]])
-        else:
-            input_indices_B.append(index_acc)
+        if i not in axes[1]:
+            input_indices_B[i] = index_acc
             index_acc += 1
+    for i in range(len(axes[1])):
+        input_indices_B[axes[1][i]] = input_indices_A[axes[0][i]]
 
     assert index_acc == dim
     out_indices = [
