@@ -35,27 +35,43 @@ def test_gauge_transform_right():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        tensors = rand_mps(num=4, rank=4, size=2)
-        tensors = gauge_transform_mps(tensors)
+        tensors_input = rand_mps(num=4, rank=4, size=2)
+        tensors = gauge_transform_mps(tensors_input)
 
-        # test last two tensors' orthogonality
+        # make sure the transformation will not change the mps results
+        mps = T.einsum('ab,acd,cef,eg->bdfg', *tensors_input)
+        mps_gauge = T.einsum('ab,acd,cef,eg->bdfg', *tensors)
+        assert T.norm(mps - mps_gauge) < 1e-8
+
+        # test all tensors except the left one's orthogonality
+        inner = T.einsum("abc,dbc->ad", tensors[1], tensors[1])
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+
         inner = T.einsum("abc,dbc->ad", tensors[2], tensors[2])
-        assert T.norm(inner- T.identity(inner.shape[0])) < 1e-8
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
         inner = T.einsum("ab,cb->ac", tensors[3], tensors[3])
-        assert T.norm(inner- T.identity(inner.shape[0])) < 1e-8
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
 
 def test_gauge_transform_left():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        tensors = rand_mps(num=4, rank=4, size=2)
-        tensors = gauge_transform_mps(tensors, right=False)
+        tensors_input = rand_mps(num=4, rank=4, size=2)
+        tensors = gauge_transform_mps(tensors_input, right=False)
 
-        # test first two tensors' orthogonality
+        # make sure the transformation will not change the mps results
+        mps = T.einsum('ab,acd,cef,eg->bdfg', *tensors_input)
+        mps_gauge = T.einsum('ab,acd,cef,eg->bdfg', *tensors)
+        assert T.norm(mps - mps_gauge) < 1e-8
+
+        # test all tensors except the right one's orthogonality
         inner = T.einsum("ab,cb->ac", tensors[0], tensors[0])
-        assert T.norm(inner- T.identity(inner.shape[0])) < 1e-8
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
         inner = T.einsum("abc,adc->bd", tensors[1], tensors[1])
-        assert T.norm(inner- T.identity(inner.shape[0])) < 1e-8
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+
+        inner = T.einsum("abc,adc->bd", tensors[2], tensors[2])
+        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8

@@ -43,14 +43,16 @@ def gauge_transform_mps(tensors, right=True):
     right: direction of the transformation. If true,
         the diagram for the output mps inner product will be:
                                                 
-                 o-o-<-<-<-<-<-<-<           o-o-+
-                 | | | | | | | | |   ->      | | |
-                 o-o-<-<-<-<-<-<-<           o-o-+
+                 o-<-<-<-<-<-<-<-<         o-
+                 | | | | | | | | |   ->    | | (inner product of o)
+                 o-<-<-<-<-<-<-<-<         o-
         if False, the diagram of its inner product will be:
 
-                 >->->->->->->-o-o         +-o-o
-                 | | | | | | | | |   =>    | | | 
-                 >->->->->->->-o-o         +-o-o
+                 >->->->->->->->-o          -o
+                 | | | | | | | | |   =>    | | (inner product of o)
+                 >->->->->->->->-o          -o
+
+        here > or < denotes a tensor that is left / right orthogonal.
 
     Returns
     -------
