@@ -1,3 +1,4 @@
+import copy
 import autodiff as ad
 import backend as T
 from utils import CharacterGetter
@@ -5,13 +6,28 @@ from tensors.synthetic_tensors import init_rand_tucker
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 
-BACKEND_TYPES = ['numpy']
-
 
 def n_mode_eigendec(node, tensor, rank):
     """
-    Eigendecomposition of mode-n unfolding of a tensor
+    Eigendecomposition of mode-n unfolding of a input node.
+    Used in Tucker decomposition to update the core tensor
+    and one factor matrix.
+
+    Parameters
+    ----------
+    node: the input einsum node. Note that it must be the EinsumNode
+        of the core tensor node and one factor matrix node.
+    tensor: the value of the input node
+    rank: Tucker decomposition rank
+
+    Returns
+    -------
+    1. the core tensor
+    2. the corresponding factor matrix
     """
+    assert isinstance(node, ad.EinsumNode)
+    assert len(node.inputs) == 2
+
     in_subs, out_subs, _ = _parse_einsum_input(
         (node.einsum_subscripts, *node.inputs))
     core_subs, A_subs = in_subs.split(',')
@@ -23,7 +39,7 @@ def n_mode_eigendec(node, tensor, rank):
     out_subs_2 = "".join([
         char if char not in A_subs else char_A_not_in_out for char in out_subs
     ])
-
+    # used for inner product of tensor
     einstr = out_subs + "," + out_subs_2 + "->" + A_subs
 
     Y = T.einsum(einstr, tensor, tensor)
@@ -40,6 +56,23 @@ class TuckerGraph(object):
     Produce a graph representing the Tucker decomposition.
 
     Note: current graph produces the decomposition with equidimensional core tensor.
+
+    Parameters
+    ----------
+    dim: dimensionality of the input tensor
+    size: the size of input tensor's each dim
+    rank: the rank of the decomposition
+
+    Variables
+    ---------
+    X: input tensor
+    core: decomposed core tensor node
+    A_list: a list of decomposed matrices nodes
+    einsum_subscripts
+    output: the output einsum node reconstructed from core and A_list
+    residual: residual of the decomposition
+    loss: Tucker decomposition loss
+
     """
     def __init__(self, dim, size, rank):
 
@@ -63,9 +96,13 @@ class TuckerGraph(object):
         ])
         self.einsum_subscripts = input_subs + '->' + X_subscripts
 
-        self._recover_loss()
+        self._recover_output()
 
-    def _recover_loss(self):
+    def _recover_output(self):
+        """
+        recover the graph for output node and its outputs (residual and loss),
+        such that the inputs are all the A_list and core (no intermediate).
+        """
         self.output = ad.einsum(self.einsum_subscripts,
                                 *(self.A_list + [self.core]))
 
@@ -77,8 +114,10 @@ class TuckerGraph(object):
                               self.residual)
 
     def rebuild_graph_w_intermediate(self, index):
-
-        self._recover_loss()
+        """
+        rebuild the graph so that intermediate will be an input of output.
+        """
+        self._recover_output()
 
         intermediate_set = {self.core, self.A_list[index]}
         split_input_nodes = list(set(self.output.inputs) - intermediate_set)
@@ -102,7 +141,21 @@ class TuckerGraph(object):
 
 def tucker_als_graph(dim, size, rank):
     """
-    explains here
+    Build the graph used for Tucker ALS.
+
+    Parameters
+    ----------
+    dim: dimensionality of the input tensor
+    size: the size of input tensor's each dim
+    rank: the rank of the decomposition
+
+    Returns
+    -------
+    tg: an TuckerGraph object
+    executors: list of executors. Each executor is used for
+        one step of Tucker ALS
+    intermediates: list of einsum nodes. Each node is the objective
+        each Tucker ALS step optimized for
     """
     tg = TuckerGraph(dim, size, rank)
 
@@ -128,12 +181,13 @@ def tucker_als_graph(dim, size, rank):
 
 
 def tucker_als(dim, size, rank, num_iter, input_val=[]):
+
     tg, executors, intermediates = tucker_als_graph(dim, size, rank)
 
     if input_val == []:
         A_val_list, core_val, X_val = init_rand_tucker(dim, size, rank)
     else:
-        A_val_list, core_val, X_val = input_val
+        A_val_list, core_val, X_val = copy.deepcopy(input_val)
 
     for iter in range(num_iter):
         # als iterations

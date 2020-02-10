@@ -21,7 +21,9 @@ def init_rand_tucker(dim, size, rank):
 
     A_list = []
     for i in range(dim):
-        A_list.append(T.random((size, rank)))
+        # for Tucker, factor matrices are orthogonal
+        mat, _, _ = T.svd(T.random((size, rank)))
+        A_list.append(mat[:, :rank])
 
     return A_list, core, X
 
