@@ -102,7 +102,8 @@ class CTFBackend(Backend):
 
 for name in [
         'reshape', 'transpose', 'copy', 'qr', 'ones', 'zeros', 'eye', 'abs',
-        'dot', 'einsum', 'sum', 'identity', 'solve_tri', 'cholesky', 'diag'
+        'dot', 'einsum', 'sum', 'identity', 'solve_tri', 'cholesky', 'diag',
+        'svd'
 ]:
     CTFBackend.register_method(name, getattr(ctf, name))
 
