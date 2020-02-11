@@ -96,47 +96,38 @@ class TuckerGraph(object):
         ])
         self.einsum_subscripts = input_subs + '->' + X_subscripts
 
-        self._recover_output()
-
-    def _recover_output(self):
-        """
-        recover the graph for output node and its outputs (residual and loss),
-        such that the inputs are all the A_list and core (no intermediate).
-        """
         self.output = ad.einsum(self.einsum_subscripts,
                                 *(self.A_list + [self.core]))
 
         self.residual = self.output - self.X
 
-        subscripts = "".join(
-            [chr(ord('a') + i) for i in range(len(self.residual.shape))])
-        self.loss = ad.einsum(f"{subscripts},{subscripts}->", self.residual,
-                              self.residual)
+        self.intermediates, self.losses = [], []
+        for i in range(dim):
+            intermediate, loss = self._build_graph_w_intermediate(i)
+            self.intermediates.append(intermediate)
+            self.losses.append(loss)
 
-    def rebuild_graph_w_intermediate(self, index):
+    def _build_graph_w_intermediate(self, index):
         """
         rebuild the graph so that intermediate will be an input of output.
         """
-        self._recover_output()
-
         intermediate_set = {self.core, self.A_list[index]}
         split_input_nodes = list(set(self.output.inputs) - intermediate_set)
-        self.output = split_einsum(self.output, split_input_nodes)
+        output = split_einsum(self.output, split_input_nodes)
 
         # get the intermediate node
         intermediate = [
-            node for node in self.output.inputs
-            if isinstance(node, ad.EinsumNode)
+            node for node in output.inputs if isinstance(node, ad.EinsumNode)
         ][0]
 
-        self.residual = self.output - self.X
+        residual = output - self.X
 
-        subscripts = "".join(
-            [chr(ord('a') + i) for i in range(len(self.residual.shape))])
-        self.loss = ad.einsum(f"{subscripts},{subscripts}->", self.residual,
-                              self.residual)
+        residual_shape = list(range(len(residual.shape)))
+        loss = ad.tensordot(residual,
+                            residual,
+                            axes=[residual_shape, residual_shape])
 
-        return intermediate
+        return intermediate, loss
 
 
 def tucker_als_graph(dim, size, rank):
@@ -160,24 +151,22 @@ def tucker_als_graph(dim, size, rank):
     tg = TuckerGraph(dim, size, rank)
 
     executors = []
-    intermediates = []
 
     for i in range(dim):
 
-        core_A = tg.rebuild_graph_w_intermediate(i)
-        hes = ad.hessian(tg.loss, [core_A])
+        core_A = tg.intermediates[i]
+        hes = ad.hessian(tg.losses[i], [core_A])
         hes = hes[0][0]
-        grad, = ad.gradients(tg.loss, [core_A])
+        grad, = ad.gradients(tg.losses[i], [core_A])
 
         new_core_A = core_A - ad.tensordot(
             ad.tensorinv(hes), grad,
             [[i + dim for i in range(dim)], [i for i in range(dim)]])
 
-        executor = ad.Executor([tg.loss, new_core_A])
+        executor = ad.Executor([tg.losses[i], new_core_A])
         executors.append(executor)
-        intermediates.append(core_A)
 
-    return tg, executors, intermediates
+    return tg, executors, tg.intermediates
 
 
 def tucker_als(dim, size, rank, num_iter, input_val=[]):
