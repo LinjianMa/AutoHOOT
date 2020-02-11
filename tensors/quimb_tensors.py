@@ -39,17 +39,17 @@ def gauge_transform_mps(tensors, right=True):
 
     Parameters
     ----------
-    tensor: array of tensors representing the MPS
+    tensors: array of tensors representing the MPS
     right: direction of the transformation. If true,
-        the diagram for the output mps inner product will be:
+        for the output mps, the diagram for its inner product will be:
                                                 
                  o-<-<-<-<-<-<-<-<         o-
-                 | | | | | | | | |   ->    | | (inner product of o)
+                 | | | | | | | | |   =     | | (inner product of o)
                  o-<-<-<-<-<-<-<-<         o-
         if False, the diagram of its inner product will be:
 
                  >->->->->->->->-o          -o
-                 | | | | | | | | |   =>    | | (inner product of o)
+                 | | | | | | | | |   =     | | (inner product of o)
                  >->->->->->->->-o          -o
 
         here > or < denotes a tensor that is left / right orthogonal.

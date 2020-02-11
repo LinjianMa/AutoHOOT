@@ -43,14 +43,14 @@ def test_gauge_transform_right():
         mps_gauge = T.einsum('ab,acd,cef,eg->bdfg', *tensors)
         assert T.norm(mps - mps_gauge) < 1e-8
 
+        dim = len(tensors_input)
+
         # test all tensors except the left one's orthogonality
-        inner = T.einsum("abc,dbc->ad", tensors[1], tensors[1])
-        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+        for i in range(1, dim - 1):
+            inner = T.einsum("abc,dbc->ad", tensors[i], tensors[i])
+            assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
-        inner = T.einsum("abc,dbc->ad", tensors[2], tensors[2])
-        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
-
-        inner = T.einsum("ab,cb->ac", tensors[3], tensors[3])
+        inner = T.einsum("ab,cb->ac", tensors[dim - 1], tensors[dim - 1])
         assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
 
@@ -66,12 +66,12 @@ def test_gauge_transform_left():
         mps_gauge = T.einsum('ab,acd,cef,eg->bdfg', *tensors)
         assert T.norm(mps - mps_gauge) < 1e-8
 
+        dim = len(tensors_input)
+
         # test all tensors except the right one's orthogonality
         inner = T.einsum("ab,cb->ac", tensors[0], tensors[0])
         assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
-        inner = T.einsum("abc,adc->bd", tensors[1], tensors[1])
-        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
-
-        inner = T.einsum("abc,adc->bd", tensors[2], tensors[2])
-        assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+        for i in range(1, dim - 1):
+            inner = T.einsum("abc,adc->bd", tensors[i], tensors[i])
+            assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
