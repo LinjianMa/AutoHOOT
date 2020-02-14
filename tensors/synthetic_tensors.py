@@ -14,11 +14,15 @@ def init_rand_3d(s, R):
 
 
 def init_rand_tucker(dim, size, rank):
+    assert size > rank
+
     X = T.random([size for _ in range(dim)])
     core = T.random([rank for _ in range(dim)])
 
     A_list = []
     for i in range(dim):
-        A_list.append(T.random((size, rank)))
+        # for Tucker, factor matrices are orthogonal
+        mat, _, _ = T.svd(T.random((size, rank)))
+        A_list.append(mat[:, :rank])
 
     return A_list, core, X
