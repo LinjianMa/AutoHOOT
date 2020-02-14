@@ -16,6 +16,8 @@ def init_rand_3d(s, R):
 
 
 def init_rand_tucker(dim, size, rank):
+    assert size > rank
+
     X = T.random([size for _ in range(dim)])
     core = T.random([rank for _ in range(dim)])
 

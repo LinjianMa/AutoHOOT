@@ -7,7 +7,7 @@ from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
-def n_mode_eigendec(node, tensor, rank):
+def n_mode_eigendec(node, tensor_val, rank):
     """
     Eigendecomposition of mode-n unfolding of a input node.
     Used in Tucker decomposition to update the core tensor
@@ -17,7 +17,7 @@ def n_mode_eigendec(node, tensor, rank):
     ----------
     node: the input einsum node. Note that it must be the EinsumNode
         of the core tensor node and one factor matrix node.
-    tensor: the value of the input node
+    tensor_val: the value of the input node
     rank: Tucker decomposition rank
 
     Returns
@@ -34,20 +34,19 @@ def n_mode_eigendec(node, tensor, rank):
 
     assert len(A_subs) == 2
 
-    char_A_not_in_out = list(set(A_subs) - set(out_subs))[0]
+    contracted_char = list(set(A_subs) - set(out_subs))[0]
 
-    out_subs_2 = "".join([
-        char if char not in A_subs else char_A_not_in_out for char in out_subs
-    ])
-    # used for inner product of tensor
+    out_subs_2 = "".join(
+        [char if char not in A_subs else contracted_char for char in out_subs])
+    # used for tensor_val.T @ tensor_val in its matricized form
     einstr = out_subs + "," + out_subs_2 + "->" + A_subs
 
-    Y = T.einsum(einstr, tensor, tensor)
+    Y = T.einsum(einstr, tensor_val, tensor_val)
     U, _, _ = T.svd(Y)
     U = U[:, :rank]
 
     einstr = out_subs + "," + A_subs + "->" + core_subs
-    core = T.einsum(einstr, tensor, U)
+    core = T.einsum(einstr, tensor_val, U)
     return core, U
 
 
@@ -116,9 +115,9 @@ class TuckerGraph(object):
         output = split_einsum(self.output, split_input_nodes)
 
         # get the intermediate node
-        intermediate = [
+        intermediate, = [
             node for node in output.inputs if isinstance(node, ad.EinsumNode)
-        ][0]
+        ]
 
         residual = output - self.X
 
