@@ -2,6 +2,8 @@ import math
 import autodiff as ad
 import backend as T
 from utils import CharacterGetter
+from tensors.quimb_tensors import rand_mps, ham_heis_mpo
+from graph_ops.graph_generator import split_einsum
 
 BACKEND_TYPES = ['numpy']
 
@@ -136,6 +138,74 @@ def mpo_graph(num, rank, size=2):
     return ad.einsum(einsum_subscripts, *H_list), H_list
 
 
+class DmrgGraph(object):
+    """
+    TODO
+    """
+    def __init__(self, num, mpo_rank, mps_rank, size):
+        self.mpo, self.mpo_inputs = mpo_graph(num, mpo_rank, size)
+        self.mps, self.mps_inputs = mps_graph(num, mps_rank, size)
+
+        self.intermediates, self.executors = [], []
+        for i in range(num - 1):
+            intermediate, hes = self._get_sub_hessian(i)
+            executor = ad.Executor([hes])
+            self.intermediates.append(intermediate)
+            self.executors.append(executor)
+
+    def _get_sub_hessian(self, index):
+
+        # rebuild mps graph
+        intermediate_set = {self.mps_inputs[index], self.mps_inputs[index + 1]}
+        split_input_nodes = list(
+            set(self.mps_inputs) - intermediate_set)
+        mps = split_einsum(self.mps, split_input_nodes)
+
+        # get the intermediate node
+        intermediate = [
+            node for node in mps.inputs
+            if isinstance(node, ad.EinsumNode)
+        ][0]
+
+        mps_outer_product = ad.tensordot(mps, mps, axes=[[], []])
+
+        mpo_shape = list(range(len(self.mpo.shape)))
+        objective = ad.tensordot(mps_outer_product,
+                                      self.mpo,
+                                      axes=[mpo_shape, mpo_shape])
+
+        hes = ad.hessian(objective, [intermediate])
+
+        return intermediate, hes[0][0]
+
+
+def dmrg(mpo_tensors, mps_rank, sequence='R'):
+    """
+    TODO: add comments
+    """
+    num = len(mpo_tensors)
+    size = mpo_tensors[0].shape[1]
+    mpo_rank = mpo_tensors[0].shape[0]
+
+    mps_tensors = rand_mps(num, mps_rank, size)
+
+    dg = DmrgGraph(num, mpo_rank, mps_rank, size)
+
+    # sequence is R
+    for i in range(num - 1):
+
+        feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
+        feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+
+        hes_val, = dg.executors[i].run(feed_dict=feed_dict)
+
+        # TODO: Update the two sites of mps
+        print(hes_val.shape)
+        print(dg.intermediates[i].shape)
+
+
 if __name__ == "__main__":
-    mps = mps_graph(4, 10)
-    mpo = mpo_graph(4, 10)
+    # mps = mps_graph(4, 10)
+    # mpo = mpo_graph(4, 10)
+    mpo_tensors = ham_heis_mpo(num=3)
+    dmrg(mpo_tensors, mps_rank=3)
