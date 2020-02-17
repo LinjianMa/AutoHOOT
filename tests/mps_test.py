@@ -87,28 +87,15 @@ def test_dmrg_one_sweep():
         dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
 
         h_tensors = load_quimb_tensors(h)
-        mpo = T.einsum('abc,adef,dghi,gjk->behjcfik', *h_tensors)
-
         mps_tensors = load_quimb_tensors(dmrg_quimb._k)
 
         # dmrg based on ad
-        mps_tensors = dmrg(h_tensors, mps_tensors, max_mps_rank=max_mps_rank)
-        explicit_mps = T.einsum('ab,acd,cef,eg->bdfg', *mps_tensors)
-        energy = T.einsum('behj,cfik,behjcfik->', explicit_mps, explicit_mps,
-                          mpo)
+        mps_tensors, energy = dmrg(h_tensors, mps_tensors, max_mps_rank=max_mps_rank)
 
         # dmrg based on quimb
-        dmrg_quimb.sweep_right(canonize=True)
-        mps_tensors_quimb = [dmrg_quimb._k[i].data for i in range(num)]
-
-        # The einstr is different from above, because in quimb the output mps
-        # indices orders are changed
-        explicit_mps_quimb = T.einsum('ab,bcd,def,fg->aceg',
-                                      *mps_tensors_quimb)
-        energy_quimb = T.einsum('behj,cfik,behjcfik->', explicit_mps_quimb,
-                                explicit_mps_quimb, mpo)
+        dmrg_quimb = dmrg_quimb.sweep_right(canonize=True)
 
         # We only test on energy (lowest eigenvalue of h), rather than the output
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
-        assert (abs(energy - energy_quimb) < 1e-8)
+        assert (abs(energy - dmrg_quimb) < 1e-8)

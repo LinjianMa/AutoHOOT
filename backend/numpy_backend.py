@@ -93,7 +93,7 @@ for name in [
         'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
         'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
         'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power',
-        'identity', 'diag'
+        'identity', 'diag', 'tensordot'
 ]:
     NumpyBackend.register_method(name, getattr(np, name))
 
