@@ -1,8 +1,9 @@
 import autodiff as ad
 import backend as T
-from examples.mps import mps_graph, mpo_graph
+import quimb.tensor as qtn
+from examples.mps import mps_graph, mpo_graph, dmrg
 from tests.test_utils import tree_eq
-from tensors.quimb_tensors import rand_mps, gauge_transform_mps
+from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
 BACKEND_TYPES = ['numpy']
 
@@ -11,7 +12,7 @@ def test_mps():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mps, inputs = mps_graph(4, 10)
+        mps, inputs = mps_graph(4, ranks=[5, 6, 7])
         executor = ad.Executor([mps])
 
         expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *inputs)
@@ -23,7 +24,7 @@ def test_mpo():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mpo, inputs = mpo_graph(4, 5)
+        mpo, inputs = mpo_graph(4, ranks=[5, 6, 7])
         executor = ad.Executor([mpo])
 
         expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik', *inputs)
@@ -75,3 +76,39 @@ def test_gauge_transform_left():
         for i in range(1, dim - 1):
             inner = T.einsum("abc,adc->bd", tensors[i], tensors[i])
             assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+
+
+def test_dmrg_one_sweep():
+    max_mps_rank = 5
+    num = 4
+    for datatype in BACKEND_TYPES:
+
+        h = qtn.MPO_ham_heis(num)
+        dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
+
+        h_tensors = load_quimb_tensors(h)
+        mpo = T.einsum('abc,adef,dghi,gjk->behjcfik', *h_tensors)
+
+        mps_tensors = load_quimb_tensors(dmrg_quimb._k)
+
+        # dmrg based on ad
+        mps_tensors = dmrg(h_tensors, mps_tensors, max_mps_rank=max_mps_rank)
+        explicit_mps = T.einsum('ab,acd,cef,eg->bdfg', *mps_tensors)
+        energy = T.einsum('behj,cfik,behjcfik->', explicit_mps, explicit_mps,
+                          mpo)
+
+        # dmrg based on quimb
+        dmrg_quimb.sweep_right(canonize=True)
+        mps_tensors_quimb = [dmrg_quimb._k[i].data for i in range(num)]
+
+        # The einstr is different from above, because in quimb the output mps
+        # indices orders are changed
+        explicit_mps_quimb = T.einsum('ab,bcd,def,fg->aceg',
+                                      *mps_tensors_quimb)
+        energy_quimb = T.einsum('behj,cfik,behjcfik->', explicit_mps_quimb,
+                                explicit_mps_quimb, mpo)
+
+        # We only test on energy (lowest eigenvalue of h), rather than the output
+        # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
+        # eigenvalue unchanged.
+        assert (abs(energy - energy_quimb) < 1e-8)

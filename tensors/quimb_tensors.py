@@ -1,18 +1,21 @@
 import backend as T
 import quimb.tensor as qtn
 
+def load_quimb_tensors(network):
+    tensors = []
+
+    for tensor in network.tensor_map.values():
+        tensors.append(T.tensor(tensor.data))
+
+    return tensors
+
 
 def rand_mps(num, rank, size=2):
     """
     Generate random MPS.
     """
     mps = qtn.MPS_rand_state(num, rank, phys_dim=size)
-    tensors = []
-
-    for tensor in mps.tensor_map.values():
-        tensors.append(T.tensor(tensor.data))
-
-    return tensors
+    return load_quimb_tensors(mps)
 
 
 def ham_heis_mpo(num):
@@ -22,12 +25,7 @@ def ham_heis_mpo(num):
     and size is set to be 2 implicitly.
     """
     mpo = qtn.MPO_ham_heis(num)
-    tensors = []
-
-    for tensor in mpo.tensor_map.values():
-        tensors.append(T.tensor(tensor.data))
-
-    return tensors
+    return load_quimb_tensors(mpo)
 
 
 def gauge_transform_mps(tensors, right=True):

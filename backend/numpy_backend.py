@@ -97,7 +97,7 @@ for name in [
 ]:
     NumpyBackend.register_method(name, getattr(np, name))
 
-for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd']:
+for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd', 'eigh']:
     NumpyBackend.register_method(name, getattr(np.linalg, name))
 
 for name in ['random', 'seed']:
