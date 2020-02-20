@@ -51,17 +51,20 @@ def generate_optimal_tree(node, path=None):
 def split_einsum(einsum_node, split_input_nodes):
     """
     Split the einsum node into two einsum nodes.
+
     Parameters
     ----------
     einsum_node : ad.EinsumNode
         Input einsum node
     split_input_nodes : list
         List of input nodes that are split out from the first einsum contraction
+
     Returns
     -------
     second_einsum : ad.EinsumNode
         A newly written einsum composed of an intermediate node composed of
         input nodes except split_input_nodes.
+
     Examples
     --------
     >>> einsum_node = ad.einsum("ab,bc,cd,de->ae", A,B,C,D)
@@ -69,11 +72,49 @@ def split_einsum(einsum_node, split_input_nodes):
     >>> split_einsum(einsum_node, split_input_nodes)
     ad.einsum("ab,bc,ce->ae", A,B,ad.einsum("cd,de->ce",C,D))
     """
-    first_contract_nodes = list(
-        set(einsum_node.inputs) - set(split_input_nodes))
+    indices = [
+        i for (i, node) in enumerate(einsum_node.inputs)
+        if node in (set(einsum_node.inputs) - set(split_input_nodes))
+    ]
 
-    indices = tuple(
-        [einsum_node.inputs.index(n) for n in first_contract_nodes])
     merge = tuple(range(len(einsum_node.inputs) - len(indices) + 1))
     return generate_optimal_tree(einsum_node,
                                  path=['einsum_path', indices, merge])
+
+
+def optimal_sub_einsum(einsum_node, contract_node):
+    """
+    Find the optimal sub einsum of the input einsum_node such that
+    the optimal contraction order is preserved and the returned sub einsum node
+    contains contract_node.
+
+    Parameters
+    ----------
+    einsum_node : ad.EinsumNode, input einsum node
+    contract_node : list, the node that is the input of the returned sub_einsum node
+
+    Returns
+    -------
+    sub_einsum : ad.EinsumNode
+
+    Examples
+    --------
+    >>> einsum_node = ad.einsum('lj,ge,bej,abdi,ach->cdhigl',A3,A3,X3,X2,X1)
+    >>> contract_node = A3
+    >>> optimal_sub_einsum(einsum_node, contract_node)
+    ad.einsum('ebl,ge->bgl',ad.einsum('bej,lj->ebl',X3,A3),A3)
+    """
+    sub_einsum = generate_optimal_tree(einsum_node)
+
+    while contract_node not in sub_einsum.inputs:
+        einsum_inputs = [
+            node for node in sub_einsum.inputs
+            if isinstance(node, ad.EinsumNode)
+        ]
+        for node in einsum_inputs:
+            if contract_node in node.inputs or any(
+                    isinstance(input_node, ad.EinsumNode)
+                    for input_node in node.inputs):
+                sub_einsum = node
+
+    return sub_einsum
