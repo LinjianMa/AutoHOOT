@@ -1089,7 +1089,14 @@ class ZerosLikeNode(OpNode):
 class OnesLikeNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
-        return OnesLikeNode(*args, **kwargs)
+        node_A, = args
+        if node_A.shape == []:
+            return ScalarNode(1.)
+        else:
+            return OnesLikeNode(*args, **kwargs)
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def __init__(self, node_A):
         super().__init__()
@@ -1151,6 +1158,9 @@ class TensorInverseNode(OpNode):
     def create(*args, **kwargs):
         return TensorInverseNode(*args, **kwargs)
 
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs, self.ind)
+
     def __init__(self, node_A, ind=None):
         """Creates a node that inverts node_A.
 
@@ -1166,6 +1176,7 @@ class TensorInverseNode(OpNode):
         """
         super().__init__()
         self.inputs = [node_A]
+        self.ind = ind
 
         if ind != None:
             self.input_indices_length = len(node_A.shape) - ind
@@ -1175,16 +1186,21 @@ class TensorInverseNode(OpNode):
             self.input_indices_length = len(
                 node_A.shape) - node_A.input_indices_length
 
-        node_A_input_indices_length = len(
+        self.node_A_input_indices_length = len(
             node_A.shape) - self.input_indices_length
 
-        self.shape = node_A.shape[node_A_input_indices_length:] + \
-            node_A.shape[:node_A_input_indices_length]
+        self.shape = node_A.shape[self.node_A_input_indices_length:] + \
+            node_A.shape[:self.node_A_input_indices_length]
 
         matrix_size = np.prod(self.shape[:self.input_indices_length])
         assert matrix_size == np.prod(self.shape[self.input_indices_length:])
 
-        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
+        self.name = f"T.tensorinv({node_A.name}, ind={self.node_A_input_indices_length})"
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 1
+        self.inputs = inputs
+        self.name = f"T.tensorinv({inputs[0].name}, ind={self.node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
