@@ -47,8 +47,16 @@ jobs:
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
         export PYTHONPATH=$PWD
         pytest --ignore=ctf
-    - name: Generate pytest coverage report to codecov
+    - name: Generate pytest coverage
       run: |
-        pip install codecov pytest-cov
+        pip install pytest-cov
         pytest --ignore=ctf --cov=./ --cov-report=xml
-        codecov -t d46ca65d-18e6-43b5-91b2-139d11b1c187
+		- name: Upload coverage to Codecov  
+		  uses: codecov/codecov-action@v1
+		  with:
+		    token: ${{ secrets.CODECOV_TOKEN }}
+		    file: ./coverage.xml
+		    flags: unittests
+		    name: codecov-umbrella
+		    yml: ./codecov.yml 
+		    fail_ci_if_error: true
