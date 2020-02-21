@@ -50,6 +50,8 @@ jobs:
     - name: Generate pytest coverage
       run: |
         pip install pytest-cov
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
+        export PYTHONPATH=$PWD
         pytest --ignore=ctf --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
