@@ -47,3 +47,8 @@ jobs:
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
         export PYTHONPATH=$PWD
         pytest --ignore=ctf
+    - name: Generate pytest coverage report to codecov
+      run: |
+        pip install codecov pytest-cov
+        pytest --ignore=ctf --cov=./ --cov-report=xml
+        codecov -t d46ca65d-18e6-43b5-91b2-139d11b1c187
