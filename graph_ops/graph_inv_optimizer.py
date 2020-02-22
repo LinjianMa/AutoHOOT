@@ -75,6 +75,7 @@ def optimize_inverse(inv_node):
         new_einsum = ad.einsum(new_subscripts, *inputs)
         return new_einsum
 
+    assert isinstance(inv_node, ad.TensorInverseNode)
     # Note: currently, the optimization algorithm only works when
     # 1. the matrix row and column has same number of dimension,
     # 2. the matrix is square,
@@ -84,10 +85,8 @@ def optimize_inverse(inv_node):
         return inv_node
     matrix_dim = int(len(inv_node.shape) / 2)
 
-    if np.prod(inv_node.shape[:matrix_dim]) != np.prod(
-            inv_node.shape[matrix_dim:]):
-        logger.info(f"The matrix is not square, can't optimize inverse")
-        return inv_node
+    assert np.prod(inv_node.shape[:matrix_dim]) == np.prod(
+        inv_node.shape[matrix_dim:])
 
     shape_diff_list = [
         inv_node.shape[i] - inv_node.shape[i + matrix_dim]
@@ -99,7 +98,6 @@ def optimize_inverse(inv_node):
         )
         return inv_node
 
-    assert isinstance(inv_node, ad.TensorInverseNode)
     einsum_node = inv_node.inputs[0]
     assert isinstance(einsum_node, ad.EinsumNode)
     # einsum_node is a fused einsum

@@ -5,6 +5,7 @@ from tests.test_utils import tree_eq
 
 BACKEND_TYPES = ['numpy', 'ctf']
 
+
 def test_kronecker_product_inv():
 
     for datatype in BACKEND_TYPES:
@@ -115,6 +116,18 @@ def test_kronecker_product_nondecomposable():
 
     out = ad.einsum("ab,cd->acbd", A, B)
     inv = ad.tensorinv(out)
+    newinv = optimize_inverse(inv)
+
+    assert inv is newinv
+
+
+def test_kronecker_product_non_even():
+
+    A = ad.Variable(name="A", shape=[4, 4, 2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    out = ad.einsum("abcd,ef->abcdef", A, B)
+    inv = ad.tensorinv(out, ind=2)
     newinv = optimize_inverse(inv)
 
     assert inv is newinv
