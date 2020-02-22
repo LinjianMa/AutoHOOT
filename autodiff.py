@@ -77,7 +77,7 @@ class Node(object):
         return CloneNode(self, new_name)
 
     def set_inputs(self, inputs):
-        self.inputs = inputs
+        raise NotImplementedError
 
     def set_in_indices_length(self, length):
         """
@@ -165,6 +165,10 @@ class ConstantNode(Node):
         super().__init__()
         self.name = name
         self.shape = shape
+
+    def set_inputs(self, inputs):
+        # constant node should not have inputs
+        assert inputs == []
 
     def transposed_vjp(self, output_grad):
         raise Exception('ConstantNode does not allow vjp calculation')
@@ -274,6 +278,9 @@ class CloneNode(OpNode):
     def __deepcopy__(self, memo):
         assert len(self.inputs) == 1
         return copy.deepcopy(self.inputs[0])
+
+    def set_inputs(self, inputs):
+        self.inputs = inputs
 
     def compute(self, input_vals):
         assert len(input_vals) == 1
@@ -406,6 +413,11 @@ class SubNode(OpNode):
 
     def __deepcopy__(self, memo):
         return self.create(*self.inputs)
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 2
+        self.inputs = inputs
+        self.name = "(%s-%s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -600,6 +612,11 @@ class MulByConstNode(OpNode):
         self.inputs = [node_A]
         self.name = "(%s*%s)" % (node_A.name, str(const_val))
         self.shape = node_A.shape
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 1
+        self.inputs = inputs
+        self.name = "(%s*%s)" % (inputs[0].name, self.const_attr)
 
     def compute(self, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
@@ -1242,6 +1259,7 @@ sum = SumNode.create
 transpose = TransposeNode.create
 identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
+scalar = ScalarNode.create
 
 
 # Definition of functions based on EinsumNode
