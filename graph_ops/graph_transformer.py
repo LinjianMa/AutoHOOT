@@ -8,6 +8,7 @@
 import logging
 
 import copy
+import numpy as np
 from collections import deque
 
 import autodiff as ad
@@ -263,6 +264,40 @@ def rewrite_einsum_expr(einsum_node):
     return uf
 
 
+def prune_scalar_nodes(einsum_node):
+    """
+        Remove the scalar input nodes of a einsum_node.
+        Args:
+            einsum_node: An fused einsum node.
+        Return:
+            if the scalar is one, return the pruned einsum node;
+            otherwise, return the mul between the einsum node and the scalar.
+    """
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+
+    new_inputs, new_input_subs, scalars = [], [], []
+
+    for i in range(len(in_subs_list)):
+        if in_subs_list[i] == "" and isinstance(einsum_node.inputs[i],
+                                                ad.ScalarNode):
+            scalars.append(einsum_node.inputs[i].value)
+        else:
+            new_inputs.append(einsum_node.inputs[i])
+            new_input_subs.append(in_subs_list[i])
+
+    scalar = np.prod(scalars)
+
+    new_subscripts = ",".join(new_input_subs) + "->" + out_subs
+    output_node = ad.einsum(new_subscripts, *new_inputs)
+
+    if scalar == 1.:
+        return output_node
+    else:
+        return scalar * output_node
+
+
 def prune_identity_nodes(einsum_node):
     """
         reduce the number of identity nodes in the
@@ -350,6 +385,11 @@ def optimize(node):
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
+
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     dedup(node)
     return node
 
@@ -368,16 +408,35 @@ def simplify(node):
 
     linearize(node)
     all_nodes = find_topo_sort([node])
+
     with OutputInjectedMode(all_nodes):
         trees = find_sub_einsumtree(node)
         for tree in trees:
             out_node, in_nodes = tree
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
+            new_z = prune_scalar_nodes(new_z)
             replace_node(out_node, new_z)
+
     node = declone(node)
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
+    # if addition on two same node, change it into a mul node.
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.AddNode) and (
+                    node.inputs[0].name == node.inputs[1].name):
+                new_node = 2 * node.inputs[0]
+                replace_node(node, new_node)
+
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     return node
