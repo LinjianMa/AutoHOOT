@@ -26,6 +26,4 @@ def tree_eq(out, new_out, input_nodes, tol=1e-6):
 
     executor = ad.Executor([new_out])
     new_out_val, = executor.run(feed_dict=feed_dict)
-    print(out_val)
-    print(new_out_val)
     return float_eq(out_val, new_out_val, tol)
