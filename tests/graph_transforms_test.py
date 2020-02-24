@@ -4,8 +4,7 @@ from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, r
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
-BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_einsum_multiuse():

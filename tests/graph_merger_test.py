@@ -6,8 +6,7 @@ from utils import find_topo_sort
 from utils import replace_node, OutputInjectedMode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
-BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 ###############################################################################
