@@ -37,10 +37,6 @@ def declone(o_node):
     if isinstance(o_node, ad.CloneNode):
         assert len(o_node.inputs) == 1
         return declone(o_node.inputs[0])
-    if isinstance(o_node, ad.IdentityNode):
-        # unify the names of identity nodes
-        o_node.name = f"T.identity({o_node.shape[0]})"
-        return o_node
 
     new_inputs = []
     for i_node in o_node.inputs:
