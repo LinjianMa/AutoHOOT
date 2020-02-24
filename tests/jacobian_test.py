@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_add_jacobian():
@@ -231,8 +231,8 @@ def test_mul_jacobian():
         jacobian_x1, jacobian_x2 = ad.jacobians(y, [x1, x2])
         executor = ad.Executor([y, jacobian_x1, jacobian_x2])
 
-        x1_val = T.tensor([[1, 2], [3, 4]])
-        x2_val = T.tensor([[5, 6], [7, 8]])
+        x1_val = T.tensor([[1., 2.], [3., 4.]])
+        x2_val = T.tensor([[5., 6.], [7., 8.]])
         y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
             x1: x1_val,
             x2: x2_val
@@ -292,7 +292,7 @@ def test_mul_jacobian_one_scalar():
             executor = ad.Executor([y, jacobian_x1, jacobian_x2])
 
             x1_val = T.tensor(2.)
-            x2_val = T.tensor([[5, 6], [7, 8]])
+            x2_val = T.tensor([[5., 6.], [7., 8.]])
             y_val, jacobian_x1_val, jacobian_x2_val = executor.run(feed_dict={
                 x1: x1_val,
                 x2: x2_val
@@ -411,7 +411,7 @@ def test_hessian_quadratic():
         hessian = ad.hessian(y, [x])
         executor = ad.Executor([hessian[0][0]])
 
-        x_val = T.random(3)
+        x_val = T.random([3])
         H_val = T.random((3, 3))
         hessian_val, = executor.run(feed_dict={x: x_val, H: H_val})
 

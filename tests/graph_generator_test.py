@@ -4,7 +4,7 @@ from graph_ops.graph_generator import generate_optimal_tree, split_einsum
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_einsum_gen():

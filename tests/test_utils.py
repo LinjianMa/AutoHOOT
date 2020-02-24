@@ -8,15 +8,15 @@ def gen_dict(input_nodes):
     """
     feed_dict = {}
     for i_node in input_nodes:
-        feed_dict[i_node] = T.tensor(np.asarray(np.random.rand(*i_node.shape)))
+        feed_dict[i_node] = T.random(i_node.shape)
     return feed_dict
 
 
-def float_eq(A, B, tol=1e-8):
+def float_eq(A, B, tol=1e-6):
     return (abs(T.to_numpy(A) - T.to_numpy(B)) < tol).all()
 
 
-def tree_eq(out, new_out, input_nodes, tol=1e-8):
+def tree_eq(out, new_out, input_nodes, tol=1e-6):
     """Compares whether two output (based on the same set of inputs are equal.
     """
     feed_dict = gen_dict(input_nodes)
