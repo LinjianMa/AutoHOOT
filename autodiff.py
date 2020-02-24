@@ -178,7 +178,6 @@ class ConstantNode(Node):
 
 
 class ScalarNode(ConstantNode):
-    suffix_getter = IntGetter()
 
     @staticmethod
     def create(*args, **kwargs):
@@ -186,7 +185,6 @@ class ScalarNode(ConstantNode):
 
     def __init__(self, value):
         name = f"{value}"
-        name += f"_{ScalarNode.suffix_getter.getint()}"
         self.value = value
         super().__init__(name, [])
 
@@ -199,7 +197,6 @@ class ScalarNode(ConstantNode):
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
-    suffix_getter = IntGetter()
 
     @staticmethod
     def create(*args, **kwargs):
@@ -207,7 +204,6 @@ class IdentityNode(ConstantNode):
 
     def __init__(self, size):
         name = f"T.identity({size})"
-        name += f"_{IdentityNode.suffix_getter.getint()}"
         super().__init__(name, [size, size])
 
     def compute(self):
@@ -219,7 +215,6 @@ class IdentityNode(ConstantNode):
 
 class OnesNode(ConstantNode):
     """Op that represents a constant T.ones."""
-    suffix_getter = IntGetter()
 
     @staticmethod
     def create(*args, **kwargs):
@@ -227,7 +222,6 @@ class OnesNode(ConstantNode):
 
     def __init__(self, shape):
         name = f"T.ones({shape})"
-        name += f"_{OnesNode.suffix_getter.getint()}"
         super().__init__(name, shape)
 
     def compute(self):

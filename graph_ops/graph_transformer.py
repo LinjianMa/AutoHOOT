@@ -17,7 +17,7 @@ from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
-from utils import replace_node, update_node_name
+from utils import replace_node
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -387,7 +387,10 @@ def optimize(node):
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
 
-    update_node_name(node)
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     dedup(node)
     return node
 
@@ -421,8 +424,8 @@ def simplify(node):
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
-    # update node name, otherwise some nodes' names are not updated.
-    update_node_name(node)
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
 
     # if addition on two same node, change it into a mul node.
     all_nodes = find_topo_sort([node])
@@ -433,5 +436,8 @@ def simplify(node):
                 new_node = 2 * node.inputs[0]
                 replace_node(node, new_node)
 
-    update_node_name(node)
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     return node

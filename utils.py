@@ -223,22 +223,6 @@ def replace_node(prev, new):
             [tmp if tmp.name != prev.name else new for tmp in n_o.inputs])
 
 
-def update_node_name(output_node):
-    """
-    Update the node name based on its inputs.
-    Args:
-        o_node: An output node. Inplace update
-    """
-
-    if isinstance(output_node, ad.VariableNode) or isinstance(
-            output_node, ad.ConstantNode):
-        return
-
-    for input_node in output_node.inputs:
-        update_node_name(input_node)
-    output_node.set_inputs(output_node.inputs)
-
-
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
     The input_node_list are used to stop. If ever met a input node, stop probing the graph.
