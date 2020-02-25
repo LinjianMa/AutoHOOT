@@ -52,7 +52,7 @@ def inv_disjoint_sets(p_einsum_node, p_in_nodes):
     return uf.disjoint_set()
 
 
-def optimize_inverse(inv_node):
+def split_inv_einsum(inv_node):
     """
     Optimize the inverse of an einsum expression, such that
     inverse is operated on several smaller tensors.
@@ -74,29 +74,6 @@ def optimize_inverse(inv_node):
         inputs = [p_node.node for p_node in p_inputs]
         new_einsum = ad.einsum(new_subscripts, *inputs)
         return new_einsum
-
-    assert isinstance(inv_node, ad.TensorInverseNode)
-    # Note: currently, the optimization algorithm only works when
-    # 1. the matrix row and column has same number of dimension,
-    # 2. the matrix is square,
-    # 3. each corresponding dimension in row and column has the same size.
-    if inv_node.input_indices_length * 2 != len(inv_node.shape):
-        logger.info(f"Dimension length doesn't agree, can't optimize inverse")
-        return inv_node
-    matrix_dim = int(len(inv_node.shape) / 2)
-
-    assert np.prod(inv_node.shape[:matrix_dim]) == np.prod(
-        inv_node.shape[matrix_dim:])
-
-    shape_diff_list = [
-        inv_node.shape[i] - inv_node.shape[i + matrix_dim]
-        for i in range(matrix_dim)
-    ]
-    if any(shape_diff != 0 for shape_diff in shape_diff_list):
-        logger.info(
-            f"Each corresponding dimension in row and column doesn't have the same size, can't optimize inverse"
-        )
-        return inv_node
 
     einsum_node = inv_node.inputs[0]
     assert isinstance(einsum_node, ad.EinsumNode)
@@ -127,10 +104,71 @@ def optimize_inverse(inv_node):
         out_subs = "".join(
             [char for char in p_einsum_node.subscript if char in dset])
 
-        decomp_einsum = generate_new_einsum(input_decomp_einsum, out_subs)
-        decomp_einsum.set_in_indices_length(int(len(out_subs) / 2))
-        inv_node = PseudoNode(node=ad.tensorinv(decomp_einsum),
-                              subscript=out_subs)
-        new_inputs.append(inv_node)
+        # if the einsum output is the same as input, just return the input
+        if len(input_decomp_einsum
+               ) == 1 and input_decomp_einsum[0].subscript == out_subs:
+            decomp_node = input_decomp_einsum[0].node
+        else:
+            decomp_node = generate_new_einsum(input_decomp_einsum, out_subs)
+
+        decomp_node.set_in_indices_length(int(len(out_subs) / 2))
+
+        # if the decomp_node is identity, don't need to inverse it
+        if isinstance(decomp_node, ad.IdentityNode):
+            input_node = PseudoNode(node=decomp_node, subscript=out_subs)
+        else:
+            input_node = PseudoNode(node=ad.tensorinv(decomp_node),
+                                    subscript=out_subs)
+        new_inputs.append(input_node)
 
     return generate_new_einsum(new_inputs, p_einsum_node.subscript)
+
+
+def optimize_inverse(inv_node):
+    """
+    Optimize the inverse of an einsum expression.
+
+    Parameters
+    ----------
+    node: The inverse of a fused einsum node
+
+    Returns
+    -------
+    If the input node cannot be optimized, then return the input node.
+    If it can be optimized, return the optimized node.
+
+    """
+
+    assert isinstance(inv_node, ad.TensorInverseNode)
+    # Note: currently, the optimization algorithm only works when
+    # 1. the matrix row and column has same number of dimension,
+    # 2. the matrix is square,
+    # 3. each corresponding dimension in row and column has the same size.
+    if inv_node.input_indices_length * 2 != len(inv_node.shape):
+        logger.info(f"Dimension length doesn't agree, can't optimize inverse")
+        return inv_node
+    matrix_dim = int(len(inv_node.shape) / 2)
+
+    assert np.prod(inv_node.shape[:matrix_dim]) == np.prod(
+        inv_node.shape[matrix_dim:])
+
+    shape_diff_list = [
+        inv_node.shape[i] - inv_node.shape[i + matrix_dim]
+        for i in range(matrix_dim)
+    ]
+    if any(shape_diff != 0 for shape_diff in shape_diff_list):
+        logger.info(
+            f"Each corresponding dimension in row and column doesn't have the same size, can't optimize inverse"
+        )
+        return inv_node
+
+    input_node = inv_node.inputs[0]
+
+    if isinstance(input_node, ad.EinsumNode):
+        return split_inv_einsum(inv_node)
+
+    if isinstance(input_node, ad.AddNode) and (
+            input_node.inputs[0].name == input_node.inputs[1].name):
+        return 0.5 * optimize_inverse(ad.tensorinv(input_node.inputs[0]))
+
+    return inv_node

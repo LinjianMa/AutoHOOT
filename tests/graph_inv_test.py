@@ -18,6 +18,10 @@ def test_kronecker_product_inv():
         inv = ad.tensorinv(out)
         newinv = optimize_inverse(inv)
 
+        # T.einsum('ab,cd->acbd',T.tensorinv(A, ind=1),T.tensorinv(B, ind=1))
+        for input in newinv.inputs:
+            assert isinstance(input.inputs[0], ad.VariableNode)
+
         assert isinstance(newinv, ad.EinsumNode)
         for node in newinv.inputs:
             assert isinstance(node, ad.TensorInverseNode)
@@ -35,6 +39,9 @@ def test_kronecker_product_repeated_inputs():
         out = ad.einsum("ab,cd->acbd", A, A)
         inv = ad.tensorinv(out)
         newinv = optimize_inverse(inv)
+
+        for input in newinv.inputs:
+            assert isinstance(input.inputs[0], ad.VariableNode)
 
         assert isinstance(newinv, ad.EinsumNode)
         for node in newinv.inputs:
@@ -131,3 +138,21 @@ def test_kronecker_product_non_even():
     newinv = optimize_inverse(inv)
 
     assert inv is newinv
+
+
+def test_kronecker_product_inv_w_identity():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,cd->acbd", A, ad.identity(3))
+        inv = ad.tensorinv(out)
+        # T.einsum('ab,cd->acbd',T.tensorinv(A, ind=1),T.identity(3))
+        newinv = optimize_inverse(inv)
+
+        assert isinstance(newinv, ad.EinsumNode)
+        assert isinstance(newinv.inputs[1], ad.IdentityNode)
+
+        assert tree_eq(inv, newinv, [A], tol=1e-6)

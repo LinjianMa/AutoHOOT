@@ -14,6 +14,7 @@ from collections import deque
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_inv_optimizer import optimize_inverse
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
@@ -270,8 +271,8 @@ def prune_scalar_nodes(einsum_node):
         Args:
             einsum_node: An fused einsum node.
         Return:
-            if the scalar is one, return the pruned einsum node;
-            otherwise, return the mul between the einsum node and the scalar.
+            return the pruned einsum node if the scalar is one
+            return the mul between the einsum node and the scalar otherwise.
     """
     in_subs, out_subs, _ = _parse_einsum_input(
         (einsum_node.einsum_subscripts, *einsum_node.inputs))
@@ -280,8 +281,8 @@ def prune_scalar_nodes(einsum_node):
     new_inputs, new_input_subs, scalars = [], [], []
 
     for i in range(len(in_subs_list)):
-        if in_subs_list[i] == "" and isinstance(einsum_node.inputs[i],
-                                                ad.ScalarNode):
+        if in_subs_list[i] == "":
+            assert isinstance(einsum_node.inputs[i], ad.ScalarNode)
             scalars.append(einsum_node.inputs[i].value)
         else:
             new_inputs.append(einsum_node.inputs[i])
@@ -420,23 +421,15 @@ def simplify(node):
 
     node = declone(node)
     all_nodes = find_topo_sort([node])
-    for node in all_nodes:
-        if isinstance(node, ad.EinsumNode):
-            rewrite_einsum_expr(node)
-        if node.inputs != []:
-            node.set_inputs(node.inputs)
 
-    # if addition on two same node, change it into a mul node.
-    all_nodes = find_topo_sort([node])
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
-            if isinstance(node, ad.AddNode) and (
-                    node.inputs[0].name == node.inputs[1].name):
-                new_node = 2 * node.inputs[0]
-                replace_node(node, new_node)
-
-    for node in find_topo_sort([node]):
-        if node.inputs != []:
-            node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode):
+                new_inv_node = optimize_inverse(node)
+                replace_node(node, new_inv_node)
 
     return node
