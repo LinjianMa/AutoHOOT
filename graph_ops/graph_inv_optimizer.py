@@ -113,12 +113,8 @@ def split_inv_einsum(inv_node):
 
         decomp_node.set_in_indices_length(int(len(out_subs) / 2))
 
-        # if the decomp_node is identity, don't need to inverse it
-        if isinstance(decomp_node, ad.IdentityNode):
-            input_node = PseudoNode(node=decomp_node, subscript=out_subs)
-        else:
-            input_node = PseudoNode(node=ad.tensorinv(decomp_node),
-                                    subscript=out_subs)
+        input_node = PseudoNode(node=ad.tensorinv(decomp_node),
+                              subscript=out_subs)
         new_inputs.append(input_node)
 
     return generate_new_einsum(new_inputs, p_einsum_node.subscript)

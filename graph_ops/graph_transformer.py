@@ -422,14 +422,27 @@ def simplify(node):
     node = declone(node)
     all_nodes = find_topo_sort([node])
 
+    # optimize inverse
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
             if isinstance(node, ad.EinsumNode):
+                # To make sure the same einsum nodes have the same same,
+                # so that we can collapse the add node.
                 rewrite_einsum_expr(node)
             if node.inputs != []:
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.TensorInverseNode):
                 new_inv_node = optimize_inverse(node)
                 replace_node(node, new_inv_node)
+
+    # change inverse of identity to identity
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.TensorInverseNode) and isinstance(
+                    node.inputs[0], ad.IdentityNode):
+                replace_node(node, node.inputs[0])
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
 
     return node
