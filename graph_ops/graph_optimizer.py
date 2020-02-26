@@ -5,7 +5,7 @@ import copy
 
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode
+from utils import find_topo_sort, IntGetter, CharacterGetter
 from utils import get_leaves, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -82,17 +82,6 @@ def cross_einsum_connect(uf, output_node, literal_names):
             record[char] = litername
 
 
-def node_literals(einsum_node):
-    """
-        Get node literals.
-
-        Args:
-            einsum_node: A Pseudo Node.
-    """
-    return einsum_node.literals + sum(
-        [x.literals for x in einsum_node.node.inputs], [])
-
-
 def fuse_einsums(output_node, input_nodes):
     """
     Find and fuse einsums.
@@ -102,8 +91,6 @@ def fuse_einsums(output_node, input_nodes):
         Returns:
             A graph with fused intermediate einsum nodes. Represented by
             output_node.
-    Note: inputs of a node can have same node. But one node can't go to two 
-    output nodes
     """
     # First assume everything einsum.
     logger.info('Start fusing einsum')
@@ -113,51 +100,40 @@ def fuse_einsums(output_node, input_nodes):
     # of input nodes
     assert (isinstance(output_node, ad.EinsumNode))
 
-    pseudo_nodes = []
-
-    # # Get all the einsum nodes except the input nodes in the computation graph.
-    # # Note that the order doesn't matter!
+    # Get all the einsum nodes except the input nodes in the computation graph.
+    # Note that the order doesn't matter!
     all_nodes = find_topo_sort([output_node], input_nodes)
-
-    pseudo_input_nodes = []
-    pseudo_output_node = None
+    intermediate_nodes = list(set(all_nodes) - set(input_nodes))
+    einsum_nodes = list(
+        filter(lambda x: isinstance(x, ad.EinsumNode), intermediate_nodes))
 
     # We first treat each literal as a different character, and then union.
     # Create a map
     for node in all_nodes:
         node.literals = [node.name + str(i) for i in range(len(node.shape))]
-        pnode = PseudoNode(node=node, literals=node.literals)
-        pseudo_nodes.append(pnode)
-        if node in input_nodes:
-            pseudo_input_nodes.append(pnode)
-        if node == output_node:
-            pseudo_output_node = pnode
 
-    intermediate_nodes = list(set(pseudo_nodes) - set(pseudo_input_nodes))
-
-    einsum_pseudo_nodes = list(
-        filter(lambda x: isinstance(x.node, ad.EinsumNode), pseudo_nodes))
-
-    literal_names = sum([node.literals for node in pseudo_nodes], [])
+    literal_names = []
+    for node in all_nodes:
+        literal_names += node.literals
 
     # For any literal that are the same, get their pos and connect.
     uf = UF(literal_names)
-    for node in einsum_pseudo_nodes:
-        all_literals = node_literals(node)
-        cross_einsum_connect(uf, node.node, all_literals)
+    for node in einsum_nodes:
+        cross_einsum_connect(
+            uf, node,
+            node.literals + sum([x.literals for x in node.inputs], []))
 
     uf.assign()
     # Assign literals
-    for node in pseudo_nodes:
-        node.generate_subscript(uf)
+    for node in [output_node, *input_nodes]:
+        node.subscripts = "".join(
+            [uf.rootval(literal_name) for literal_name in node.literals])
 
-    new_input_subs = [node.subscript for node in pseudo_input_nodes]
-    new_subscripts = ",".join(
-        new_input_subs) + "->" + pseudo_output_node.subscript
+    new_input_subs = [node.subscripts for node in input_nodes]
+    new_subscripts = ",".join(new_input_subs) + "->" + output_node.subscripts
     logger.info(f"Generated new subscript: {new_subscripts}")
     ##########################################
-    output_node = ad.einsum(new_subscripts,
-                            *[node.node for node in pseudo_input_nodes])
+    output_node = ad.einsum(new_subscripts, *input_nodes)
 
     return output_node
 
