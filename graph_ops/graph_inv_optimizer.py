@@ -104,17 +104,12 @@ def split_inv_einsum(inv_node):
         out_subs = "".join(
             [char for char in p_einsum_node.subscript if char in dset])
 
-        # if the einsum output is the same as input, just return the input
-        if len(input_decomp_einsum
-               ) == 1 and input_decomp_einsum[0].subscript == out_subs:
-            decomp_node = input_decomp_einsum[0].node
-        else:
-            decomp_node = generate_new_einsum(input_decomp_einsum, out_subs)
+        decomp_node = generate_new_einsum(input_decomp_einsum, out_subs)
 
         decomp_node.set_in_indices_length(int(len(out_subs) / 2))
 
         input_node = PseudoNode(node=ad.tensorinv(decomp_node),
-                              subscript=out_subs)
+                                subscript=out_subs)
         new_inputs.append(input_node)
 
     return generate_new_einsum(new_inputs, p_einsum_node.subscript)

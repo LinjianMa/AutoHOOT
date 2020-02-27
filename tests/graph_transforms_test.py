@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes
+from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -453,21 +453,6 @@ def test_prune_identity():
         assert tree_eq(out, out_expect, [a1, a2])
 
 
-def test_prune_scalar_nodes():
-    for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
-
-        a1 = ad.Variable(name="a1", shape=[3, 3])
-        a2 = ad.Variable(name="a2", shape=[3, 3])
-        s = ad.scalar(3.)
-
-        out = ad.einsum("ab,,ab->ab", a1, s, a2)
-        out_prune = prune_scalar_nodes(out)
-        assert isinstance(out_prune, ad.MulByConstNode)
-
-        assert tree_eq(out, out_prune, [a1, a2])
-
-
 def test_simplify_inv_w_identity():
 
     for datatype in BACKEND_TYPES:
@@ -477,9 +462,25 @@ def test_simplify_inv_w_identity():
 
         out = ad.einsum("ab,cd->acbd", A, ad.tensorinv(ad.identity(3)))
         newout = simplify(out)
-        print(newout)
 
         assert isinstance(newout, ad.EinsumNode)
         assert isinstance(newout.inputs[1], ad.IdentityNode)
+
+        assert tree_eq(out, newout, [A], tol=1e-6)
+
+
+def test_simplify_inv_w_redundent_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,cd->abcd", A, ad.tensorinv(ad.einsum("ab->ab", A)))
+        newout = simplify(out)
+
+        inv_node = newout.inputs[1]
+
+        assert isinstance(inv_node.inputs[0], ad.VariableNode)
 
         assert tree_eq(out, newout, [A], tol=1e-6)

@@ -265,40 +265,6 @@ def rewrite_einsum_expr(einsum_node):
     return uf
 
 
-def prune_scalar_nodes(einsum_node):
-    """
-        Remove the scalar input nodes of a einsum_node.
-        Args:
-            einsum_node: An fused einsum node.
-        Return:
-            return the pruned einsum node if the scalar is one
-            return the mul between the einsum node and the scalar otherwise.
-    """
-    in_subs, out_subs, _ = _parse_einsum_input(
-        (einsum_node.einsum_subscripts, *einsum_node.inputs))
-    in_subs_list = in_subs.split(',')
-
-    new_inputs, new_input_subs, scalars = [], [], []
-
-    for i in range(len(in_subs_list)):
-        if in_subs_list[i] == "":
-            assert isinstance(einsum_node.inputs[i], ad.ScalarNode)
-            scalars.append(einsum_node.inputs[i].value)
-        else:
-            new_inputs.append(einsum_node.inputs[i])
-            new_input_subs.append(in_subs_list[i])
-
-    scalar = np.prod(scalars)
-
-    new_subscripts = ",".join(new_input_subs) + "->" + out_subs
-    output_node = ad.einsum(new_subscripts, *new_inputs)
-
-    if scalar == 1.:
-        return output_node
-    else:
-        return scalar * output_node
-
-
 def prune_identity_nodes(einsum_node):
     """
         reduce the number of identity nodes in the
@@ -416,7 +382,6 @@ def simplify(node):
             out_node, in_nodes = tree
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
-            new_z = prune_scalar_nodes(new_z)
             replace_node(out_node, new_z)
 
     node = declone(node)
@@ -435,14 +400,29 @@ def simplify(node):
                 new_inv_node = optimize_inverse(node)
                 replace_node(node, new_inv_node)
 
+    # if the inverse an einsum whose output is the same as input, just inverse its input
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode) and isinstance(
+                    node.inputs[0], ad.EinsumNode):
+                einsum_node = node.inputs[0]
+                in_subs, out_subs, _ = _parse_einsum_input(
+                    (einsum_node.einsum_subscripts, *einsum_node.inputs))
+                in_subs_list = in_subs.split(',')
+                if len(in_subs_list) == 1 and in_subs_list[0] == out_subs:
+                    replace_node(node, ad.tensorinv(einsum_node.inputs[0]))
+
     # change inverse of identity to identity
     all_nodes = find_topo_sort([node])
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
             if isinstance(node, ad.TensorInverseNode) and isinstance(
                     node.inputs[0], ad.IdentityNode):
                 replace_node(node, node.inputs[0])
-            if node.inputs != []:
-                node.set_inputs(node.inputs)
 
     return node
