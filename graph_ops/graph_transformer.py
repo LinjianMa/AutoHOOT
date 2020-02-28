@@ -8,11 +8,13 @@
 import logging
 
 import copy
+import numpy as np
 from collections import deque
 
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_inv_optimizer import optimize_inverse
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
@@ -350,6 +352,11 @@ def optimize(node):
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
+
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     dedup(node)
     return node
 
@@ -368,6 +375,7 @@ def simplify(node):
 
     linearize(node)
     all_nodes = find_topo_sort([node])
+
     with OutputInjectedMode(all_nodes):
         trees = find_sub_einsumtree(node)
         for tree in trees:
@@ -375,9 +383,46 @@ def simplify(node):
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
             replace_node(out_node, new_z)
+
     node = declone(node)
     all_nodes = find_topo_sort([node])
-    for node in all_nodes:
-        if isinstance(node, ad.EinsumNode):
-            rewrite_einsum_expr(node)
+
+    # optimize inverse
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                # To make sure the same einsum nodes have the same same,
+                # so that we can collapse the add node.
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode):
+                new_inv_node = optimize_inverse(node)
+                replace_node(node, new_inv_node)
+
+    # if the inverse an einsum whose output is the same as input, just inverse its input
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode) and isinstance(
+                    node.inputs[0], ad.EinsumNode):
+                einsum_node = node.inputs[0]
+                in_subs, out_subs, _ = _parse_einsum_input(
+                    (einsum_node.einsum_subscripts, *einsum_node.inputs))
+                in_subs_list = in_subs.split(',')
+                if len(in_subs_list) == 1 and in_subs_list[0] == out_subs:
+                    replace_node(node, ad.tensorinv(einsum_node.inputs[0]))
+
+    # change inverse of identity to identity
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode) and isinstance(
+                    node.inputs[0], ad.IdentityNode):
+                replace_node(node, node.inputs[0])
+
     return node

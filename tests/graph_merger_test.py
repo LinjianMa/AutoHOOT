@@ -139,6 +139,20 @@ def test_einsum_fuse_w_identity():
         assert tree_eq(out, new_out, [a])
 
 
+def test_einsum_fuse_only_identity():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        es_identity = ad.einsum('ik,kj->ij', ad.identity(3), ad.identity(3))
+        out = ad.einsum('ai,ij->aj', ad.identity(3), es_identity)
+
+        tree, = find_sub_einsumtree(out)
+        out, ins = tree
+        new_out = fuse_einsums(out, ins)
+        assert tree_eq(out, new_out, [])
+
+
 def test_einsum_multiuse():
     """
         Test manual fuse.

@@ -124,8 +124,8 @@ def fuse_einsums(output_node, input_nodes):
 
     # We first treat each literal as a different character, and then union.
     # Create a map
-    for node in all_nodes:
-        node.literals = [node.name + str(i) for i in range(len(node.shape))]
+    for k, node in enumerate(all_nodes):
+        node.literals = [f"{node.name}-{k}-{i}" for i in range(len(node.shape))]
         pnode = PseudoNode(node=node, literals=node.literals)
         pseudo_nodes.append(pnode)
         if node in input_nodes:
