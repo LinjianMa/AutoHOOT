@@ -2,7 +2,7 @@ import autodiff as ad
 import backend as T
 from source import SourceToSource
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_s2s_hvp():
@@ -46,15 +46,15 @@ def test_s2s_jtjvp():
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
         v = ad.Variable(name="v", shape=[2])
-        y = A @ x
+        y = ad.einsum('ij, j->i', A, x)
 
         jtjvp_x, = ad.jtjvps(y, [x], [v])
 
         x_val = T.tensor([1., 2.])
-        A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
-        v_val = T.tensor([3, 4])
+        A_val = T.tensor([[1., 2.], [3., 4.], [5., 6.]])
+        v_val = T.tensor([3., 4.])
 
-        expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
+        expected_jtjvp_x_val = T.einsum('ji,jk,k->i', A_val, A_val, v_val)
 
         StS = SourceToSource()
         StS.forward([jtjvp_x],

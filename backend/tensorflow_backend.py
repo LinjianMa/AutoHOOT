@@ -76,6 +76,11 @@ class TensorflowBackend(Backend):
         invtensor = tf.linalg.inv(tensor)
         return tf.reshape(invtensor, oldshape)
 
+    @staticmethod
+    def svd(matrix):
+        s, u, v = tf.linalg.svd(matrix)
+        return u, s, v
+
     def kr(self, matrices, weights=None, mask=None):
         raise NotImplementedError
 

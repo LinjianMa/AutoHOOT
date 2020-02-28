@@ -3,7 +3,7 @@ import backend as T
 from tensors.synthetic_tensors import init_rand_tucker
 from examples.tucker import TuckerGraph, tucker_als
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 dim, size, rank = 3, 5, 3
 
 
@@ -34,7 +34,8 @@ def test_tucker_als():
         input_val = init_rand_tucker(dim, size, rank)
         A_val_list, _, X_val = input_val
 
-        A_val_list_ad, core_val_ad, _ = tucker_als(dim, size, rank, 1, input_val)
+        A_val_list_ad, core_val_ad, _ = tucker_als(dim, size, rank, 1,
+                                                   input_val)
 
         A1_val, A2_val, A3_val = A_val_list
 
@@ -57,7 +58,7 @@ def test_tucker_als():
 
         core_val = T.einsum("abc,ak,bl,cm->klm", X_val, A1_val, A2_val, A3_val)
 
-        assert T.norm(A_val_list_ad[0] - A1_val) < 1e-8
-        assert T.norm(A_val_list_ad[1] - A2_val) < 1e-8
-        assert T.norm(A_val_list_ad[2] - A3_val) < 1e-8
-        assert T.norm(core_val_ad - core_val) < 1e-8
+        assert T.norm(A_val_list_ad[0] - A1_val) < 1e-4
+        assert T.norm(A_val_list_ad[1] - A2_val) < 1e-4
+        assert T.norm(A_val_list_ad[2] - A3_val) < 1e-4
+        assert T.norm(core_val_ad - core_val) < 1e-4
