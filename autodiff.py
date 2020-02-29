@@ -192,7 +192,7 @@ class ScalarNode(ConstantNode):
         return T.tensor(self.value)
 
     def s2s_expr(self, inputs):
-        return f"{self.value}"
+        return f"T.tensor({self.value})"
 
 
 class IdentityNode(ConstantNode):

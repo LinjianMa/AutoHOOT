@@ -11,12 +11,29 @@ class TensorflowBackend(Backend):
         return {'dtype': tensor.dtype}
 
     @staticmethod
-    def tensor(data, dtype=None):
+    def tensor(data, dtype=tf.float64):
         return tf.constant(data, dtype=dtype)
+
+    @staticmethod
+    def random(shape, dtype=tf.float64):
+        return tf.random.uniform(shape, dtype=dtype)
+
+    @staticmethod
+    def identity(length, dtype=tf.float64):
+        return tf.eye(length, dtype=dtype)
 
     @staticmethod
     def is_tensor(tensor):
         return isinstance(tensor, tf.Tensor)
+
+    @staticmethod
+    def ones(shape, dtype=tf.float64):
+        return tf.ones(shape, dtype)
+
+    @staticmethod
+    def svd(matrix):
+        s, u, v = tf.linalg.svd(matrix)
+        return u, s, v
 
     @staticmethod
     def to_numpy(tensor):
@@ -81,7 +98,7 @@ class TensorflowBackend(Backend):
 
 
 for name in [
-        'reshape', 'where', 'transpose', 'ones', 'ones_like', 'zeros',
+        'reshape', 'where', 'transpose', 'ones_like', 'zeros',
         'zeros_like', 'eye', 'sign', 'abs', 'sqrt', 'argmin', 'argmax', 'stack'
 ]:
     TensorflowBackend.register_method(name, getattr(tf, name))
@@ -94,8 +111,6 @@ _FUN_NAMES = [
     (tf.reduce_prod, 'prod'),
     (tf.math.pow, 'power'),
     (tf.identity, 'copy'),
-    (tf.eye, 'identity'),
-    (tf.random.uniform, 'random'),
     (tf.random.set_seed, 'seed'),
 ]
 for source_fun, target_fun_name in _FUN_NAMES:

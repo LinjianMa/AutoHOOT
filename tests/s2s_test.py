@@ -2,27 +2,27 @@ import autodiff as ad
 import backend as T
 from source import SourceToSource
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_s2s_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
-        x = ad.Variable(name="x", shape=[3, 1])
+        x = ad.Variable(name="x", shape=[3])
         H = ad.Variable(name="H", shape=[3, 3])
-        v = ad.Variable(name="v", shape=[3, 1])
-        y = ad.sum(ad.transpose(x) @ H @ x)
+        v = ad.Variable(name="v", shape=[3])
+        y = ad.einsum("a,ab,b->", x, H, x)
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
 
-        x_val = T.tensor([[1.], [2.], [3]])  # 3x1
-        v_val = T.tensor([[1.], [2.], [3]])  # 3x1
+        x_val = T.tensor([1., 2., 3.])  # 3
+        v_val = T.tensor([1., 2., 3.])  # 3
         H_val = T.tensor([[2., 0., 0.], [0., 2., 0.], [0., 0., 2.]])  # 3x3
 
-        expected_yval = T.sum(T.transpose(x_val) @ H_val @ x_val)
-        expected_grad_x_val = 2 * H_val @ x_val
-        expected_hv_val = T.tensor([[4.], [8.], [12.]])
+        expected_yval = T.einsum("a,ab,b->", x_val, H_val, x_val)
+        expected_grad_x_val = 2 * T.einsum("ab,b->a", H_val, x_val)
+        expected_hv_val = T.tensor([4., 8., 12.])
 
         StS = SourceToSource()
         StS.forward([y], file=open("example_forward.py", "w"))
@@ -46,7 +46,7 @@ def test_s2s_jtjvp():
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
         v = ad.Variable(name="v", shape=[2])
-        y = A @ x
+        y = ad.einsum("ab,b->a", A, x)
 
         jtjvp_x, = ad.jtjvps(y, [x], [v])
 
@@ -54,7 +54,7 @@ def test_s2s_jtjvp():
         A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
         v_val = T.tensor([3, 4])
 
-        expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
+        expected_jtjvp_x_val = T.einsum("ba,bc,c->a", A_val, A_val, v_val)
 
         StS = SourceToSource()
         StS.forward([jtjvp_x],

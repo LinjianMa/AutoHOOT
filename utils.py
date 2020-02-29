@@ -275,10 +275,9 @@ def group_minus(xs, ys):
     return [x - y for (x, y) in zip(xs, ys)]
 
 
-def inplace_group_add(xs, ys):
+def group_add(xs, ys):
     assert len(xs) == len(ys)
-    for x, y in zip(xs, ys):
-        x += y
+    return [x + y for x, y in zip(xs, ys)]
 
 
 def group_negative(xs):
@@ -316,8 +315,8 @@ def conjugate_gradient(hess_fn, grads, error_tol, max_iters=250, x0=None):
     while True:
         Ap = hess_fn(p)
         alpha = r_k_norm / group_dot(p, Ap)
-        inplace_group_add(x0, group_product(alpha, p))
-        inplace_group_add(r, group_product(alpha, Ap))
+        x0 = group_add(x0, group_product(alpha, p))
+        r = group_add(r, group_product(alpha, Ap))
         r_kplus1_norm = group_dot(r, r)
         beta = r_kplus1_norm / r_k_norm
         r_k_norm = r_kplus1_norm
@@ -416,7 +415,7 @@ class cp_nls_optimizer():
             mv = self.fast_hessian_contract(p, regularization, hvps)
             mul = group_dot(r, z)
             alpha = mul / group_dot(p, mv)
-            inplace_group_add(x, group_product(alpha, p))
+            x = group_add(x, group_product(alpha, p))
             r_new = group_minus(r, group_product(alpha, mv))
 
             if group_vecnorm(r_new) < tol:
