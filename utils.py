@@ -415,7 +415,7 @@ class cp_nls_optimizer():
             mv = self.fast_hessian_contract(p, regularization, hvps)
             mul = group_dot(r, z)
             alpha = mul / group_dot(p, mv)
-            inplace_group_add(x, group_product(alpha, p))
+            x = group_add(x, group_product(alpha, p))
             r_new = group_minus(r, group_product(alpha, mv))
 
             if group_vecnorm(r_new) < tol:
