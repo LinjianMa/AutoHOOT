@@ -3,7 +3,7 @@ import backend as T
 from tensors.synthetic_tensors import init_rand_tucker
 from examples.tucker import TuckerGraph, tucker_als
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 dim, size, rank = 3, 5, 3
 
 

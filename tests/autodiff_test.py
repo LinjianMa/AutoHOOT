@@ -626,7 +626,7 @@ def test_trace_einsum():
         trace_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
         expected_trace_val = T.einsum('ii->', x_val)
-        expected_grad_x_val = T.eye(2)
+        expected_grad_x_val = T.identity(2)
 
         assert T.array_equal(trace_val, expected_trace_val)
         assert T.array_equal(grad_x_val, expected_grad_x_val)

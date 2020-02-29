@@ -6,7 +6,7 @@ from tensors.synthetic_tensors import init_rand_3d
 from examples.cpd import cpd_graph, cpd_als
 from utils import find_topo_sort
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 size, rank = 10, 5
 
 

@@ -3,7 +3,7 @@ import backend as T
 from graph_ops.graph_inv_optimizer import optimize_inverse
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_kronecker_product_inv():
