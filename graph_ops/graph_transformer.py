@@ -224,8 +224,10 @@ def rewrite_einsum_expr(einsum_node):
     # Note that the order matters!
 
     pseudo_nodes = []
+    # Here einsum node has a temporary name so that the character assignment
+    # order is consistent.
     einsum_node_literals = [
-        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
+        f'_temp_einsum-{i}' for i in range(len(einsum_node.shape))
     ]
     pseudo_nodes.append(
         PseudoNode(node=einsum_node, literals=einsum_node_literals))
@@ -247,6 +249,10 @@ def rewrite_einsum_expr(einsum_node):
     for node in pseudo_nodes:
         node.generate_subscript(uf)
 
+    # There is some trickiness when output subscript has some indices reference
+    # the same original node index (but different characters).
+    # Here we would want to give a fixed ordering for that.
+    # See test case: test_einsum_equal_repeated_transpose.
     einsum_node_subscript = pseudo_nodes[0].subscript
 
     # Remove the einsum node.
