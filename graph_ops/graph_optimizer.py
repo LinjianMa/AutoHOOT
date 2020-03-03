@@ -27,10 +27,6 @@ class UF(UFBase):
             Should be only called once.
         """
         assert len(self.roots) == 0
-        # for name in (self.parent_map.keys()):
-        #     rootname = self.root(name)
-        #     if rootname not in self.roots:
-        #         self.roots[rootname] = self.cg.getchar()
         dsets = {}
         for value in self.parent_map.keys():
             rootval = self.root(value)
@@ -38,14 +34,13 @@ class UF(UFBase):
                 dsets[rootval].add(value)
             else:
                 dsets[rootval] = {value}
-
+        # We want to fix the character assignment order.
+        # The hash is dependent on the output dim index and connection index.
         def sort_hash(pair):
             k, dset = pair
-            # This is a hack to assign the output characters first.
-            for val in dset:
-                if '_temp_einsum' in val:
-                    return val + '+'.join(sorted(dset))
-            return '+'.join(sorted(dset))
+            # val[0] is the name, val[1] is the shape index.
+            hash_strings = [f'{val[0]}-{val[1]}' for val in dset]
+            return '+'.join(sorted(hash_strings))
 
         for k, v in sorted(list(dsets.items()), key=sort_hash):
             self.roots[k] = self.cg.getchar()

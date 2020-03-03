@@ -426,6 +426,21 @@ def test_einsum_equal_repeated_transpose():
     assert x.inputs == y.inputs
 
 
+def test_einsum_equal_repeated_transpose():
+
+    A = ad.Variable(name="A", shape=[3, 3])
+    B = ad.Variable(name="B", shape=[3, 3])
+
+    x = ad.einsum("ac,ba,bc->", A, A, B)
+    y = ad.einsum("ba,ac,bc->", A, A, B)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
 def test_einsum_equal_uf_assign_order():
 
     A = ad.Variable(name="A", shape=[3, 3])
