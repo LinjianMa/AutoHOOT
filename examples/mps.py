@@ -1,4 +1,5 @@
 import math, copy
+import attr
 import numpy as np
 import autodiff as ad
 import backend as T
@@ -10,7 +11,8 @@ from numpy.core.einsumfunc import _parse_einsum_input
 BACKEND_TYPES = ['numpy']
 
 
-def mps_graph(num, ranks, size=2):
+@attr.s()
+class MpsGraph(object):
     """
     Produce a graph representing the MPS:
 
@@ -24,58 +26,68 @@ def mps_graph(num, ranks, size=2):
     The left one is arranged as right leg, downward leg, and
     the right one is arranged as left leg, downward leg.
 
-    Parameters
-    ----------
-    num: Number of sites in the MPS
-    size: the size of uncontracted dimensions
-    ranks: a list of the size of contracted dimensions.
-        The length of the list should be num-1.
-
-    Returns
+    Variables: 
     -------
     1. a einsum node representing the MPS.
     2. The input nodes of the einsum node.
+    
     """
-    assert len(ranks) == num - 1
+    output = attr.ib()
+    inputs = attr.ib(default=[])
 
-    A_left = ad.Variable(name='A0', shape=[ranks[0], size])
-    A_right = ad.Variable(name=f'A{num-1}', shape=[ranks[-1], size])
+    @classmethod
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPS
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
 
-    A_middle_list = []
-    for i in range(1, num - 1):
-        node = ad.Variable(name=f'A{i}', shape=[ranks[i - 1], ranks[i], size])
-        A_middle_list.append(node)
+        assert len(ranks) == num - 1
 
-    untracted_subs_list = []
-    cg = CharacterGetter()
+        A_left = ad.Variable(name='A0', shape=[ranks[0], size])
+        A_right = ad.Variable(name=f'A{num-1}', shape=[ranks[-1], size])
 
-    # set subscripts for all the node
-    A_left.subscripts = f"{cg.getchar()}{cg.getchar()}"
-    prev_char = A_left.subscripts[0]
-    untracted_subs_list.append(A_left.subscripts[1])
+        A_middle_list = []
+        for i in range(1, num - 1):
+            node = ad.Variable(name=f'A{i}',
+                               shape=[ranks[i - 1], ranks[i], size])
+            A_middle_list.append(node)
 
-    for node in A_middle_list:
-        node.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}"
-        prev_char = node.subscripts[1]
-        untracted_subs_list.append(node.subscripts[2])
+        untracted_subs_list = []
+        cg = CharacterGetter()
 
-    A_right.subscripts = f"{prev_char}{cg.getchar()}"
-    untracted_subs_list.append(A_right.subscripts[1])
+        # set subscripts for all the node
+        A_left.subscripts = f"{cg.getchar()}{cg.getchar()}"
+        prev_char = A_left.subscripts[0]
+        untracted_subs_list.append(A_left.subscripts[1])
 
-    # produce output
-    A_list = [A_left] + A_middle_list + [A_right]
-    out_subs = "".join(untracted_subs_list)
-    input_subs = ','.join([node.subscripts for node in A_list])
-    einsum_subscripts = input_subs + '->' + out_subs
+        for node in A_middle_list:
+            node.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}"
+            prev_char = node.subscripts[1]
+            untracted_subs_list.append(node.subscripts[2])
 
-    # clear all the subscripts
-    for node in A_list:
-        node.subscripts = None
+        A_right.subscripts = f"{prev_char}{cg.getchar()}"
+        untracted_subs_list.append(A_right.subscripts[1])
 
-    return ad.einsum(einsum_subscripts, *A_list), A_list
+        # produce output
+        A_list = [A_left] + A_middle_list + [A_right]
+        out_subs = "".join(untracted_subs_list)
+        input_subs = ','.join([node.subscripts for node in A_list])
+        einsum_subscripts = input_subs + '->' + out_subs
+
+        # clear all the subscripts
+        for node in A_list:
+            node.subscripts = None
+
+        return cls(ad.einsum(einsum_subscripts, *A_list), A_list)
 
 
-def mpo_graph(num, ranks, size=2):
+@attr.s()
+class MpoGraph(object):
     """
     Produce a graph representing the MPO:
 
@@ -90,63 +102,71 @@ def mpo_graph(num, ranks, size=2):
     The left one is arranged as right leg, upward leg, downward leg and
     the right one is arranged as left leg, upward leg, downward leg.
 
-    Parameters
-    ----------
-    num: Number of sites in the MPO
-    size: the size of uncontracted dimensions
-    ranks: a list of the size of contracted dimensions.
-        The length of the list should be num-1.
-
     Returns
     -------
     1. a einsum node representing the MPO.
     2. The input nodes of the einsum node.
     """
-    assert len(ranks) == num - 1
+    output = attr.ib()
+    inputs = attr.ib(default=[])
 
-    H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
-    H_right = ad.Variable(name=f'H{num-1}', shape=[ranks[-1], size, size])
+    @classmethod
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPO
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
 
-    H_middle_list = []
-    for i in range(1, num - 1):
-        node = ad.Variable(name=f'H{i}',
-                           shape=[ranks[i - 1], ranks[i], size, size])
-        H_middle_list.append(node)
+        """
+        assert len(ranks) == num - 1
 
-    up_subs_list = []
-    down_subs_list = []
-    cg = CharacterGetter()
+        H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
+        H_right = ad.Variable(name=f'H{num-1}', shape=[ranks[-1], size, size])
 
-    # set subscripts for all the node
-    H_left.subscripts = f"{cg.getchar()}{cg.getchar()}{cg.getchar()}"
-    prev_char = H_left.subscripts[0]
-    up_subs_list.append(H_left.subscripts[1])
-    down_subs_list.append(H_left.subscripts[2])
+        H_middle_list = []
+        for i in range(1, num - 1):
+            node = ad.Variable(name=f'H{i}',
+                               shape=[ranks[i - 1], ranks[i], size, size])
+            H_middle_list.append(node)
 
-    for node in H_middle_list:
-        node.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}{cg.getchar()}"
-        prev_char = node.subscripts[1]
-        up_subs_list.append(node.subscripts[2])
-        down_subs_list.append(node.subscripts[3])
+        up_subs_list = []
+        down_subs_list = []
+        cg = CharacterGetter()
 
-    H_right.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}"
-    up_subs_list.append(H_right.subscripts[1])
-    down_subs_list.append(H_right.subscripts[2])
+        # set subscripts for all the node
+        H_left.subscripts = f"{cg.getchar()}{cg.getchar()}{cg.getchar()}"
+        prev_char = H_left.subscripts[0]
+        up_subs_list.append(H_left.subscripts[1])
+        down_subs_list.append(H_left.subscripts[2])
 
-    # produce output
-    H_list = [H_left] + H_middle_list + [H_right]
-    up_subs = "".join(up_subs_list)
-    down_subs = "".join(down_subs_list)
-    input_subs = ','.join([node.subscripts for node in H_list])
-    einsum_subscripts = input_subs + '->' + up_subs + down_subs
+        for node in H_middle_list:
+            node.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}{cg.getchar()}"
+            prev_char = node.subscripts[1]
+            up_subs_list.append(node.subscripts[2])
+            down_subs_list.append(node.subscripts[3])
 
-    # clear all the subscripts
-    for node in H_list:
-        node.subscripts = None
+        H_right.subscripts = f"{prev_char}{cg.getchar()}{cg.getchar()}"
+        up_subs_list.append(H_right.subscripts[1])
+        down_subs_list.append(H_right.subscripts[2])
 
-    return ad.einsum(einsum_subscripts, *H_list), H_list
+        # produce output
+        H_list = [H_left] + H_middle_list + [H_right]
+        up_subs = "".join(up_subs_list)
+        down_subs = "".join(down_subs_list)
+        input_subs = ','.join([node.subscripts for node in H_list])
+        einsum_subscripts = input_subs + '->' + up_subs + down_subs
+
+        # clear all the subscripts
+        for node in H_list:
+            node.subscripts = None
+
+        return cls(ad.einsum(einsum_subscripts, *H_list), H_list)
 
 
+@attr.s()
 class DmrgGraph(object):
     """
     Produce a graph representing the DMRG algorithm.
@@ -163,31 +183,39 @@ class DmrgGraph(object):
 
     Variables
     ---------
-    mpo: the einsum node representing the mpo graph
-    mpo_inputs: an array containing mpo input nodes
-    mps: the einsum node representing the mps graph
-    mps_inputs: an array containing mps input nodes
+    mpo_graph: the class represents the MpoGraph
+    mps_graph: the class represents the MpsGraph
     intermediates: an array of einsum nodes taking hessian w.r.t.
     executors: an array of executors to calculate hessians
 
     """
-    def __init__(self, num, mpo_ranks, mps_ranks, size):
-        self.mpo, self.mpo_inputs = mpo_graph(num, mpo_ranks, size)
-        self.mps, self.mps_inputs = mps_graph(num, mps_ranks, size)
+    mpo_graph = attr.ib()
+    mps_graph = attr.ib()
+    intermediates = attr.ib(default=[])
+    executors = attr.ib(default=[])
 
-        self.intermediates, self.executors = [], []
+    @classmethod
+    def create(cls, num, mpo_ranks, mps_ranks, size):
+        mpo_graph = MpoGraph.create(num, mpo_ranks, size)
+        mps_graph = MpsGraph.create(num, mps_ranks, size)
+
+        intermediates, executors = [], []
         for i in range(num - 1):
-            intermediate, hes = self._get_sub_hessian(i)
+            intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
             executor = ad.Executor([hes])
-            self.intermediates.append(intermediate)
-            self.executors.append(executor)
+            intermediates.append(intermediate)
+            executors.append(executor)
+        return cls(mpo_graph, mps_graph, intermediates, executors)
 
-    def _get_sub_hessian(self, index):
+    @classmethod
+    def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
 
         # rebuild mps graph
-        intermediate_set = {self.mps_inputs[index], self.mps_inputs[index + 1]}
-        split_input_nodes = list(set(self.mps_inputs) - intermediate_set)
-        mps = split_einsum(self.mps, split_input_nodes)
+        intermediate_set = {
+            mps_graph.inputs[index], mps_graph.inputs[index + 1]
+        }
+        split_input_nodes = list(set(mps_graph.inputs) - intermediate_set)
+        mps = split_einsum(mps_graph.output, split_input_nodes)
 
         # get the intermediate node
         intermediate, = [
@@ -196,9 +224,9 @@ class DmrgGraph(object):
 
         mps_outer_product = ad.tensordot(mps, mps, axes=[[], []])
 
-        mpo_axes = list(range(len(self.mpo.shape)))
+        mpo_axes = list(range(len(mpo_graph.output.shape)))
         objective = ad.tensordot(mps_outer_product,
-                                 self.mpo,
+                                 mpo_graph.output,
                                  axes=[mpo_axes, mpo_axes])
 
         hes = ad.hessian(objective, [intermediate])
@@ -256,23 +284,26 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     assert np.array_equal(eigvec_shape, hes_val.shape[len(eigvec_shape):])
 
     # get the eigenvector of the hessian matrix
-    hes_val_mat = hes_val.reshape(np.prod(eigvec_shape), -1)
+    hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
     eigvals, eigvecs = T.eigh(hes_val_mat)
     # index for smallest eigenvalue
-    idx = eigvals.argsort()[0]
-    eigvecs = eigvecs[:, idx].reshape(eigvec_shape)
+    # idx = eigvals.argsort()[0]
+    idx = T.argmin(eigvals)
+    eigvecs = T.reshape(eigvecs[:, idx], eigvec_shape)
 
     # svd decomposition to get updated sites
-    eigvecs_mat = T.transpose(eigvecs, left_indices + right_indices).reshape(
-        np.prod([eigvec_shape[i] for i in left_indices]), -1)
+    eigvecs_mat = T.transpose(eigvecs, left_indices + right_indices)
+    eigvecs_mat = T.reshape(eigvecs_mat,
+                            (np.prod([eigvec_shape[i]
+                                      for i in left_indices]), -1))
 
     U, s, VT = T.svd(eigvecs_mat)
     rank = min([max_mps_rank, eigvecs_mat.shape[0], eigvecs_mat.shape[1]])
     U, s, VT = U[:, :rank], s[:rank], VT[:rank, :]
     VT = T.diag(s) @ VT
 
-    U = U.reshape([eigvec_shape[i] for i in left_indices] + [rank])
-    VT = VT.reshape([rank] + [eigvec_shape[i] for i in right_indices])
+    U = T.reshape(U, [eigvec_shape[i] for i in left_indices] + [rank])
+    VT = T.reshape(VT, ([rank] + [eigvec_shape[i] for i in right_indices]))
 
     left = T.einsum(f"{left_uncontract_str}{contract_char}->{left_subs}", U)
     right = T.einsum(f"{contract_char}{right_uncontract_str}->{right_subs}",
@@ -323,10 +354,10 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
             # TODO: we rebuild the graph every time we update the mps sites.
             # The reason is that every update can change the shape of the
             # mps tensor. Can optimize this step later.
-            dg = DmrgGraph(num, mpo_ranks, mps_ranks, size)
+            dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
 
-            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
-            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+            feed_dict = dict(zip(dg.mpo_graph.inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_graph.inputs, mps_tensors)))
 
             hes_val, = dg.executors[i].run(feed_dict=feed_dict)
 
