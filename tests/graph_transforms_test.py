@@ -5,6 +5,7 @@ from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
+DISTRIBUTIVE_TYPES = [ad.AddNode, ad.SubNode]
 
 
 def test_einsum_multiuse():
@@ -160,19 +161,20 @@ def test_tree_distribution():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        c = ad.Variable(name="c", shape=[2, 3])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            c = ad.Variable(name="c", shape=[2, 3])
 
-        add_node = a + b
-        output = ad.einsum('ik,kj->ij', add_node, c)
+            add_node = dist_op(a, b)
+            output = ad.einsum('ik,kj->ij', add_node, c)
 
-        new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+            new_output = distribute_tree(output)
+            assert isinstance(new_output, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c])
+            assert tree_eq(output, new_output, [a, b, c])
 
 
 def test_tree_distribution_order():
@@ -182,17 +184,18 @@ def test_tree_distribution_order():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        c = ad.Variable(name="c", shape=[2, 3])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            c = ad.Variable(name="c", shape=[2, 3])
 
-        output = ad.einsum('ik,kj->ij', c, a + b)
-        new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+            output = ad.einsum('ik,kj->ij', c, dist_op(a, b))
+            new_output = distribute_tree(output)
+            assert isinstance(new_output, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c])
+            assert tree_eq(output, new_output, [a, b, c])
 
 
 def test_tree_distribution_w_add_output():
@@ -202,24 +205,25 @@ def test_tree_distribution_w_add_output():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 3])
-        b = ad.Variable(name="b", shape=[3, 3])
-        c = ad.Variable(name="c", shape=[3, 3])
+            a = ad.Variable(name="a", shape=[3, 3])
+            b = ad.Variable(name="b", shape=[3, 3])
+            c = ad.Variable(name="c", shape=[3, 3])
 
-        d = ad.Variable(name="d", shape=[3, 3])
-        e = ad.Variable(name="e", shape=[3, 3])
-        f = ad.Variable(name="f", shape=[3, 3])
+            d = ad.Variable(name="d", shape=[3, 3])
+            e = ad.Variable(name="e", shape=[3, 3])
+            f = ad.Variable(name="f", shape=[3, 3])
 
-        out1 = ad.einsum('ik,kj->ij', c, a + b)
-        out2 = ad.einsum('ik,kj->ij', d, e + f)
-        output = out1 + out2
-        new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
-        for input_node in new_output.inputs:
-            assert isinstance(input_node, ad.AddNode)
-        assert tree_eq(output, new_output, [a, b, c, d, e, f])
+            out1 = ad.einsum('ik,kj->ij', c, dist_op(a, b))
+            out2 = ad.einsum('ik,kj->ij', d, dist_op(e, f))
+            output = dist_op(out1, out2)
+            new_output = distribute_tree(output)
+            assert isinstance(new_output, dist_op)
+            for input_node in new_output.inputs:
+                assert isinstance(input_node, dist_op)
+            assert tree_eq(output, new_output, [a, b, c, d, e, f])
 
 
 def test_tree_distribution_four_terms():
@@ -242,28 +246,29 @@ def test_tree_distribution_four_terms():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        c = ad.Variable(name="c", shape=[2, 3])
-        d = ad.Variable(name="d", shape=[2, 3])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            c = ad.Variable(name="c", shape=[2, 3])
+            d = ad.Variable(name="d", shape=[2, 3])
 
-        add_nodeab = a + b
-        add_nodecd = c + d
-        output = ad.einsum('ik,kj->ij', add_nodeab, add_nodecd)
+            dist_nodeab = dist_op(a, b)
+            dist_nodecd = dist_op(c, d)
+            output = ad.einsum('ik,kj->ij', dist_nodeab, dist_nodecd)
 
-        # Idea:
-        # (A + B) * (C + D) = A * (C + D) + B * (C + D)
-        # Then do A * (C + D) and B * (C + D)
-        new_output = distribute_tree(output)
+            # Idea:
+            # (A + B) * (C + D) = A * (C + D) + B * (C + D)
+            # Then do A * (C + D) and B * (C + D)
+            new_output = distribute_tree(output)
 
-        assert isinstance(new_output, ad.AddNode)
-        add1, add2 = new_output.inputs
-        assert isinstance(add1, ad.AddNode)
-        assert isinstance(add2, ad.AddNode)
+            assert isinstance(new_output, dist_op)
+            add1, add2 = new_output.inputs
+            assert isinstance(add1, dist_op)
+            assert isinstance(add2, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c, d])
+            assert tree_eq(output, new_output, [a, b, c, d])
 
 
 def test_tree_distribution_mim():
@@ -286,25 +291,26 @@ def test_tree_distribution_mim():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        g = ad.Variable(name="g", shape=[2, 2])
-        c = ad.Variable(name="c", shape=[2, 3])
-        d = ad.Variable(name="d", shape=[2, 3])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            g = ad.Variable(name="g", shape=[2, 2])
+            c = ad.Variable(name="c", shape=[2, 3])
+            d = ad.Variable(name="d", shape=[2, 3])
 
-        add_nodeab = a + b
-        add_nodecd = c + d
-        output = ad.einsum('ik,kk,kj->ij', add_nodeab, g, add_nodecd)
+            add_nodeab = dist_op(a, b)
+            add_nodecd = dist_op(c, d)
+            output = ad.einsum('ik,kk,kj->ij', add_nodeab, g, add_nodecd)
 
-        new_output = distribute_tree(output)
+            new_output = distribute_tree(output)
 
-        assert isinstance(new_output, ad.AddNode)
-        for node in new_output.inputs:
-            assert isinstance(node, ad.AddNode)
+            assert isinstance(new_output, dist_op)
+            for node in new_output.inputs:
+                assert isinstance(node, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c, d, g])
+            assert tree_eq(output, new_output, [a, b, c, d, g])
 
 
 def test_tree_distribution_two_layers():
@@ -319,20 +325,21 @@ def test_tree_distribution_two_layers():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        g = ad.Variable(name="g", shape=[2, 2])
-        c = ad.Variable(name="c", shape=[2, 3])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            g = ad.Variable(name="g", shape=[2, 2])
+            c = ad.Variable(name="c", shape=[2, 3])
 
-        interm = ad.einsum('ik, kk->ik', a + b, g)
-        output = ad.einsum('ik,kj->ij', interm, c)
+            interm = ad.einsum('ik, kk->ik', dist_op(a, b), g)
+            output = ad.einsum('ik,kj->ij', interm, c)
 
-        new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+            new_output = distribute_tree(output)
+            assert isinstance(new_output, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c, g])
+            assert tree_eq(output, new_output, [a, b, c, g])
 
 
 def test_tree_distribution_ppE():
@@ -347,19 +354,20 @@ def test_tree_distribution_ppE():
     """
 
     for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
+        for dist_op in DISTRIBUTIVE_TYPES:
+            T.set_backend(datatype)
 
-        a = ad.Variable(name="a", shape=[3, 2])
-        b = ad.Variable(name="b", shape=[3, 2])
-        c = ad.Variable(name="c", shape=[3, 2])
-        g = ad.Variable(name="g", shape=[2, 2])
+            a = ad.Variable(name="a", shape=[3, 2])
+            b = ad.Variable(name="b", shape=[3, 2])
+            c = ad.Variable(name="c", shape=[3, 2])
+            g = ad.Variable(name="g", shape=[2, 2])
 
-        output = ad.einsum('ik,kk->ik', a + b + c, g)
+            output = ad.einsum('ik,kk->ik', dist_op(dist_op(a, b), c), g)
 
-        new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+            new_output = distribute_tree(output)
+            assert isinstance(new_output, dist_op)
 
-        assert tree_eq(output, new_output, [a, b, c, g])
+            assert tree_eq(output, new_output, [a, b, c, g])
 
 
 def test_copy_tree():
