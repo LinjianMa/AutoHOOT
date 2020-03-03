@@ -232,7 +232,7 @@ def rewrite_einsum_expr(einsum_node):
         PseudoNode(node=einsum_node, literals=einsum_node_literals))
 
     for k, node in enumerate(einsum_node.inputs):
-        literals = [(f'{node.name}', i) for i in range(len(node.shape))]
+        literals = [(f'{node.name}', i, k) for i in range(len(node.shape))]
         pseudo_nodes.append(PseudoNode(node=node, literals=literals))
 
     node_literals = []
