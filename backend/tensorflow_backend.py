@@ -32,7 +32,7 @@ class TensorflowBackend(Backend):
 
     @staticmethod
     def svd(matrix):
-        s, u, v = tf.linalg.svd(matrix)
+        s, u, v = tf.linalg.svd(matrix, full_matrices=True)
         return u, s, v
 
     @staticmethod
@@ -98,8 +98,8 @@ class TensorflowBackend(Backend):
 
 
 for name in [
-        'reshape', 'where', 'transpose', 'ones_like', 'zeros',
-        'zeros_like', 'eye', 'sign', 'abs', 'sqrt', 'argmin', 'argmax', 'stack'
+        'reshape', 'where', 'transpose', 'ones_like', 'zeros', 'zeros_like',
+        'eye', 'sign', 'abs', 'sqrt', 'argmin', 'argmax', 'stack', 'tensordot'
 ]:
     TensorflowBackend.register_method(name, getattr(tf, name))
 _FUN_NAMES = [
@@ -116,5 +116,5 @@ _FUN_NAMES = [
 for source_fun, target_fun_name in _FUN_NAMES:
     TensorflowBackend.register_method(target_fun_name, source_fun)
 
-for name in ['solve', 'qr', 'inv']:
+for name in ['solve', 'qr', 'inv', 'eigh', 'diag']:
     TensorflowBackend.register_method(name, getattr(tf.linalg, name))

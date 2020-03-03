@@ -285,23 +285,26 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     assert np.array_equal(eigvec_shape, hes_val.shape[len(eigvec_shape):])
 
     # get the eigenvector of the hessian matrix
-    hes_val_mat = hes_val.reshape(np.prod(eigvec_shape), -1)
+    hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
     eigvals, eigvecs = T.eigh(hes_val_mat)
     # index for smallest eigenvalue
-    idx = eigvals.argsort()[0]
-    eigvecs = eigvecs[:, idx].reshape(eigvec_shape)
+    # idx = eigvals.argsort()[0]
+    idx = T.argmin(eigvals)
+    eigvecs = T.reshape(eigvecs[:, idx], eigvec_shape)
 
     # svd decomposition to get updated sites
-    eigvecs_mat = T.transpose(eigvecs, left_indices + right_indices).reshape(
-        np.prod([eigvec_shape[i] for i in left_indices]), -1)
+    eigvecs_mat = T.transpose(eigvecs, left_indices + right_indices)
+    eigvecs_mat = T.reshape(eigvecs_mat,
+                            (np.prod([eigvec_shape[i]
+                                      for i in left_indices]), -1))
 
     U, s, VT = T.svd(eigvecs_mat)
     rank = min([max_mps_rank, eigvecs_mat.shape[0], eigvecs_mat.shape[1]])
     U, s, VT = U[:, :rank], s[:rank], VT[:rank, :]
     VT = T.diag(s) @ VT
 
-    U = U.reshape([eigvec_shape[i] for i in left_indices] + [rank])
-    VT = VT.reshape([rank] + [eigvec_shape[i] for i in right_indices])
+    U = T.reshape(U, [eigvec_shape[i] for i in left_indices] + [rank])
+    VT = T.reshape(VT, ([rank] + [eigvec_shape[i] for i in right_indices]))
 
     left = T.einsum(f"{left_uncontract_str}{contract_char}->{left_subs}", U)
     right = T.einsum(f"{contract_char}{right_uncontract_str}->{right_subs}",

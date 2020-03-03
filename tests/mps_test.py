@@ -90,7 +90,9 @@ def test_dmrg_one_sweep():
         mps_tensors = load_quimb_tensors(dmrg_quimb._k)
 
         # dmrg based on ad
-        mps_tensors, energy = dmrg(h_tensors, mps_tensors, max_mps_rank=max_mps_rank)
+        mps_tensors, energy = dmrg(h_tensors,
+                                   mps_tensors,
+                                   max_mps_rank=max_mps_rank)
 
         # dmrg based on quimb
         dmrg_quimb = dmrg_quimb.sweep_right(canonize=True)
