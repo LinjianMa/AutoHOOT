@@ -2,7 +2,7 @@ import autodiff as ad
 import backend as T
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_identity():
@@ -423,7 +423,7 @@ def test_norm():
         grad_x, = ad.gradients(z, [x])
 
         executor = ad.Executor([z, grad_x])
-        x_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
+        x_val = T.tensor([[1., 2.], [3., 4.], [5., 6.]])  # 3x2
 
         z_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
@@ -538,7 +538,7 @@ def test_inner_product():
         grad_x, = ad.gradients(x_inner, [x])
 
         executor = ad.Executor([x_inner, grad_x])
-        x_val = T.tensor([[1., 2., 3.]])  # 1x3
+        x_val = T.tensor([[3., 4.]])  # 1x2
 
         y_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
@@ -559,7 +559,7 @@ def test_inner_product_einsum():
         grad_x, = ad.gradients(x_inner, [x])
 
         executor = ad.Executor([x_inner, grad_x])
-        x_val = T.tensor([1., 2., 3.])  # 1x3
+        x_val = T.tensor([3., 4.])  # 1x2
 
         y_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
@@ -626,7 +626,7 @@ def test_trace_einsum():
         trace_val, grad_x_val = executor.run(feed_dict={x: x_val})
 
         expected_trace_val = T.einsum('ii->', x_val)
-        expected_grad_x_val = T.eye(2)
+        expected_grad_x_val = T.identity(2)
 
         assert T.array_equal(trace_val, expected_trace_val)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
@@ -638,14 +638,14 @@ def test_vjps():
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
         v = ad.Variable(name="v", shape=[3])
-        y = A @ x
+        y = ad.einsum('ab, b->a', A, x)
 
         transposed_vjp_x, = ad.transposed_vjps(y, [x], v)
 
         executor = ad.Executor([y, transposed_vjp_x])
         x_val = T.tensor([1., 2.])  # 1x3
         A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
-        v_val = T.tensor([1, 2, 3])
+        v_val = T.tensor([1., 2., 3.])
 
         y_val, transposed_vjp_x_val = executor.run(feed_dict={
             x: x_val,
@@ -653,8 +653,8 @@ def test_vjps():
             v: v_val
         })
 
-        expected_yval = A_val @ x_val
-        expected_transposed_vjp_x_val = v_val @ A_val
+        expected_yval = T.einsum('ab, b->a', A_val, x_val)
+        expected_transposed_vjp_x_val = T.einsum('b, ba->a', v_val, A_val)
 
         assert isinstance(transposed_vjp_x, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -671,7 +671,7 @@ def test_jvps():
         A2 = ad.Variable(name="A2", shape=[3, 2])
         v1 = ad.Variable(name="v1", shape=[2])
         v2 = ad.Variable(name="v2", shape=[2])
-        y = A1 @ x1 + A2 @ x2
+        y = ad.einsum('ab, b->a', A1, x1) + ad.einsum('ab, b->a', A2, x2)
 
         transposed_vjp_x = ad.jvps(y, [x1, x2], [v1, v2])
 
@@ -692,8 +692,11 @@ def test_jvps():
             v2: v2_val
         })
 
-        expected_yval = A1_val @ x1_val + A2_val @ x2_val
-        expected_transposed_vjp_x_val = A1_val @ v1_val + A2_val @ v2_val
+        expected_yval = T.einsum('ab, b->a', A1_val, x1_val) + T.einsum(
+            'ab, b->a', A2_val, x2_val)
+
+        expected_transposed_vjp_x_val = T.einsum(
+            'ab, b->a', A1_val, v1_val) + T.einsum('ab, b->a', A2_val, v2_val)
 
         assert isinstance(transposed_vjp_x, ad.Node)
         assert T.array_equal(y_val, expected_yval)
@@ -707,14 +710,14 @@ def test_jtjvps():
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
         v = ad.Variable(name="v", shape=[2])
-        y = A @ x
+        y = ad.einsum('ab, b->a', A, x)
 
         jtjvp_x, = ad.jtjvps(y, [x], [v])
 
         executor = ad.Executor([y, jtjvp_x])
         x_val = T.tensor([1., 2.])
         A_val = T.tensor([[1., 2.], [3., 4.], [5, 6]])
-        v_val = T.tensor([3, 4])
+        v_val = T.tensor([3., 4.])
 
         y_val, jtjvp_x_val = executor.run(feed_dict={
             x: x_val,
@@ -722,8 +725,11 @@ def test_jtjvps():
             v: v_val
         })
 
-        expected_yval = A_val @ x_val
-        expected_jtjvp_x_val = T.transpose(A_val) @ A_val @ v_val
+        expected_yval = T.einsum('ab, b->a', A_val, x_val)
+        expected_jtjvp_x_val = T.einsum('ba, ac->bc', T.transpose(A_val),
+                                        A_val)
+        expected_jtjvp_x_val = T.einsum('ab, b->a', expected_jtjvp_x_val,
+                                        v_val)
 
         assert isinstance(jtjvp_x, ad.Node)
         assert T.array_equal(y_val, expected_yval)

@@ -27,6 +27,19 @@ class UFBase():
             n = self.parent_map[n]
         return n
 
+    def disjoint_set(self):
+        """
+            Returns all the disjoint sets.
+        """
+        dsets = {}
+        for value in self.parent_map.keys():
+            rootval = self.root(value)
+            if rootval in dsets:
+                dsets[rootval].add(value)
+            else:
+                dsets[rootval] = {value}
+        return dsets.values()
+
     def connect(self, n1, n2):
         """
             Union two nodes.

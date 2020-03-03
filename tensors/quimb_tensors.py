@@ -56,7 +56,8 @@ def gauge_transform_mps(tensors, right=True):
     -------
     1. An array of tensors representing the MPS
     """
-    mps = qtn.MatrixProductState(tensors, shape='lrp')
+    np_tensors = [T.to_numpy(tensor) for tensor in tensors]
+    mps = qtn.MatrixProductState(np_tensors, shape='lrp')
 
     if right:
         mps.right_canonize()

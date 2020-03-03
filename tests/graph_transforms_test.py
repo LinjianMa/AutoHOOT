@@ -1,11 +1,10 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
+from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
-BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_einsum_multiuse():
@@ -413,6 +412,51 @@ def test_einsum_equal():
     assert x.inputs == y.inputs
 
 
+def test_einsum_equal_repeated_transpose():
+
+    A = ad.Variable(name="A", shape=[3, 5])
+
+    x = ad.einsum('or,ob->br', A, A)
+    y = ad.einsum('eb,ed->bd', A, A)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
+def test_einsum_equal_repeated_transpose():
+
+    A = ad.Variable(name="A", shape=[3, 3])
+    B = ad.Variable(name="B", shape=[3, 3])
+
+    x = ad.einsum("ac,ba,bc->", A, A, B)
+    y = ad.einsum("ba,ac,bc->", A, A, B)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
+def test_einsum_equal_uf_assign_order():
+
+    A = ad.Variable(name="A", shape=[3, 3])
+    B = ad.Variable(name="B", shape=[3, 3])
+    I = ad.identity(10)
+
+    x = ad.einsum('pb,or,ob,pr,st->srtb', B, A, A, B, I)
+    y = ad.einsum('eb,ed,fb,fd,ac->abcd', A, A, B, B, I)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
 def test_einsum_rewrite_duplicate_input():
 
     a = ad.Variable(name="a", shape=[3, 2])
@@ -451,3 +495,36 @@ def test_prune_identity():
         assert len(out.inputs) == 3
 
         assert tree_eq(out, out_expect, [a1, a2])
+
+
+def test_simplify_inv_w_identity():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,cd->acbd", A, ad.tensorinv(ad.identity(3)))
+        newout = simplify(out)
+
+        assert isinstance(newout, ad.EinsumNode)
+        assert isinstance(newout.inputs[1], ad.IdentityNode)
+
+        assert tree_eq(out, newout, [A], tol=1e-6)
+
+
+def test_simplify_inv_w_redundent_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,cd->abcd", A, ad.tensorinv(ad.einsum("ab->ab", A)))
+        newout = simplify(out)
+
+        inv_node = newout.inputs[1]
+
+        assert isinstance(inv_node.inputs[0], ad.VariableNode)
+
+        assert tree_eq(out, newout, [A], tol=1e-6)

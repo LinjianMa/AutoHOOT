@@ -5,4 +5,5 @@ graphviz
 numpy
 pytest
 pytest-benchmark
-quimb
+quimb==1.2.0
+tensorflow==2.1.0
