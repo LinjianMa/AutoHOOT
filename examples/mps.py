@@ -10,6 +10,39 @@ from numpy.core.einsumfunc import _parse_einsum_input
 BACKEND_TYPES = ['numpy']
 
 
+@attr.s()
+class MpsGraph(object):
+    """
+    Produce a graph representing the MPS:
+
+    A-A-A-A-A-A
+    | | | | | |
+
+    Each A is a tensor, each line is a leg of the tensor diagram
+    representing the contracting index.
+
+    Each tensor is arranged as left leg, right leg, downward leg.
+    The left one is arranged as right leg, downward leg, and
+    the right one is arranged as left leg, downward leg.
+
+    Variables: 
+    -------
+    1. a einsum node representing the MPS.
+    2. The input nodes of the einsum node.
+    
+    """
+    output = attr.ib()
+    inputs = attr.ib(default=[])
+    """
+    Parameters
+    ----------
+    num: Number of sites in the MPS
+    size: the size of uncontracted dimensions
+    ranks: a list of the size of contracted dimensions.
+        The length of the list should be num-1.
+    """
+
+
 def mps_graph(num, ranks, size=2):
     """
     Produce a graph representing the MPS:
