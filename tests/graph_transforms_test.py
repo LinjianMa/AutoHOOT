@@ -412,6 +412,51 @@ def test_einsum_equal():
     assert x.inputs == y.inputs
 
 
+def test_einsum_equal_repeated_transpose():
+
+    A = ad.Variable(name="A", shape=[3, 5])
+
+    x = ad.einsum('or,ob->br', A, A)
+    y = ad.einsum('eb,ed->bd', A, A)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
+def test_einsum_equal_repeated_transpose():
+
+    A = ad.Variable(name="A", shape=[3, 3])
+    B = ad.Variable(name="B", shape=[3, 3])
+
+    x = ad.einsum("ac,ba,bc->", A, A, B)
+    y = ad.einsum("ba,ac,bc->", A, A, B)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
+def test_einsum_equal_uf_assign_order():
+
+    A = ad.Variable(name="A", shape=[3, 3])
+    B = ad.Variable(name="B", shape=[3, 3])
+    I = ad.identity(10)
+
+    x = ad.einsum('pb,or,ob,pr,st->srtb', B, A, A, B, I)
+    y = ad.einsum('eb,ed,fb,fd,ac->abcd', A, A, B, B, I)
+
+    uf1 = rewrite_einsum_expr(x)
+    uf2 = rewrite_einsum_expr(y)
+
+    assert x.einsum_subscripts == y.einsum_subscripts
+    assert x.inputs == y.inputs
+
+
 def test_einsum_rewrite_duplicate_input():
 
     a = ad.Variable(name="a", shape=[3, 2])

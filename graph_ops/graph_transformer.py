@@ -224,14 +224,15 @@ def rewrite_einsum_expr(einsum_node):
     # Note that the order matters!
 
     pseudo_nodes = []
-    einsum_node_literals = [
-        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
-    ]
+    # Here einsum node has a temporary name so that the character assignment
+    # order is consistent.
+    einsum_node_literals = [(f'_temp_einsum', i)
+                            for i in range(len(einsum_node.shape))]
     pseudo_nodes.append(
         PseudoNode(node=einsum_node, literals=einsum_node_literals))
 
     for k, node in enumerate(einsum_node.inputs):
-        literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
+        literals = [(f'{node.name}', i, k) for i in range(len(node.shape))]
         pseudo_nodes.append(PseudoNode(node=node, literals=literals))
 
     node_literals = []
