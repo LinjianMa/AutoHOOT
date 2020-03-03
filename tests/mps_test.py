@@ -5,7 +5,7 @@ from examples.mps import mps_graph, mpo_graph, dmrg
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_mps():

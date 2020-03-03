@@ -4,8 +4,7 @@ from graph_ops.graph_dedup import dedup, declone
 from tests.test_utils import tree_eq, gen_dict
 from visualizer import print_computation_graph
 
-BACKEND_TYPES = ['numpy', 'ctf']
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_dedup():
