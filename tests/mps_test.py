@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 import quimb.tensor as qtn
-from examples.mps import mps_graph, mpo_graph, dmrg
+from examples.mps import dmrg, MpoGraph, MpsGraph
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
@@ -12,24 +12,25 @@ def test_mps():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mps, inputs = mps_graph(4, ranks=[5, 6, 7])
-        executor = ad.Executor([mps])
+        mps_graph = MpsGraph.create(4, ranks=[5, 6, 7])
+        executor = ad.Executor([mps_graph.output])
 
-        expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *inputs)
+        expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *mps_graph.inputs)
 
-        assert tree_eq(mps, expect_mps, inputs)
+        assert tree_eq(mps_graph.output, expect_mps, mps_graph.inputs)
 
 
 def test_mpo():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mpo, inputs = mpo_graph(4, ranks=[5, 6, 7])
-        executor = ad.Executor([mpo])
+        mpo_graph = MpoGraph.create(4, ranks=[5, 6, 7])
+        executor = ad.Executor([mpo_graph.output])
 
-        expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik', *inputs)
+        expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik',
+                               *mpo_graph.inputs)
 
-        assert tree_eq(mpo, expect_mpo, inputs)
+        assert tree_eq(mpo_graph.output, expect_mpo, mpo_graph.inputs)
 
 
 def test_gauge_transform_right():

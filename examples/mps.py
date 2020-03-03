@@ -86,11 +86,6 @@ class MpsGraph(object):
         return cls(ad.einsum(einsum_subscripts, *A_list), A_list)
 
 
-def mps_graph(num, ranks, size=2):
-    tmp = MpsGraph.create(num, ranks, size)
-    return tmp.output, tmp.inputs
-
-
 @attr.s()
 class MpoGraph(object):
     """
@@ -171,11 +166,7 @@ class MpoGraph(object):
         return cls(ad.einsum(einsum_subscripts, *H_list), H_list)
 
 
-def mpo_graph(num, ranks, size=2):
-    tmp = MpoGraph.create(num, ranks, size)
-    return tmp.output, tmp.inputs
-
-
+@attr.s()
 class DmrgGraph(object):
     """
     Produce a graph representing the DMRG algorithm.
@@ -192,31 +183,39 @@ class DmrgGraph(object):
 
     Variables
     ---------
-    mpo: the einsum node representing the mpo graph
-    mpo_inputs: an array containing mpo input nodes
-    mps: the einsum node representing the mps graph
-    mps_inputs: an array containing mps input nodes
+    mpo_graph: the class represents the MpoGraph
+    mps_graph: the class represents the MpsGraph
     intermediates: an array of einsum nodes taking hessian w.r.t.
     executors: an array of executors to calculate hessians
 
     """
-    def __init__(self, num, mpo_ranks, mps_ranks, size):
-        self.mpo, self.mpo_inputs = mpo_graph(num, mpo_ranks, size)
-        self.mps, self.mps_inputs = mps_graph(num, mps_ranks, size)
+    mpo_graph = attr.ib()
+    mps_graph = attr.ib()
+    intermediates = attr.ib(default=[])
+    executors = attr.ib(default=[])
 
-        self.intermediates, self.executors = [], []
+    @classmethod
+    def create(cls, num, mpo_ranks, mps_ranks, size):
+        mpo_graph = MpoGraph.create(num, mpo_ranks, size)
+        mps_graph = MpsGraph.create(num, mps_ranks, size)
+
+        intermediates, executors = [], []
         for i in range(num - 1):
-            intermediate, hes = self._get_sub_hessian(i)
+            intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
             executor = ad.Executor([hes])
-            self.intermediates.append(intermediate)
-            self.executors.append(executor)
+            intermediates.append(intermediate)
+            executors.append(executor)
+        return cls(mpo_graph, mps_graph, intermediates, executors)
 
-    def _get_sub_hessian(self, index):
+    @classmethod
+    def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
 
         # rebuild mps graph
-        intermediate_set = {self.mps_inputs[index], self.mps_inputs[index + 1]}
-        split_input_nodes = list(set(self.mps_inputs) - intermediate_set)
-        mps = split_einsum(self.mps, split_input_nodes)
+        intermediate_set = {
+            mps_graph.inputs[index], mps_graph.inputs[index + 1]
+        }
+        split_input_nodes = list(set(mps_graph.inputs) - intermediate_set)
+        mps = split_einsum(mps_graph.output, split_input_nodes)
 
         # get the intermediate node
         intermediate, = [
@@ -225,9 +224,9 @@ class DmrgGraph(object):
 
         mps_outer_product = ad.tensordot(mps, mps, axes=[[], []])
 
-        mpo_axes = list(range(len(self.mpo.shape)))
+        mpo_axes = list(range(len(mpo_graph.output.shape)))
         objective = ad.tensordot(mps_outer_product,
-                                 self.mpo,
+                                 mpo_graph.output,
                                  axes=[mpo_axes, mpo_axes])
 
         hes = ad.hessian(objective, [intermediate])
@@ -355,10 +354,10 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
             # TODO: we rebuild the graph every time we update the mps sites.
             # The reason is that every update can change the shape of the
             # mps tensor. Can optimize this step later.
-            dg = DmrgGraph(num, mpo_ranks, mps_ranks, size)
+            dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
 
-            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
-            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+            feed_dict = dict(zip(dg.mpo_graph.inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_graph.inputs, mps_tensors)))
 
             hes_val, = dg.executors[i].run(feed_dict=feed_dict)
 
