@@ -33,7 +33,7 @@ class TensorflowBackend(Backend):
     @staticmethod
     def svd(matrix):
         s, u, v = tf.linalg.svd(matrix, full_matrices=True)
-        return u, s, v
+        return u, s, tf.transpose(v)
 
     @staticmethod
     def to_numpy(tensor):

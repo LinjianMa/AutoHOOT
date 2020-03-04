@@ -88,7 +88,7 @@ def test_dmrg_one_sweep():
         dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
 
         h_tensors = load_quimb_tensors(h)
-        mps_tensors = load_quimb_tensors(dmrg_quimb._k)
+        mps_tensors = load_quimb_tensors(dmrg_quimb.state)
 
         # dmrg based on ad
         mps_tensors, energy = dmrg(h_tensors,
@@ -96,9 +96,9 @@ def test_dmrg_one_sweep():
                                    max_mps_rank=max_mps_rank)
 
         # dmrg based on quimb
-        dmrg_quimb = dmrg_quimb.sweep_right(canonize=True)
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True)
 
         # We only test on energy (lowest eigenvalue of h), rather than the output
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
-        assert (abs(energy - dmrg_quimb) < 1e-8)
+        assert (abs(energy - quimb_energy) < 1e-8)
