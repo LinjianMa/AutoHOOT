@@ -52,11 +52,6 @@ def linearize(output_node):
                     ])
 
 
-def is_distributive_node(node):
-    distributive_types = [ad.AddNode, ad.SubNode]
-    return any(isinstance(node, node_type) for node_type in distributive_types)
-
-
 def _distribute(binary_op_node, output):
     """ Distribute the operations. E.g (A + B) * C = A * C + B * C 
 
@@ -68,7 +63,7 @@ def _distribute(binary_op_node, output):
     Return:
         The new output node that already distribute the computation.
     """
-    assert is_distributive_node(binary_op_node)
+    assert isinstance(binary_op_node, ad.DistributiveNode)
     assert isinstance(output, ad.EinsumNode)
     assert binary_op_node in output.inputs
 
@@ -104,7 +99,7 @@ def distribute_tree(output):
     """
     def get_first_binary_op(nodes):
         for node in nodes:
-            if is_distributive_node(node) and len(node.outputs) >= 1:
+            if isinstance(node, ad.DistributiveNode) and len(node.outputs) >= 1:
                 has_einsum_nodes = all(
                     [isinstance(x, ad.EinsumNode) for x in node.outputs])
                 if has_einsum_nodes:
