@@ -14,7 +14,7 @@ from collections import deque
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
-from graph_ops.graph_inv_optimizer import optimize_inverse
+from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
@@ -432,5 +432,15 @@ def simplify(node):
 
     # fuse again
     node = fuse_all_einsums(node)
+
+    # prune inverse nodes
+    all_nodes = find_topo_sort([node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                new_node = prune_inv_node(node)
+                replace_node(node, new_node)
 
     return node
