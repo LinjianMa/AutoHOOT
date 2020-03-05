@@ -160,6 +160,11 @@ def optimize_inverse(inv_node):
 
     if isinstance(input_node, ad.AddNode) and (
             input_node.inputs[0].name == input_node.inputs[1].name):
-        return 0.5 * optimize_inverse(ad.tensorinv(input_node.inputs[0]))
+
+        inverse_node = optimize_inverse(ad.tensorinv(input_node.inputs[0]))
+        subscript = "".join(
+            [chr(ord('a') + i) for i in range(len(inverse_node.shape))])
+        return ad.einsum(f",{subscript}->{subscript}", ad.ScalarNode(0.5),
+                         inverse_node)
 
     return inv_node

@@ -64,7 +64,7 @@ def test_complex_product_inv():
         for node in newinv.inputs:
             assert isinstance(node, ad.TensorInverseNode)
 
-        assert tree_eq(inv, newinv, [A, B, C, D], tol=1e-6)
+        assert tree_eq(inv, newinv, [A, B, C, D], tol=1e-5)
 
 
 def test_high_dim_inv():
