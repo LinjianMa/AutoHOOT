@@ -416,14 +416,4 @@ def simplify(node):
                 if len(in_subs_list) == 1 and in_subs_list[0] == out_subs:
                     replace_node(node, ad.tensorinv(einsum_node.inputs[0]))
 
-    # change inverse of identity to identity
-    all_nodes = find_topo_sort([node])
-    with OutputInjectedMode(all_nodes):
-        for node in all_nodes:
-            if node.inputs != []:
-                node.set_inputs(node.inputs)
-            if isinstance(node, ad.TensorInverseNode) and isinstance(
-                    node.inputs[0], ad.IdentityNode):
-                replace_node(node, node.inputs[0])
-
     return node
