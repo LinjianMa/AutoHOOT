@@ -249,8 +249,9 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     inputs = intermediate.inputs
     assert len(inputs) == 2
 
-    index_input_0 = int(''.join(x for x in inputs[0].name if x.isdigit()))
-    index_input_1 = int(''.join(x for x in inputs[1].name if x.isdigit()))
+    # Here input names are formatted as A{i}.
+    index_input_0 = int(inputs[0].name[1:])
+    index_input_1 = int(inputs[1].name[1:])
 
     in_subs, out_subs, _ = _parse_einsum_input(
         (intermediate.einsum_subscripts, *intermediate.inputs))
@@ -287,7 +288,6 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
     eigvals, eigvecs = T.eigh(hes_val_mat)
     # index for smallest eigenvalue
-    # idx = eigvals.argsort()[0]
     idx = T.argmin(eigvals)
     eigvecs = T.reshape(eigvecs[:, idx], eigvec_shape)
 
@@ -310,9 +310,17 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
                      VT)
 
     outprod = T.einsum(f"{left_subs},{right_subs}->{out_subs}", left, right)
-    outprod_indices = list(range(len(eigvec_shape)))
-    hvp = T.tensordot(hes_val, outprod, [outprod_indices, outprod_indices])
-    eig_val = T.tensordot(hvp, outprod, [outprod_indices, outprod_indices]) / 2
+
+    outprod_indices = list(range(len(outprod.shape)))
+    vTv = T.tensordot(outprod,
+                      outprod,
+                      axes=[outprod_indices, outprod_indices])
+
+    vvT = T.tensordot(outprod, outprod, axes=[[], []])
+    vvT_indices = list(range(len(vvT.shape)))
+    # Here we divide the eigval by 2 because we were take hessian of vTHv.
+    eig_val = T.tensordot(hes_val, vvT, [vvT_indices, vvT_indices]) / 2
+    eig_val /= vTv
 
     return left, right, eig_val
 
