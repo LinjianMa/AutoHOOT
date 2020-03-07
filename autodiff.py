@@ -739,10 +739,15 @@ class EinsumNode(OpNode):
     """Node to perform einstein summation for two nodes."""
     @staticmethod
     def create(*args, **kwargs):
+        # If we generated einsum('ab->ab'). We ignore the einsum.
+        subscripts = args[0]
+        subs = subscripts.split('->')
+        if len(subs) == 2 and subs[0] == subs[1]:
+            return args[1]
         return EinsumNode(*args, **kwargs)
 
-    # TODO(yejiayu): Mark function staticmethod and change callsite.
-    def _name_generator(self, subscripts, names):
+    @staticmethod
+    def _name_generator(subscripts, names):
         """Generate the einsum name for arbitary number of var names.
 
         Parameters
@@ -787,7 +792,8 @@ class EinsumNode(OpNode):
         """
         self.inputs = nodes
         node_names = [node.name for node in nodes]
-        self.name = self._name_generator(self.einsum_subscripts, node_names)
+        self.name = EinsumNode._name_generator(self.einsum_subscripts,
+                                               node_names)
 
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -997,7 +1003,7 @@ class EinsumNode(OpNode):
 
     def s2s_expr(self, inputs):
         input_names = [inputvar.name for inputvar in inputs]
-        return self._name_generator(self.einsum_subscripts, input_names)
+        return EinsumNode._name_generator(self.einsum_subscripts, input_names)
 
 
 class NormNode(OpNode):
