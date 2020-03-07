@@ -63,7 +63,7 @@ def _distribute(binary_op_node, output):
     Return:
         The new output node that already distribute the computation.
     """
-    assert isinstance(binary_op_node, ad.AddNode)
+    assert isinstance(binary_op_node, ad.DistributiveNode)
     assert isinstance(output, ad.EinsumNode)
     assert binary_op_node in output.inputs
 
@@ -77,7 +77,7 @@ def _distribute(binary_op_node, output):
     ]
     AC = ad.einsum(output.einsum_subscripts, *AC_seq)
     BC = ad.einsum(output.einsum_subscripts, *BC_seq)
-    return AC + BC
+    return type(binary_op_node)(AC, BC)
 
 
 def distribute_tree(output):
@@ -99,7 +99,8 @@ def distribute_tree(output):
     """
     def get_first_binary_op(nodes):
         for node in nodes:
-            if isinstance(node, ad.AddNode) and len(node.outputs) >= 1:
+            if isinstance(node,
+                          ad.DistributiveNode) and len(node.outputs) >= 1:
                 has_einsum_nodes = all(
                     [isinstance(x, ad.EinsumNode) for x in node.outputs])
                 if has_einsum_nodes:
@@ -372,20 +373,24 @@ def simplify(node):
     Returns:
         node: The newly generated node.
     """
+    def fuse_all_einsums(node):
+        linearize(node)
+        all_nodes = find_topo_sort([node])
+
+        with OutputInjectedMode(all_nodes):
+            trees = find_sub_einsumtree(node)
+            for tree in trees:
+                out_node, in_nodes = tree
+                new_z = fuse_einsums(out_node, in_nodes)
+                prune_identity_nodes(new_z)
+                replace_node(out_node, new_z)
+
+        node = declone(node)
+        return node
+
     node = distribute_tree(node)
+    node = fuse_all_einsums(node)
 
-    linearize(node)
-    all_nodes = find_topo_sort([node])
-
-    with OutputInjectedMode(all_nodes):
-        trees = find_sub_einsumtree(node)
-        for tree in trees:
-            out_node, in_nodes = tree
-            new_z = fuse_einsums(out_node, in_nodes)
-            prune_identity_nodes(new_z)
-            replace_node(out_node, new_z)
-
-    node = declone(node)
     all_nodes = find_topo_sort([node])
 
     # optimize inverse
@@ -416,4 +421,6 @@ def simplify(node):
                 if len(in_subs_list) == 1 and in_subs_list[0] == out_subs:
                     replace_node(node, ad.tensorinv(einsum_node.inputs[0]))
 
+    # fuse again
+    node = fuse_all_einsums(node)
     return node

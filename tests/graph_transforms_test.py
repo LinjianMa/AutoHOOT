@@ -1,3 +1,4 @@
+import pytest
 import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
@@ -131,7 +132,8 @@ def test_linearization_multiple_same_output():
     assert len(y.inputs) == 2
 
 
-def test_tree_distribution():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution(dist_op):
     """
         [Distributive] An einsum graph like
         A    B     C  inputs 
@@ -166,16 +168,17 @@ def test_tree_distribution():
         b = ad.Variable(name="b", shape=[3, 2])
         c = ad.Variable(name="c", shape=[2, 3])
 
-        add_node = a + b
+        add_node = dist_op(a, b)
         output = ad.einsum('ik,kj->ij', add_node, c)
 
         new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c])
 
 
-def test_tree_distribution_order():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_order(dist_op):
     """
         [Distributive]
         Test C * (A + B) = C * A + C * B
@@ -188,14 +191,15 @@ def test_tree_distribution_order():
         b = ad.Variable(name="b", shape=[3, 2])
         c = ad.Variable(name="c", shape=[2, 3])
 
-        output = ad.einsum('ik,kj->ij', c, a + b)
+        output = ad.einsum('ik,kj->ij', c, dist_op(a, b))
         new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c])
 
 
-def test_tree_distribution_w_add_output():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_w_add_output(dist_op):
     """
         Test C * (A + B) + F * (D + E)
             = (C * A + C * B) + (F * D + F * E)
@@ -212,17 +216,18 @@ def test_tree_distribution_w_add_output():
         e = ad.Variable(name="e", shape=[3, 3])
         f = ad.Variable(name="f", shape=[3, 3])
 
-        out1 = ad.einsum('ik,kj->ij', c, a + b)
-        out2 = ad.einsum('ik,kj->ij', d, e + f)
-        output = out1 + out2
+        out1 = ad.einsum('ik,kj->ij', c, dist_op(a, b))
+        out2 = ad.einsum('ik,kj->ij', d, dist_op(e, f))
+        output = dist_op(out1, out2)
         new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
         for input_node in new_output.inputs:
-            assert isinstance(input_node, ad.AddNode)
+            assert isinstance(input_node, dist_op)
         assert tree_eq(output, new_output, [a, b, c, d, e, f])
 
 
-def test_tree_distribution_four_terms():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_four_terms(dist_op):
     """
         [Distributive] (A + B) * (C + D) 
         A    B     C     D   inputs 
@@ -249,24 +254,25 @@ def test_tree_distribution_four_terms():
         c = ad.Variable(name="c", shape=[2, 3])
         d = ad.Variable(name="d", shape=[2, 3])
 
-        add_nodeab = a + b
-        add_nodecd = c + d
-        output = ad.einsum('ik,kj->ij', add_nodeab, add_nodecd)
+        dist_nodeab = dist_op(a, b)
+        dist_nodecd = dist_op(c, d)
+        output = ad.einsum('ik,kj->ij', dist_nodeab, dist_nodecd)
 
         # Idea:
         # (A + B) * (C + D) = A * (C + D) + B * (C + D)
         # Then do A * (C + D) and B * (C + D)
         new_output = distribute_tree(output)
 
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
         add1, add2 = new_output.inputs
-        assert isinstance(add1, ad.AddNode)
-        assert isinstance(add2, ad.AddNode)
+        assert isinstance(add1, dist_op)
+        assert isinstance(add2, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c, d])
 
 
-def test_tree_distribution_mim():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_mim(dist_op):
     """
         [Distributive] (A + B) * G * (C + D) 
 
@@ -294,20 +300,21 @@ def test_tree_distribution_mim():
         c = ad.Variable(name="c", shape=[2, 3])
         d = ad.Variable(name="d", shape=[2, 3])
 
-        add_nodeab = a + b
-        add_nodecd = c + d
+        add_nodeab = dist_op(a, b)
+        add_nodecd = dist_op(c, d)
         output = ad.einsum('ik,kk,kj->ij', add_nodeab, g, add_nodecd)
 
         new_output = distribute_tree(output)
 
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
         for node in new_output.inputs:
-            assert isinstance(node, ad.AddNode)
+            assert isinstance(node, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c, d, g])
 
 
-def test_tree_distribution_two_layers():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_two_layers(dist_op):
     """
         [Distributive] ((A + B) * G) * C
 
@@ -326,16 +333,17 @@ def test_tree_distribution_two_layers():
         g = ad.Variable(name="g", shape=[2, 2])
         c = ad.Variable(name="c", shape=[2, 3])
 
-        interm = ad.einsum('ik, kk->ik', a + b, g)
+        interm = ad.einsum('ik, kk->ik', dist_op(a, b), g)
         output = ad.einsum('ik,kj->ij', interm, c)
 
         new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c, g])
 
 
-def test_tree_distribution_ppE():
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_tree_distribution_ppE(dist_op):
     """
         [Distributive] ((A + B) + C) * G
 
@@ -354,10 +362,10 @@ def test_tree_distribution_ppE():
         c = ad.Variable(name="c", shape=[3, 2])
         g = ad.Variable(name="g", shape=[2, 2])
 
-        output = ad.einsum('ik,kk->ik', a + b + c, g)
+        output = ad.einsum('ik,kk->ik', dist_op(dist_op(a, b), c), g)
 
         new_output = distribute_tree(output)
-        assert isinstance(new_output, ad.AddNode)
+        assert isinstance(new_output, dist_op)
 
         assert tree_eq(output, new_output, [a, b, c, g])
 

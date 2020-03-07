@@ -151,6 +151,27 @@ class OpNode(Node):
         raise NotImplementedError
 
 
+class DistributiveNode(OpNode):
+    """Distributive operations performed on nodes."""
+    def __init__(self):
+        super().__init__()
+
+    def __deepcopy__(self, memo):
+        raise NotImplementedError
+
+    def compute(self, input_vals):
+        raise NotImplementedError
+
+    def transposed_vjp(self, output_grad):
+        raise NotImplementedError
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
+    def s2s_expr(self, inputs):
+        raise NotImplementedError
+
+
 class ConstantNode(Node):
     """
     The nodes that cannot be taken derivative over (not operations)
@@ -302,7 +323,7 @@ class CloneNode(OpNode):
         return [chainjacobian(output_jacobian, jacobian)]
 
 
-class AddNode(OpNode):
+class AddNode(DistributiveNode):
     """A node that add two node together"""
     @staticmethod
     def create(*args, **kwargs):
@@ -389,7 +410,7 @@ class AddByConstNode(OpNode):
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
 
 
-class SubNode(OpNode):
+class SubNode(DistributiveNode):
     """Node to element-wise subtract two nodes."""
     @staticmethod
     def create(*args, **kwargs):
