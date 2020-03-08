@@ -18,6 +18,15 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
+def generate_new_einsum(p_inputs, out_subs):
+    new_input_subs = [node.subscript for node in p_inputs]
+    new_input_subs = ','.join(new_input_subs)
+    new_subscripts = new_input_subs + '->' + out_subs
+    inputs = [p_node.node for p_node in p_inputs]
+    new_einsum = ad.einsum(new_subscripts, *inputs)
+    return new_einsum
+
+
 def inv_disjoint_sets(p_einsum_node, p_in_nodes):
     """
     Get the disjoint sets for inverse optimization.
@@ -67,14 +76,6 @@ def split_inv_einsum(inv_node):
     If it can be optimized, return the optimized node.
 
     """
-    def generate_new_einsum(p_inputs, out_subs):
-        new_input_subs = [node.subscript for node in p_inputs]
-        new_input_subs = ','.join(new_input_subs)
-        new_subscripts = new_input_subs + '->' + out_subs
-        inputs = [p_node.node for p_node in p_inputs]
-        new_einsum = ad.einsum(new_subscripts, *inputs)
-        return new_einsum
-
     einsum_node = inv_node.inputs[0]
     assert isinstance(einsum_node, ad.EinsumNode)
     # einsum_node is a fused einsum
@@ -168,3 +169,115 @@ def optimize_inverse(inv_node):
                          inverse_node)
 
     return inv_node
+
+
+def prune_inv_node(einsum_node):
+    """
+    Prune the inverse node in an einsum node if condition mets.
+
+    Note:
+    1. currently only supports the case with only one inv in the einsum_node inputs.
+    2. can only optimize the node when the input of inv is an einsum node.
+    3. only supports the case when the splitted nodes are different from the remaining ones.
+        For example: ad.einsum("ab,bc,cd,de->ae", inv("ab,bc->ac", A, B), A, B, C) will be
+        optimzied to ad.einsum("ab,bc->ac", C, ad.identity()),
+        but we cannot optimize ad.einsum("ab,bc,cd,de->ae", inv("ab,bc->ac", A, B), A, B, B).
+
+    Parameters
+    ----------
+    einsum_node: The fused einsum node
+
+    Returns
+    -------
+    If the einsum_node cannot be optimized, then return the input einsum_node.
+    If it can be optimized, return the optimized einsum node.
+
+    """
+    from graph_ops.graph_transformer import rewrite_einsum_expr
+    from graph_ops.graph_generator import split_einsum
+
+    assert isinstance(einsum_node, ad.EinsumNode)
+    for node in einsum_node.inputs:
+        assert not isinstance(node, ad.EinsumNode)
+
+    inv_inputs_list = list(
+        filter(lambda node: isinstance(node, ad.TensorInverseNode),
+               einsum_node.inputs))
+
+    if len(inv_inputs_list) != 1:
+        logger.info(
+            f"More than one or no inv nodes in the inputs, can't prune inv")
+        return einsum_node
+
+    inv_node_input = inv_inputs_list[0].inputs[0]
+    if not isinstance(inv_node_input, ad.EinsumNode):
+        logger.info(f"inv input is not einsum node, can't prune inv")
+        return einsum_node
+
+    if not set(inv_node_input.inputs).issubset(set(einsum_node.inputs)):
+        logger.info(
+            f"inv inputs is not subset of einsum node inputs, can't prune inv")
+        return einsum_node
+
+    split_einsum_node = split_einsum(
+        einsum_node,
+        list(set(einsum_node.inputs) - set(inv_node_input.inputs)))
+
+    # Assign pseudo nodes and chars
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (split_einsum_node.einsum_subscripts, *split_einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+
+    updated_p_in_nodes = []
+    for i, node in enumerate(split_einsum_node.inputs):
+        if isinstance(node, ad.EinsumNode):
+            p_einsum_input = PseudoNode(node=node, subscript=in_subs_list[i])
+        elif isinstance(node, ad.TensorInverseNode):
+            p_inv_input = PseudoNode(node=node, subscript=in_subs_list[i])
+        else:
+            updated_p_in_nodes.append(
+                PseudoNode(node=node, subscript=in_subs_list[i]))
+
+    contract_char = "".join(
+        set(p_einsum_input.subscript) & set(p_inv_input.subscript))
+    uncontract_str = "".join(
+        set("".join([p_einsum_input.subscript, p_inv_input.subscript])) -
+        set(contract_char))
+
+    if not (len(p_einsum_input.subscript) == 2
+            and len(p_inv_input.subscript) == 2 and len(contract_char) == 1
+            and len(uncontract_str) == 2):
+        # this is not a matmul. Just return the initial node
+        logger.info(
+            f"the op between inv input and the selected einsum is not matmul, can't prune inv"
+        )
+        return einsum_node
+
+    if p_einsum_input.subscript[0] == p_inv_input.subscript[
+            0] or p_einsum_input.subscript[1] == p_inv_input.subscript[1]:
+        # the str is like "ab,ac", and one einsum needs to be transposed to compare
+        p_in_subs, p_out_subs, _ = _parse_einsum_input(
+            (p_einsum_input.node.einsum_subscripts,
+             *p_einsum_input.node.inputs))
+        einsum_input = ad.einsum(
+            f"{p_in_subs}->{p_out_subs[1]}{p_out_subs[0]}",
+            *p_einsum_input.node.inputs)
+    else:
+        einsum_input = p_einsum_input.node
+
+    rewrite_einsum_expr(einsum_input)
+    rewrite_einsum_expr(inv_node_input)
+
+    if einsum_input.name != inv_node_input.name:
+        logger.info(
+            f"inv input and the selected einsum have different expressions, can't prune inv"
+        )
+        return einsum_node
+
+    # prune the inv node
+    updated_p_in_nodes = updated_p_in_nodes + [
+        PseudoNode(node=ad.identity(inv_node_input.shape[0]),
+                   subscript=uncontract_str)
+    ]
+
+    return generate_new_einsum(updated_p_in_nodes, out_subs)

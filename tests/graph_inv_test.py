@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_inv_optimizer import optimize_inverse
+from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from tests.test_utils import tree_eq
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
@@ -131,3 +131,107 @@ def test_kronecker_product_non_even():
     newinv = optimize_inverse(inv)
 
     assert inv is newinv
+
+
+def test_prune_inv_nodes_simple():
+    for datatype in BACKEND_TYPES:
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+
+        inv_input = ad.einsum('ab,bc->ac', A, B)
+        # inv(inv_input) @ inv_input
+        output = ad.einsum('ac,cd,de->ae', ad.tensorinv(inv_input, ind=1), A,
+                           B)
+
+        new_output = prune_inv_node(output)
+
+        assert len(new_output.inputs) == 1
+        assert isinstance(new_output.inputs[0], ad.IdentityNode)
+
+        assert tree_eq(output, new_output, [A, B], tol=1e-6)
+
+
+def test_prune_inv_nodes_transpose():
+    for datatype in BACKEND_TYPES:
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+
+        inv_input = ad.einsum('ab,bc->ca', A, B)
+        # inv(inv_input.T) @ inv_input.T
+        output = ad.einsum('ca,cd,de->ae', ad.tensorinv(inv_input, ind=1), A,
+                           B)
+
+        new_output = prune_inv_node(output)
+
+        assert len(new_output.inputs) == 1
+        assert isinstance(new_output.inputs[0], ad.IdentityNode)
+
+        assert tree_eq(output, new_output, [A, B], tol=1e-6)
+
+
+def test_prune_inv_matmul_no_pruning():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    inv_input = ad.einsum('ab,bc->ac', A, B)
+    # inv(inv_input) @ inv_input.T, cannot be pruned
+    output = ad.einsum('ac,ed,dc->ae', ad.tensorinv(inv_input, ind=1), A, B)
+
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
+def test_prune_inv_nonmatmul_no_pruning():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    inv_input = ad.einsum('ab,bc->ac', A, B)
+    # inv(inv_input) * inv_input.T, cannot be pruned
+    output = ad.einsum('ac,ab,bc->ac', ad.tensorinv(inv_input, ind=1), A, B)
+
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
+def test_prune_inv_no_inv():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    output = ad.einsum('ab,bc->ac', A, B)
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
+def test_prune_inv_set_not_match():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    inv = ad.tensorinv(ad.einsum('ab,bc->ac', A, B), ind=1)
+    output = ad.einsum('ab,bc->ac', inv, A)
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
+def test_prune_inv_nodes_cpd():
+    for datatype in BACKEND_TYPES:
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+        C = ad.Variable(name="C", shape=[2, 2])
+
+        inv_input = ad.einsum('ab,dc,ac,db->bc', B, C, B, C)
+        output = ad.einsum('ed,ea,cd,ba,ca,gd->bg', C, C, B, A, B,
+                           ad.tensorinv(inv_input, ind=1))
+
+        new_output = prune_inv_node(output)
+
+        # T.einsum('ba,ag->bg',A,T.identity(2))
+        assert len(new_output.inputs) == 2
+        for node in new_output.inputs:
+            if isinstance(node, ad.VariableNode):
+                assert node == A
+
+        assert tree_eq(output, new_output, [A, B, C], tol=1e-6)
