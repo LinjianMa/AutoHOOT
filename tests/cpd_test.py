@@ -6,7 +6,7 @@ from tensors.synthetic_tensors import init_rand_3d
 from examples.cpd import cpd_graph, cpd_als
 from utils import find_topo_sort
 
-BACKEND_TYPES = ['numpy', 'ctf']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 size, rank = 10, 5
 
 
@@ -195,11 +195,17 @@ def test_cpd_hessian_optimize_diag():
                 list(
                     filter(lambda x: isinstance(x, ad.OpNode),
                            find_topo_sort([node]))))
-            # Use this assertion to test the optimize function.
-            # Each Hessian diagonal term consists of addition of two einsums.
-            # Each einsum consists of 4 contractions.
-            # Overall 6 operations are necessary.
-            assert num_operations == 6
+            """
+            Use this assertion to test the optimize function.
+            5 operations:
+            1. T.einsum('ca,cb->ab',A,A),
+            2. T.einsum('ca,cb->ab',B,B),
+            3. T.einsum('ab,ab->ab',T.einsum('ca,cb->ab',A,A),T.einsum('ca,cb->ab',B,B)),
+            4. T.einsum('bd,ac->abcd',T.einsum('ab,ab->ab',T.einsum('ca,cb->ab',A,A),T.einsum('ca,cb->ab',B,B)),T.identity(10)),
+            5. (T.einsum('bd,ac->abcd',T.einsum('ab,ab->ab',T.einsum('ca,cb->ab',A,A),T.einsum('ca,cb->ab',B,B)),T.identity(10))+
+            T.einsum('bd,ac->abcd',T.einsum('ab,ab->ab',T.einsum('ca,cb->ab',A,A),T.einsum('ca,cb->ab',B,B)),T.identity(10)))
+            """
+            assert num_operations == 5
 
         executor = ad.Executor(hessian_diag)
         hes_diag_vals = executor.run(feed_dict={

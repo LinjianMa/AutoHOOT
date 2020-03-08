@@ -1,34 +1,36 @@
 import autodiff as ad
 import backend as T
-from examples.mps import mps_graph, mpo_graph
+import quimb.tensor as qtn
+from examples.mps import dmrg, MpoGraph, MpsGraph
 from tests.test_utils import tree_eq
-from tensors.quimb_tensors import rand_mps, gauge_transform_mps
+from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_mps():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mps, inputs = mps_graph(4, 10)
-        executor = ad.Executor([mps])
+        mps_graph = MpsGraph.create(4, ranks=[5, 6, 7])
+        executor = ad.Executor([mps_graph.output])
 
-        expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *inputs)
+        expect_mps = ad.einsum('ab,acd,cef,eg->bdfg', *mps_graph.inputs)
 
-        assert tree_eq(mps, expect_mps, inputs)
+        assert tree_eq(mps_graph.output, expect_mps, mps_graph.inputs)
 
 
 def test_mpo():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        mpo, inputs = mpo_graph(4, 5)
-        executor = ad.Executor([mpo])
+        mpo_graph = MpoGraph.create(4, ranks=[5, 6, 7])
+        executor = ad.Executor([mpo_graph.output])
 
-        expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik', *inputs)
+        expect_mpo = ad.einsum('abc,adef,dghi,gjk->behjcfik',
+                               *mpo_graph.inputs)
 
-        assert tree_eq(mpo, expect_mpo, inputs)
+        assert tree_eq(mpo_graph.output, expect_mpo, mpo_graph.inputs)
 
 
 def test_gauge_transform_right():
@@ -75,3 +77,28 @@ def test_gauge_transform_left():
         for i in range(1, dim - 1):
             inner = T.einsum("abc,adc->bd", tensors[i], tensors[i])
             assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
+
+
+def test_dmrg_one_sweep():
+    max_mps_rank = 5
+    num = 4
+    for datatype in BACKEND_TYPES:
+
+        h = qtn.MPO_ham_heis(num)
+        dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
+
+        h_tensors = load_quimb_tensors(h)
+        mps_tensors = load_quimb_tensors(dmrg_quimb.state)
+
+        # dmrg based on ad
+        mps_tensors, energy = dmrg(h_tensors,
+                                   mps_tensors,
+                                   max_mps_rank=max_mps_rank)
+
+        # dmrg based on quimb
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True)
+
+        # We only test on energy (lowest eigenvalue of h), rather than the output
+        # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
+        # eigenvalue unchanged.
+        assert (abs(energy - quimb_energy) < 1e-8)

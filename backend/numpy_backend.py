@@ -93,11 +93,11 @@ for name in [
         'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
         'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
         'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power',
-        'identity', 'diag'
+        'identity', 'diag', 'tensordot'
 ]:
     NumpyBackend.register_method(name, getattr(np, name))
 
-for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd']:
+for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd', 'eigh']:
     NumpyBackend.register_method(name, getattr(np.linalg, name))
 
 for name in ['random', 'seed']:

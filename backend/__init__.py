@@ -13,7 +13,11 @@ from contextlib import contextmanager
 import inspect
 
 _DEFAULT_BACKEND = 'numpy'
-_KNOWN_BACKENDS = {'numpy': 'NumpyBackend', 'ctf': 'CTFBackend'}
+_KNOWN_BACKENDS = {
+    'numpy': 'NumpyBackend',
+    'ctf': 'CTFBackend',
+    'tensorflow': 'TensorflowBackend'
+}
 
 _LOADED_BACKENDS = {}
 _LOCAL_STATE = threading.local()

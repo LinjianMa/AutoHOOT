@@ -5,7 +5,7 @@ from graph_ops.graph_generator import generate_optimal_tree, split_einsum, optim
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
-BACKEND_TYPES = ['numpy']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
 def test_einsum_gen():
@@ -97,3 +97,17 @@ def test_optimal_sub_einsum():
                find_topo_sort([sub_einsum])))
 
     assert inputs_set == {A, X3}
+
+
+def test_split_einsum_dup():
+    for datatype in BACKEND_TYPES:
+
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+
+        einsum_node = ad.einsum("ab,bc,cd->ad", A, B, B)
+        split_input_nodes = [A]
+        new_einsum = split_einsum(einsum_node, split_input_nodes)
+
+        assert len(new_einsum.inputs) == 2  # A, einsum(B, B)
+        assert tree_eq(new_einsum, einsum_node, [A, B])

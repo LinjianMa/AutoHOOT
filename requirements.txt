@@ -6,3 +6,4 @@ numpy
 pytest
 pytest-benchmark
 quimb==1.2.0
+tensorflow==2.1.0

@@ -8,11 +8,13 @@
 import logging
 
 import copy
+import numpy as np
 from collections import deque
 
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
@@ -61,7 +63,7 @@ def _distribute(binary_op_node, output):
     Return:
         The new output node that already distribute the computation.
     """
-    assert isinstance(binary_op_node, ad.AddNode)
+    assert isinstance(binary_op_node, ad.DistributiveNode)
     assert isinstance(output, ad.EinsumNode)
     assert binary_op_node in output.inputs
 
@@ -75,7 +77,7 @@ def _distribute(binary_op_node, output):
     ]
     AC = ad.einsum(output.einsum_subscripts, *AC_seq)
     BC = ad.einsum(output.einsum_subscripts, *BC_seq)
-    return AC + BC
+    return type(binary_op_node)(AC, BC)
 
 
 def distribute_tree(output):
@@ -97,7 +99,8 @@ def distribute_tree(output):
     """
     def get_first_binary_op(nodes):
         for node in nodes:
-            if isinstance(node, ad.AddNode) and len(node.outputs) >= 1:
+            if isinstance(node,
+                          ad.DistributiveNode) and len(node.outputs) >= 1:
                 has_einsum_nodes = all(
                     [isinstance(x, ad.EinsumNode) for x in node.outputs])
                 if has_einsum_nodes:
@@ -222,14 +225,15 @@ def rewrite_einsum_expr(einsum_node):
     # Note that the order matters!
 
     pseudo_nodes = []
-    einsum_node_literals = [
-        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
-    ]
+    # Here einsum node has a temporary name so that the character assignment
+    # order is consistent.
+    einsum_node_literals = [(f'_temp_einsum', i)
+                            for i in range(len(einsum_node.shape))]
     pseudo_nodes.append(
         PseudoNode(node=einsum_node, literals=einsum_node_literals))
 
     for k, node in enumerate(einsum_node.inputs):
-        literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
+        literals = [(f'{node.name}', i, k) for i in range(len(node.shape))]
         pseudo_nodes.append(PseudoNode(node=node, literals=literals))
 
     node_literals = []
@@ -350,6 +354,11 @@ def optimize(node):
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
+
+    for node in find_topo_sort([node]):
+        if node.inputs != []:
+            node.set_inputs(node.inputs)
+
     dedup(node)
     return node
 
@@ -364,20 +373,50 @@ def simplify(node):
     Returns:
         node: The newly generated node.
     """
-    node = distribute_tree(node)
+    def fuse_all_einsums(node):
+        linearize(node)
+        all_nodes = find_topo_sort([node])
 
-    linearize(node)
+        with OutputInjectedMode(all_nodes):
+            trees = find_sub_einsumtree(node)
+            for tree in trees:
+                out_node, in_nodes = tree
+                new_z = fuse_einsums(out_node, in_nodes)
+                prune_identity_nodes(new_z)
+                replace_node(out_node, new_z)
+
+        node = declone(node)
+        return node
+
+    node = distribute_tree(node)
+    node = fuse_all_einsums(node)
+
+    all_nodes = find_topo_sort([node])
+
+    # optimize inverse
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                # To make sure the same einsum nodes have the same same,
+                # so that we can collapse the add node.
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode):
+                new_inv_node = optimize_inverse(node)
+                replace_node(node, new_inv_node)
+
+    # fuse again
+    node = fuse_all_einsums(node)
+
+    # prune inverse nodes
     all_nodes = find_topo_sort([node])
     with OutputInjectedMode(all_nodes):
-        trees = find_sub_einsumtree(node)
-        for tree in trees:
-            out_node, in_nodes = tree
-            new_z = fuse_einsums(out_node, in_nodes)
-            prune_identity_nodes(new_z)
-            replace_node(out_node, new_z)
-    node = declone(node)
-    all_nodes = find_topo_sort([node])
-    for node in all_nodes:
-        if isinstance(node, ad.EinsumNode):
-            rewrite_einsum_expr(node)
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                new_node = prune_inv_node(node)
+                replace_node(node, new_node)
+
     return node

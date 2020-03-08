@@ -77,7 +77,7 @@ class Node(object):
         return CloneNode(self, new_name)
 
     def set_inputs(self, inputs):
-        self.inputs = inputs
+        raise NotImplementedError
 
     def set_in_indices_length(self, length):
         """
@@ -151,6 +151,27 @@ class OpNode(Node):
         raise NotImplementedError
 
 
+class DistributiveNode(OpNode):
+    """Distributive operations performed on nodes."""
+    def __init__(self):
+        super().__init__()
+
+    def __deepcopy__(self, memo):
+        raise NotImplementedError
+
+    def compute(self, input_vals):
+        raise NotImplementedError
+
+    def transposed_vjp(self, output_grad):
+        raise NotImplementedError
+
+    def jacobian(self, output_jacobian):
+        raise NotImplementedError
+
+    def s2s_expr(self, inputs):
+        raise NotImplementedError
+
+
 class ConstantNode(Node):
     """
     The nodes that cannot be taken derivative over (not operations)
@@ -166,6 +187,10 @@ class ConstantNode(Node):
         self.name = name
         self.shape = shape
 
+    def set_inputs(self, inputs):
+        # constant node should not have inputs
+        assert inputs == []
+
     def transposed_vjp(self, output_grad):
         raise Exception('ConstantNode does not allow vjp calculation')
 
@@ -174,15 +199,12 @@ class ConstantNode(Node):
 
 
 class ScalarNode(ConstantNode):
-    suffix_getter = IntGetter()
-
     @staticmethod
     def create(*args, **kwargs):
         return ScalarNode(*args, **kwargs)
 
     def __init__(self, value):
         name = f"{value}"
-        name += f"_{ScalarNode.suffix_getter.getint()}"
         self.value = value
         super().__init__(name, [])
 
@@ -190,20 +212,17 @@ class ScalarNode(ConstantNode):
         return T.tensor(self.value)
 
     def s2s_expr(self, inputs):
-        return f"{self.value}"
+        return f"T.tensor({self.value})"
 
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
-    suffix_getter = IntGetter()
-
     @staticmethod
     def create(*args, **kwargs):
         return IdentityNode(*args, **kwargs)
 
     def __init__(self, size):
         name = f"T.identity({size})"
-        name += f"_{IdentityNode.suffix_getter.getint()}"
         super().__init__(name, [size, size])
 
     def compute(self):
@@ -215,15 +234,12 @@ class IdentityNode(ConstantNode):
 
 class OnesNode(ConstantNode):
     """Op that represents a constant T.ones."""
-    suffix_getter = IntGetter()
-
     @staticmethod
     def create(*args, **kwargs):
         return OnesNode(*args, **kwargs)
 
     def __init__(self, shape):
         name = f"T.ones({shape})"
-        name += f"_{OnesNode.suffix_getter.getint()}"
         super().__init__(name, shape)
 
     def compute(self):
@@ -275,6 +291,9 @@ class CloneNode(OpNode):
         assert len(self.inputs) == 1
         return copy.deepcopy(self.inputs[0])
 
+    def set_inputs(self, inputs):
+        self.inputs = inputs
+
     def compute(self, input_vals):
         assert len(input_vals) == 1
         return input_vals[0]
@@ -304,7 +323,7 @@ class CloneNode(OpNode):
         return [chainjacobian(output_jacobian, jacobian)]
 
 
-class AddNode(OpNode):
+class AddNode(DistributiveNode):
     """A node that add two node together"""
     @staticmethod
     def create(*args, **kwargs):
@@ -391,7 +410,7 @@ class AddByConstNode(OpNode):
         return "(%s + %s)" % (inputs[0].name, self.const_attr)
 
 
-class SubNode(OpNode):
+class SubNode(DistributiveNode):
     """Node to element-wise subtract two nodes."""
     @staticmethod
     def create(*args, **kwargs):
@@ -406,6 +425,11 @@ class SubNode(OpNode):
 
     def __deepcopy__(self, memo):
         return self.create(*self.inputs)
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 2
+        self.inputs = inputs
+        self.name = "(%s-%s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, input_vals):
         """Given values of two input nodes, return result of element-wise addition."""
@@ -601,6 +625,11 @@ class MulByConstNode(OpNode):
         self.name = "(%s*%s)" % (node_A.name, str(const_val))
         self.shape = node_A.shape
 
+    def set_inputs(self, inputs):
+        assert len(inputs) == 1
+        self.inputs = inputs
+        self.name = "(%s*%s)" % (inputs[0].name, self.const_attr)
+
     def compute(self, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
         assert len(input_vals) == 1
@@ -710,10 +739,15 @@ class EinsumNode(OpNode):
     """Node to perform einstein summation for two nodes."""
     @staticmethod
     def create(*args, **kwargs):
+        # If we generated einsum('ab->ab'). We ignore the einsum.
+        subscripts = args[0]
+        subs = subscripts.split('->')
+        if len(subs) == 2 and subs[0] == subs[1]:
+            return args[1]
         return EinsumNode(*args, **kwargs)
 
-    # TODO(yejiayu): Mark function staticmethod and change callsite.
-    def _name_generator(self, subscripts, names):
+    @staticmethod
+    def _name_generator(subscripts, names):
         """Generate the einsum name for arbitary number of var names.
 
         Parameters
@@ -758,7 +792,8 @@ class EinsumNode(OpNode):
         """
         self.inputs = nodes
         node_names = [node.name for node in nodes]
-        self.name = self._name_generator(self.einsum_subscripts, node_names)
+        self.name = EinsumNode._name_generator(self.einsum_subscripts,
+                                               node_names)
 
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
@@ -968,7 +1003,7 @@ class EinsumNode(OpNode):
 
     def s2s_expr(self, inputs):
         input_names = [inputvar.name for inputvar in inputs]
-        return self._name_generator(self.einsum_subscripts, input_names)
+        return EinsumNode._name_generator(self.einsum_subscripts, input_names)
 
 
 class NormNode(OpNode):
@@ -1089,7 +1124,14 @@ class ZerosLikeNode(OpNode):
 class OnesLikeNode(OpNode):
     @staticmethod
     def create(*args, **kwargs):
-        return OnesLikeNode(*args, **kwargs)
+        node_A, = args
+        if node_A.shape == []:
+            return ScalarNode(1.)
+        else:
+            return OnesLikeNode(*args, **kwargs)
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
 
     def __init__(self, node_A):
         super().__init__()
@@ -1149,7 +1191,13 @@ class TensorInverseNode(OpNode):
     """
     @staticmethod
     def create(*args, **kwargs):
+        # Args[0] is the node
+        if isinstance(args[0], IdentityNode):
+            return args[0]
         return TensorInverseNode(*args, **kwargs)
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs, self.ind)
 
     def __init__(self, node_A, ind=None):
         """Creates a node that inverts node_A.
@@ -1166,6 +1214,7 @@ class TensorInverseNode(OpNode):
         """
         super().__init__()
         self.inputs = [node_A]
+        self.ind = ind
 
         if ind != None:
             self.input_indices_length = len(node_A.shape) - ind
@@ -1175,16 +1224,21 @@ class TensorInverseNode(OpNode):
             self.input_indices_length = len(
                 node_A.shape) - node_A.input_indices_length
 
-        node_A_input_indices_length = len(
+        self.node_A_input_indices_length = len(
             node_A.shape) - self.input_indices_length
 
-        self.shape = node_A.shape[node_A_input_indices_length:] + \
-            node_A.shape[:node_A_input_indices_length]
+        self.shape = node_A.shape[self.node_A_input_indices_length:] + \
+            node_A.shape[:self.node_A_input_indices_length]
 
         matrix_size = np.prod(self.shape[:self.input_indices_length])
         assert matrix_size == np.prod(self.shape[self.input_indices_length:])
 
-        self.name = f"T.tensorinv({node_A.name}, ind={node_A_input_indices_length})"
+        self.name = f"T.tensorinv({node_A.name}, ind={self.node_A_input_indices_length})"
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 1
+        self.inputs = inputs
+        self.name = f"T.tensorinv({inputs[0].name}, ind={self.node_A_input_indices_length})"
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
@@ -1226,6 +1280,7 @@ sum = SumNode.create
 transpose = TransposeNode.create
 identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
+scalar = ScalarNode.create
 
 
 # Definition of functions based on EinsumNode
