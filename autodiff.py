@@ -199,7 +199,6 @@ class ConstantNode(Node):
 
 
 class ScalarNode(ConstantNode):
-
     @staticmethod
     def create(*args, **kwargs):
         return ScalarNode(*args, **kwargs)
@@ -218,7 +217,6 @@ class ScalarNode(ConstantNode):
 
 class IdentityNode(ConstantNode):
     """Op that represents a constant T.identity."""
-
     @staticmethod
     def create(*args, **kwargs):
         return IdentityNode(*args, **kwargs)
@@ -236,7 +234,6 @@ class IdentityNode(ConstantNode):
 
 class OnesNode(ConstantNode):
     """Op that represents a constant T.ones."""
-
     @staticmethod
     def create(*args, **kwargs):
         return OnesNode(*args, **kwargs)
@@ -1188,6 +1185,9 @@ class TensorInverseNode(OpNode):
     """
     @staticmethod
     def create(*args, **kwargs):
+        # Args[0] is the node
+        if isinstance(args[0], IdentityNode):
+            return args[0]
         return TensorInverseNode(*args, **kwargs)
 
     def __deepcopy__(self, memo):

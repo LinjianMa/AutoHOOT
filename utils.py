@@ -67,9 +67,12 @@ class CharacterGetter():
         """
         previous_char = self.char
         if self.char == 'z':
+            self.char = 'A'
+        elif self.char == 'Z':
             logging.info('Run out of characters.')
             raise NotImplementedError
-        self.char = chr(ord(self.char) + 1)
+        else:
+            self.char = chr(ord(self.char) + 1)
         return previous_char
 
 
