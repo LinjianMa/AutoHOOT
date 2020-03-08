@@ -205,6 +205,17 @@ def test_prune_inv_no_inv():
     assert new_output is output
 
 
+def test_prune_inv_set_not_match():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+
+    inv = ad.tensorinv(ad.einsum('ab,bc->ac', A, B), ind=1)
+    output = ad.einsum('ab,bc->ac', inv, A)
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
 def test_prune_inv_nodes_cpd():
     for datatype in BACKEND_TYPES:
         A = ad.Variable(name="A", shape=[2, 2])

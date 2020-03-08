@@ -211,8 +211,12 @@ def prune_inv_node(einsum_node):
 
     inv_node_input = inv_inputs_list[0].inputs[0]
     if not isinstance(inv_node_input, ad.EinsumNode):
+        logger.info(f"inv input is not einsum node, can't prune inv")
+        return einsum_node
+
+    if not set(inv_node_input.inputs).issubset(set(einsum_node.inputs)):
         logger.info(
-            f"inv input is not einsum node, can't prune inv")
+            f"inv inputs is not subset of einsum node inputs, can't prune inv")
         return einsum_node
 
     split_einsum_node = split_einsum(
@@ -224,21 +228,18 @@ def prune_inv_node(einsum_node):
         (split_einsum_node.einsum_subscripts, *split_einsum_node.inputs))
     in_subs_list = in_subs.split(',')
 
-    p_in_nodes = []
+    updated_p_in_nodes = []
     for i, node in enumerate(split_einsum_node.inputs):
-        p_in_nodes.append(PseudoNode(node=node, subscript=in_subs_list[i]))
-
-    # Should only have one einsum input
-    p_einsum_input, = list(
-        filter(lambda pnode: isinstance(pnode.node, ad.EinsumNode),
-               p_in_nodes))
-    p_inv_input, = list(
-        filter(lambda pnode: isinstance(pnode.node, ad.TensorInverseNode),
-               p_in_nodes))
+        if isinstance(node, ad.EinsumNode):
+            p_einsum_input = PseudoNode(node=node, subscript=in_subs_list[i])
+        elif isinstance(node, ad.TensorInverseNode):
+            p_inv_input = PseudoNode(node=node, subscript=in_subs_list[i])
+        else:
+            updated_p_in_nodes.append(
+                PseudoNode(node=node, subscript=in_subs_list[i]))
 
     contract_char = "".join(
         set(p_einsum_input.subscript) & set(p_inv_input.subscript))
-
     uncontract_str = "".join(
         set("".join([p_einsum_input.subscript, p_inv_input.subscript])) -
         set(contract_char))
@@ -274,8 +275,6 @@ def prune_inv_node(einsum_node):
         return einsum_node
 
     # prune the inv node
-    updated_p_in_nodes = list(
-        set(p_in_nodes) - set([p_einsum_input, p_inv_input]))
     updated_p_in_nodes = updated_p_in_nodes + [
         PseudoNode(node=ad.identity(inv_node_input.shape[0]),
                    subscript=uncontract_str)
