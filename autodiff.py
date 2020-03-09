@@ -744,6 +744,9 @@ class EinsumNode(OpNode):
         subs = subscripts.split('->')
         if len(subs) == 2 and subs[0] == subs[1]:
             return args[1]
+        if len(subs) == 2 and sorted(subs[0]) == sorted(
+                subs[1]) and isinstance(args[1], IdentityNode):
+            return args[1]
         return EinsumNode(*args, **kwargs)
 
     @staticmethod
