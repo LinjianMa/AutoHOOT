@@ -199,8 +199,6 @@ def generate_einsum_info(einsum_node):
     # Assign literals
     for node in pseudo_nodes:
         node.generate_subscript(uf)
-        # TODO(yejiayu): Remove this after cleaning up the callers.
-        node.node.subscripts = node.subscript
 
     return uf, p_outnode, p_innodes
 
@@ -276,38 +274,34 @@ def prune_identity_nodes(einsum_node):
             einsum_node: An fused einsum node.
     """
     assert (isinstance(einsum_node, ad.EinsumNode))
-    # used to assign new characters
-    uf_str, _, _ = generate_einsum_info(einsum_node)
 
-    in_subs, out_subs, _ = _parse_einsum_input(
-        (einsum_node.einsum_subscripts, *einsum_node.inputs))
-    in_subs_list = in_subs.split(',')
-    whole_str = out_subs + "".join(in_subs_list)
+    uf_str, p_outnode, p_innodes = generate_einsum_info(einsum_node)
+    whole_str = p_outnode.subscript + "".join(
+        [node.subscript for node in p_innodes])
 
-    for i, node in enumerate(einsum_node.inputs):
-        node.subscripts = in_subs_list[i]
-
-    identity_nodes = list(
-        filter(lambda node: isinstance(node, ad.IdentityNode),
-               einsum_node.inputs))
-    variable_nodes = list(set(einsum_node.inputs) - set(identity_nodes))
+    p_identity_nodes = list(
+        filter(lambda pnode: isinstance(pnode.node, ad.IdentityNode),
+               p_innodes))
+    p_variable_nodes = [
+        pnode for pnode in p_innodes if pnode not in p_identity_nodes
+    ]
 
     # each disjoint set in uf_identity represents the indices
     # linked by identity node
     uf_identity = UF(list(whole_str))
-    for node in identity_nodes:
-        uf_identity.connect(node.subscripts[0], node.subscripts[1])
+    for pnode in p_identity_nodes:
+        uf_identity.connect(pnode.subscript[0], pnode.subscript[1])
 
     input_indices_set, output_indices_set = set(), set()
-    for node in variable_nodes:
+    for pnode in p_variable_nodes:
         # replace subscripts by the root chars
-        sub_list = [uf_identity.root(char) for char in node.subscripts]
-        node.subscripts = "".join(sub_list)
+        sub_list = [uf_identity.root(char) for char in pnode.subscript]
+        pnode.subscript = "".join(sub_list)
         input_indices_set |= set(sub_list)
 
-    updated_inputs = variable_nodes
+    p_updated_inputs = p_variable_nodes
     out_sub_list = []
-    for i, char in enumerate(out_subs):
+    for i, char in enumerate(p_outnode.subscript):
         uf_root_char = uf_identity.root(char)
         if uf_root_char in output_indices_set:
             # we cannot assign the same char to two indices in the
@@ -315,19 +309,20 @@ def prune_identity_nodes(einsum_node):
             # identity node to the inputs to show the constraint.
             new_char = uf_str.cg.getchar()
             out_sub_list.append(new_char)
-            identity_node = ad.identity(einsum_node.shape[i])
-            identity_node.subscripts = f"{uf_root_char}{new_char}"
-            updated_inputs.append(identity_node)
+            p_identity_node = PseudoNode(node=ad.identity(
+                einsum_node.shape[i]),
+                                         subscript=f"{uf_root_char}{new_char}")
+            p_updated_inputs.append(p_identity_node)
         else:
             # directly assign the root char to the subscripts
             out_sub_list.append(uf_root_char)
             output_indices_set.add(uf_root_char)
-    einsum_node.subscripts = "".join(out_sub_list)
+    p_outnode.subscript = "".join(out_sub_list)
 
-    new_input_subs = [node.subscripts for node in updated_inputs]
-    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node.subscripts
+    new_input_subs = [pnode.subscript for pnode in p_updated_inputs]
+    new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript
     einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs(updated_inputs)
+    einsum_node.set_inputs([pnode.node for pnode in p_updated_inputs])
 
 
 def optimize(node):
