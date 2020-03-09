@@ -142,12 +142,9 @@ def test_prune_inv_nodes_simple():
         # inv(inv_input) @ inv_input
         output = ad.einsum('ac,cd,de->ae', ad.tensorinv(inv_input, ind=1), A,
                            B)
-
         new_output = prune_inv_node(output)
 
-        assert len(new_output.inputs) == 1
-        assert isinstance(new_output.inputs[0], ad.IdentityNode)
-
+        assert isinstance(new_output, ad.IdentityNode)
         assert tree_eq(output, new_output, [A, B], tol=1e-6)
 
 
@@ -160,12 +157,9 @@ def test_prune_inv_nodes_transpose():
         # inv(inv_input.T) @ inv_input.T
         output = ad.einsum('ca,cd,de->ae', ad.tensorinv(inv_input, ind=1), A,
                            B)
-
         new_output = prune_inv_node(output)
 
-        assert len(new_output.inputs) == 1
-        assert isinstance(new_output.inputs[0], ad.IdentityNode)
-
+        assert isinstance(new_output, ad.IdentityNode)
         assert tree_eq(output, new_output, [A, B], tol=1e-6)
 
 
