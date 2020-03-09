@@ -505,6 +505,23 @@ def test_prune_identity():
         assert tree_eq(out, out_expect, [a1, a2])
 
 
+def test_prune_identity_w_dup():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a1 = ad.Variable(name="a1", shape=[3, 3])
+        i1 = ad.identity(3)
+        i2 = ad.identity(3)
+        i3 = ad.identity(3)
+
+        out = ad.einsum("ab,bc,cd,de,ef->af", a1, a1, i1, i2, i3)
+        prune_identity_nodes(out)
+        out_expect = ad.einsum("ab,bc->ac", a1, a1)
+        assert len(out.inputs) == 2
+
+        assert tree_eq(out, out_expect, [a1])
+
+
 def test_simplify_inv_w_identity():
 
     for datatype in BACKEND_TYPES:
