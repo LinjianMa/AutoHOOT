@@ -151,6 +151,22 @@ class OpNode(Node):
         raise NotImplementedError
 
 
+class TailNode(OpNode):
+    """Node act as an empty node at the tail of a graph."""
+    @staticmethod
+    def create(*args, **kwargs):
+        return TailNode(*args, **kwargs)
+
+    def __init__(self, node):
+        super().__init__()
+        self.name = f"tail-{node.name}"
+        self.inputs = [node]
+
+    def set_inputs(self, inputs):
+        self.inputs = inputs
+        self.name = f"tail-{inputs[0].name}"
+
+
 class DistributiveNode(OpNode):
     """Distributive operations performed on nodes."""
     def __init__(self):
@@ -1284,6 +1300,7 @@ transpose = TransposeNode.create
 identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
 scalar = ScalarNode.create
+tail = TailNode.create
 
 
 # Definition of functions based on EinsumNode

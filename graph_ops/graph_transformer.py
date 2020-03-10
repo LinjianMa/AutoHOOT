@@ -273,7 +273,8 @@ def prune_identity_nodes(einsum_node):
         Args:
             einsum_node: An fused einsum node.
     """
-    assert (isinstance(einsum_node, ad.EinsumNode))
+    if not (isinstance(einsum_node, ad.EinsumNode)):
+        return
 
     uf_str, p_outnode, p_innodes = generate_einsum_info(einsum_node)
     whole_str = p_outnode.subscript + "".join(
@@ -335,16 +336,20 @@ def optimize(node):
     """
     node = distribute_tree(node)
     linearize(node)
-    all_nodes = find_topo_sort([node])
+
+    tnode = ad.tail(node)
+
+    all_nodes = find_topo_sort([tnode])
     with OutputInjectedMode(all_nodes):
-        trees = find_sub_einsumtree(node)
+        trees = find_sub_einsumtree(tnode)
         for tree in trees:
             out_node, in_nodes = tree
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
             new_z = generate_optimal_tree(new_z)
             replace_node(out_node, new_z)
-    node = declone(node)
+
+    node = declone(tnode.inputs[0])
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
@@ -384,10 +389,10 @@ def simplify(node):
         return node
 
     node = distribute_tree(node)
-    node = fuse_all_einsums(node)
+    tnode = ad.tail(node)
+    tnode = fuse_all_einsums(tnode)
 
-    all_nodes = find_topo_sort([node])
-
+    all_nodes = find_topo_sort([tnode])
     # optimize inverse
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
@@ -402,10 +407,10 @@ def simplify(node):
                 replace_node(node, new_inv_node)
 
     # fuse again
-    node = fuse_all_einsums(node)
+    tnode = fuse_all_einsums(tnode)
 
     # prune inverse nodes
-    all_nodes = find_topo_sort([node])
+    all_nodes = find_topo_sort([tnode])
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
             if node.inputs != []:
@@ -414,4 +419,4 @@ def simplify(node):
                 new_node = prune_inv_node(node)
                 replace_node(node, new_node)
 
-    return node
+    return tnode.inputs[0]
