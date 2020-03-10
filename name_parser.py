@@ -20,15 +20,26 @@ class AutodiffParser:
         '''
         inputs_map = dict(zip([i.name for i in inputs], inputs))
 
+        reserved = {
+            'T.einsum': 'EINSUM_PREFIX',
+        }
         # Parsing rules
-        tokens = (
+        tokens = [
             'NAME',
             'PLUS',
             'MINUS',
             'TIMES',
             'LPAREN',
             'RPAREN',
-        )
+            'EINSUM_SUBSCRIPT',
+            'COMMA',
+            'ID',
+        ] + list(reserved.values())
+
+        def t_ID(t):
+            r'[a-zA-Z_]\.[a-zA-Z_0-9]*'
+            t.type = reserved.get(t.value, 'ID')  # Check for reserved words
+            return t
 
         # Tokens
 
@@ -38,6 +49,8 @@ class AutodiffParser:
         t_LPAREN = r'\('
         t_RPAREN = r'\)'
         t_NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+        t_EINSUM_SUBSCRIPT = r'\'[a-zA-Z,]*->[a-zA-Z]*\''
+        t_COMMA = r'\,'
 
         # Ignored characters
         t_ignore = " \t"
@@ -85,6 +98,24 @@ class AutodiffParser:
             except LookupError:
                 print("Undefined name '%s'" % t[1])
                 t[0] = 0
+
+        def p_expression_einsum(t):
+            '''expression : EINSUM_PREFIX LPAREN EINSUM_SUBSCRIPT INPUTS RPAREN'''
+            # Below we get rid of the quotation marks.
+            t[0] = ad.einsum(t[3][1:-1], *t[4])
+
+        def p_expression_einsum_inputs(t):
+            '''
+            INPUTS : COMMA NAME INPUTS
+                   | COMMA NAME
+            '''
+            try:
+                t[0] = [inputs_map[t[2]]]
+            except LookupError:
+                print("Undefined name '%s'" % t[2])
+                t[0] = 0
+            if len(t) == 4:
+                t[0] += t[3]
 
         def p_error(t):
             print("Syntax error at '%s'" % t.value)
