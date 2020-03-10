@@ -22,10 +22,13 @@ class AutodiffParser:
 
         reserved = {
             'T.einsum': 'EINSUM_PREFIX',
+            'T.tensorinv': 'EINSUM_INVERSE',
+            'ind=': 'INV_INDEX',
         }
         # Parsing rules
         tokens = [
             'NAME',
+            'NUMBER',
             'PLUS',
             'MINUS',
             'TIMES',
@@ -37,7 +40,7 @@ class AutodiffParser:
         ] + list(reserved.values())
 
         def t_ID(t):
-            r'[a-zA-Z_]\.[a-zA-Z_0-9]*'
+            r'[a-zA-Z_]*[\.\=][a-zA-Z]*'
             t.type = reserved.get(t.value, 'ID')  # Check for reserved words
             return t
 
@@ -48,6 +51,7 @@ class AutodiffParser:
         t_TIMES = r'\*'
         t_LPAREN = r'\('
         t_RPAREN = r'\)'
+        t_NUMBER = r'[0-9]+'
         t_NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
         t_EINSUM_SUBSCRIPT = r'\'[a-zA-Z,]*->[a-zA-Z]*\''
         t_COMMA = r'\,'
@@ -99,21 +103,21 @@ class AutodiffParser:
                 print("Undefined name '%s'" % t[1])
                 t[0] = 0
 
+        def p_expression_tensorinv(t):
+            'expression : EINSUM_INVERSE LPAREN expression COMMA INV_INDEX NUMBER RPAREN'
+            t[0] = ad.tensorinv(t[3], ind=int(t[6]))
+
         def p_expression_einsum(t):
-            '''expression : EINSUM_PREFIX LPAREN EINSUM_SUBSCRIPT INPUTS RPAREN'''
+            'expression : EINSUM_PREFIX LPAREN EINSUM_SUBSCRIPT INPUTS RPAREN'
             # Below we get rid of the quotation marks.
             t[0] = ad.einsum(t[3][1:-1], *t[4])
 
         def p_expression_einsum_inputs(t):
             '''
-            INPUTS : COMMA NAME INPUTS
-                   | COMMA NAME
+            INPUTS : COMMA expression INPUTS
+                   | COMMA expression 
             '''
-            try:
-                t[0] = [inputs_map[t[2]]]
-            except LookupError:
-                print("Undefined name '%s'" % t[2])
-                t[0] = 0
+            t[0] = [t[2]]
             if len(t) == 4:
                 t[0] += t[3]
 
