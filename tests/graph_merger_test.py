@@ -301,3 +301,52 @@ def test_einsum_subtree_clone():
         new_out_val, = executor.run(feed_dict=generated_feed_dict)
 
         assert float_eq(out_val, new_out_val)
+
+
+def test_einsum_replace():
+    """
+        We test if einsum output node can be replaced.
+        We want to auto fuse
+            A   B   C   
+            |    \ /    
+            |     es    
+            |    /     
+            |  /       
+            es         
+                     
+        Here es is einsum.
+    """
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        a = ad.Variable(name="a", shape=[3, 3])
+        b = ad.Variable(name="b", shape=[3, 2])
+        c = ad.Variable(name="c", shape=[2, 3])
+
+        BC = ad.einsum('ik, kj->ij', b, c)  # 3x3
+
+        ABC = ad.einsum('ik, kj->ij', a, BC)  # 3x3
+
+        out = ABC
+
+        input_nodes = [a, b, c]
+        generated_feed_dict = gen_dict(input_nodes)
+
+        executor = ad.Executor([out])
+        out_val, = executor.run(feed_dict=generated_feed_dict)
+
+        with OutputInjectedMode(find_topo_sort([out])):
+            trees = find_sub_einsumtree(out)
+            for tree in trees:
+                out_node, in_nodes = tree
+                new_z = fuse_einsums(out_node, in_nodes)
+                if len(out_node.outputs) == 0:
+                    out = new_z
+                else:
+                    replace_node(out_node, new_z)
+        for node in out.inputs:
+            assert not isinstance(node, ad.EinsumNode)
+
+        new_out_val, = executor.run(feed_dict=generated_feed_dict)
+
+        assert float_eq(out_val, new_out_val)
