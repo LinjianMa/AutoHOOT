@@ -1,7 +1,7 @@
 import pytest
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
+from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -553,3 +553,19 @@ def test_simplify_inv_w_redundent_einsum():
         assert isinstance(inv_node.inputs[0], ad.VariableNode)
 
         assert tree_eq(out, newout, [A], tol=1e-6)
+
+
+def test_simplify_optimize_w_tail_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,bc->ac", A,
+                        ad.einsum("ab,bc->ac", ad.identity(2), ad.identity(2)))
+        newout_optimize = optimize(out)
+        newout_simplify = simplify(out)
+
+        assert newout_optimize == A
+        assert newout_simplify == A

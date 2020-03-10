@@ -273,7 +273,8 @@ def prune_identity_nodes(einsum_node):
         Args:
             einsum_node: An fused einsum node.
     """
-    assert (isinstance(einsum_node, ad.EinsumNode))
+    if not (isinstance(einsum_node, ad.EinsumNode)):
+        return
 
     uf_str, p_outnode, p_innodes = generate_einsum_info(einsum_node)
     whole_str = p_outnode.subscript + "".join(
@@ -335,6 +336,7 @@ def optimize(node):
     """
     node = distribute_tree(node)
     linearize(node)
+
     all_nodes = find_topo_sort([node])
     with OutputInjectedMode(all_nodes):
         trees = find_sub_einsumtree(node)
@@ -343,7 +345,11 @@ def optimize(node):
             new_z = fuse_einsums(out_node, in_nodes)
             prune_identity_nodes(new_z)
             new_z = generate_optimal_tree(new_z)
-            replace_node(out_node, new_z)
+            if out_node.outputs == []:
+                node = new_z
+            else:
+                replace_node(out_node, new_z)
+
     node = declone(node)
     all_nodes = find_topo_sort([node])
     for node in all_nodes:
@@ -358,7 +364,7 @@ def optimize(node):
     return node
 
 
-def simplify(node):
+def simplify(output_node):
     """Simplify a graph with a single output node.
     The simplified form will distribute selected operations
     (+), and fuse all connected einsums.
@@ -378,16 +384,18 @@ def simplify(node):
                 out_node, in_nodes = tree
                 new_z = fuse_einsums(out_node, in_nodes)
                 prune_identity_nodes(new_z)
-                replace_node(out_node, new_z)
+                if out_node.outputs == []:
+                    node = new_z
+                else:
+                    replace_node(out_node, new_z)
 
         node = declone(node)
         return node
 
-    node = distribute_tree(node)
-    node = fuse_all_einsums(node)
+    output_node = distribute_tree(output_node)
+    output_node = fuse_all_einsums(output_node)
 
-    all_nodes = find_topo_sort([node])
-
+    all_nodes = find_topo_sort([output_node])
     # optimize inverse
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
@@ -399,19 +407,25 @@ def simplify(node):
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.TensorInverseNode):
                 new_inv_node = optimize_inverse(node)
-                replace_node(node, new_inv_node)
+                if node.outputs == []:
+                    output_node = new_inv_node
+                else:
+                    replace_node(node, new_inv_node)
 
     # fuse again
-    node = fuse_all_einsums(node)
+    output_node = fuse_all_einsums(output_node)
 
     # prune inverse nodes
-    all_nodes = find_topo_sort([node])
+    all_nodes = find_topo_sort([output_node])
     with OutputInjectedMode(all_nodes):
         for node in all_nodes:
             if node.inputs != []:
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.EinsumNode):
                 new_node = prune_inv_node(node)
-                replace_node(node, new_node)
+                if node.outputs == []:
+                    output_node = new_node
+                else:
+                    replace_node(node, new_node)
 
-    return node
+    return output_node
