@@ -21,6 +21,14 @@ def test_minus():
     assert AutodiffParser.parse(y.name, [A, B]).name == y.name
 
 
+def test_scalar_mul():
+
+    A = ad.Variable(name="A", shape=[3])
+    y = 3 * A
+
+    assert AutodiffParser.parse(y.name, [A]).name == y.name
+
+
 def test_add_3():
 
     A = ad.Variable(name="A", shape=[3])

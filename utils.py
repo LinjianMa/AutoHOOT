@@ -6,6 +6,8 @@ import backend as T
 import logging
 import numpy as np
 import time
+from sympy import symbols, simplify
+from name_parser import AutodiffParser
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -56,6 +58,14 @@ def indices_to_subscripts(in_indices, out_index, dim_size):
 ##############################
 ####### Helper Methods #######
 ##############################
+
+
+def sympy_simplify(out, inputs):
+    _ = symbols(f', '.join([i.name for i in inputs]))
+    ret = simplify(f'{out.name}')
+    return AutodiffParser.parse(str(ret), inputs)
+
+
 class CharacterGetter():
     """ Return a character and increment"""
     def __init__(self):
