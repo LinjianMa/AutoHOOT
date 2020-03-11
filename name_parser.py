@@ -95,6 +95,10 @@ class AutodiffParser:
             'expression : LPAREN expression RPAREN'
             t[0] = t[2]
 
+        def p_expression_number(t):
+            'expression : NUMBER'
+            t[0] = t[1]
+
         def p_expression_name(t):
             'expression : NAME'
             try:
