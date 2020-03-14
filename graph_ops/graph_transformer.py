@@ -18,7 +18,7 @@ from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
-from utils import replace_node
+from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -474,5 +474,16 @@ def simplify(output_node):
                     output_node = new_node
                 else:
                     replace_node(node, new_node)
+
+    #sympy_simplify the distributed nodes
+    if isinstance(output_node, ad.DistributiveNode):
+        sympy_inputs = []
+        all_nodes = find_topo_sort([output_node])
+        for node in all_nodes:
+            if isinstance(node, ad.DistributiveNode):
+                for in_node in node.inputs:
+                    if not isinstance(in_node, ad.DistributiveNode):
+                        sympy_inputs.append(in_node)
+        output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node

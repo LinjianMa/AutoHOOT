@@ -154,9 +154,8 @@ def test_cpd_hessian_simplify():
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
         for node in hessian_diag:
             node = simplify(node)
-            assert isinstance(node, ad.AddNode)
-            for input_node in node.inputs:
-                assert len(input_node.inputs) == 5
+            input_node = node.inputs[0]
+            assert len(input_node.inputs) == 5
 
         executor = ad.Executor(hessian_diag)
         hes_diag_vals = executor.run(feed_dict={

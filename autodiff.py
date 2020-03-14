@@ -616,6 +616,10 @@ class MulByConstNode(DistributiveNode):
     """Node to element-wise multiply a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
+        # If the input is 1.0 * node, we return the node.
+        const_val = args[1]
+        if const_val == 1.:
+            return args[0]
         return MulByConstNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):

@@ -581,7 +581,6 @@ def test_prune_scalar_nodes():
 
         out = ad.einsum("ab,,ab->ab", a1, s, a2)
         out_prune = prune_scalar_nodes(out)
-        print(type(out_prune))
 
         assert isinstance(out_prune, ad.MulByConstNode)
         assert tree_eq(out, out_prune, [a1, a2])
