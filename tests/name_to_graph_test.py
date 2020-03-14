@@ -47,6 +47,16 @@ def test_einsum():
     assert AutodiffParser.parse(y.name, [A, B]).name == y.name
 
 
+def test_einsum_mul():
+
+    A = ad.Variable(name="A", shape=[3, 2])
+    B = ad.Variable(name="B", shape=[2, 3])
+    y = ad.einsum('ik,kj->ij', A, B)
+    z = 2 * y
+
+    assert AutodiffParser.parse(z.name, [A, B]).name == z.name
+
+
 def test_tensorinv():
 
     A = ad.Variable(name="A", shape=[3, 3])

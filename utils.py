@@ -60,10 +60,49 @@ def indices_to_subscripts(in_indices, out_index, dim_size):
 ##############################
 
 
+def get_all_inputs(out):
+    all_inputs = []
+    if len(out.inputs) == 0:
+        all_inputs.append(out)
+    else:
+        for i in out.inputs:
+            all_inputs += get_all_inputs(i)
+    return all_inputs
+
+
 def sympy_simplify(out, inputs):
-    _ = symbols(f', '.join([i.name for i in inputs]))
-    ret = simplify(f'{out.name}')
-    return AutodiffParser.parse(str(ret), inputs)
+    """
+    Parameters
+    ------------------
+    out: The to-be simplified node.
+    inputs: The nodes that are symbols.
+    ------------------
+    Returns 
+    ------------------
+    out: The simplified output.
+    ------------------
+    """
+    # Retrieve all the leaf nodes to establish parser table.
+    parser_input = get_all_inputs(out)
+    cg = CharacterGetter()
+    input_to_chars = {i: '__' + cg.getchar() for i in inputs}
+    chars_to_input = dict(zip(input_to_chars.values(), input_to_chars.keys()))
+    ss_name = f', '.join([input_to_chars[i] for i in inputs])
+    ss = symbols(ss_name)
+    formula = out.name
+    # Visit the inputs in reverse topological order.
+    all_nodes = reversed(find_topo_sort([out]))
+    for i in all_nodes:
+        if i in inputs:
+            formula = formula.replace(i.name, input_to_chars[i])
+
+    ret = str(simplify(formula))
+
+    all_nodes = reversed(find_topo_sort([out]))
+    for i in all_nodes:
+        if i in inputs:
+            ret = ret.replace(input_to_chars[i], i.name)
+    return AutodiffParser.parse(ret, parser_input)
 
 
 class CharacterGetter():
