@@ -4,6 +4,7 @@ from graph_ops.graph_transformer import optimize, linearize
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
 from examples.cpd import cpd_graph
+import pytest
 
 BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
@@ -22,6 +23,7 @@ def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
     return [jtjvp_A, jtjvp_B, jtjvp_C]
 
 
+@pytest.mark.benchmark(group="jtjvp")
 def test_cpd_raw(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -51,6 +53,7 @@ def test_cpd_raw(benchmark):
                               })
 
 
+@pytest.mark.benchmark(group="jtjvp")
 def test_cpd_jtjvp(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -61,6 +64,7 @@ def test_cpd_jtjvp(benchmark):
                                      v_A_val, v_B_val, v_C_val)
 
 
+@pytest.mark.benchmark(group="jtjvp")
 def test_cpd_jtjvp_optimized(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
