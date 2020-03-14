@@ -18,7 +18,7 @@ from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
-from utils import replace_node
+from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -326,6 +326,39 @@ def prune_identity_nodes(einsum_node):
     einsum_node.set_inputs([pnode.node for pnode in p_updated_inputs])
 
 
+def prune_scalar_nodes(einsum_node):
+    """
+        Remove the scalar input nodes of a einsum_node.
+        Args:
+            einsum_node: An fused einsum node.
+        Return:
+            both the scalar and the pruned einsum node.
+    """
+    in_subs, out_subs, _ = _parse_einsum_input(
+        (einsum_node.einsum_subscripts, *einsum_node.inputs))
+    in_subs_list = in_subs.split(',')
+
+    new_inputs, new_input_subs, scalars = [], [], []
+
+    for i in range(len(in_subs_list)):
+        if in_subs_list[i] == "" and isinstance(einsum_node.inputs[i],
+                                                ad.ScalarNode):
+            scalars.append(einsum_node.inputs[i].value)
+        else:
+            new_inputs.append(einsum_node.inputs[i])
+            new_input_subs.append(in_subs_list[i])
+
+    scalar = np.prod(scalars)
+
+    new_subscripts = ",".join(new_input_subs) + "->" + out_subs
+    output_node = ad.einsum(new_subscripts, *new_inputs)
+
+    if scalar == 1.:
+        return output_node
+    else:
+        return scalar * output_node
+
+
 def optimize(node):
     """Optimize a graph with a single output node.
 
@@ -427,5 +460,30 @@ def simplify(output_node):
                     output_node = new_node
                 else:
                     replace_node(node, new_node)
+
+    # prune the scalar nodes and remove unnecessary identity nodes
+    all_nodes = find_topo_sort([output_node])
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                prune_identity_nodes(node)
+                new_node = prune_scalar_nodes(node)
+                if node.outputs == []:
+                    output_node = new_node
+                else:
+                    replace_node(node, new_node)
+
+    #sympy_simplify the distributed nodes
+    if isinstance(output_node, ad.DistributiveNode):
+        sympy_inputs = []
+        all_nodes = find_topo_sort([output_node])
+        for node in all_nodes:
+            if isinstance(node, ad.DistributiveNode):
+                for in_node in node.inputs:
+                    if not isinstance(in_node, ad.DistributiveNode):
+                        sympy_inputs.append(in_node)
+        output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node

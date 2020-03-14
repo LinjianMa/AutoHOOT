@@ -23,6 +23,7 @@ class AutodiffParser:
         reserved = {
             'T.einsum': 'EINSUM_PREFIX',
             'T.tensorinv': 'EINSUM_INVERSE',
+            'T.identity': 'IDENTITY',
             'ind=': 'INV_INDEX',
         }
         # Parsing rules
@@ -97,7 +98,7 @@ class AutodiffParser:
 
         def p_expression_number(t):
             'expression : NUMBER'
-            t[0] = t[1]
+            t[0] = float(t[1])
 
         def p_expression_name(t):
             'expression : NAME'
@@ -110,6 +111,10 @@ class AutodiffParser:
         def p_expression_tensorinv(t):
             'expression : EINSUM_INVERSE LPAREN expression COMMA INV_INDEX NUMBER RPAREN'
             t[0] = ad.tensorinv(t[3], ind=int(t[6]))
+
+        def p_expression_identity(t):
+            'expression : IDENTITY LPAREN NUMBER RPAREN'
+            t[0] = ad.identity(t[3])
 
         def p_expression_einsum(t):
             'expression : EINSUM_PREFIX LPAREN EINSUM_SUBSCRIPT INPUTS RPAREN'

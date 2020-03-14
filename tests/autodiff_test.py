@@ -120,6 +120,19 @@ def test_mul_by_const():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val) * 5)
 
 
+def test_mul_by_const():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x = ad.Variable(name="x", shape=[3])
+        y1 = ad.sum(5 * x)
+        y2 = ad.sum(5.0 * x)
+
+        assert y1.name == y2.name
+        assert tree_eq(y1, y2, [x])
+
+
 def test_power():
 
     for datatype in BACKEND_TYPES:

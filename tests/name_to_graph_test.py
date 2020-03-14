@@ -63,3 +63,10 @@ def test_tensorinv():
     y = ad.tensorinv(A)
 
     assert AutodiffParser.parse(y.name, [A]).name == y.name
+
+
+def test_identity():
+
+    A = ad.identity(3)
+
+    assert AutodiffParser.parse(A.name, []).name == A.name
