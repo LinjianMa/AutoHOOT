@@ -51,7 +51,7 @@ class AutodiffParser:
         t_TIMES = r'\*'
         t_LPAREN = r'\('
         t_RPAREN = r'\)'
-        t_NUMBER = r'[0-9]+'
+        t_NUMBER = r'[0-9]+\.?[0-9]*'
         t_NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
         t_EINSUM_SUBSCRIPT = r'\'[a-zA-Z,]*->[a-zA-Z]*\''
         t_COMMA = r'\,'
