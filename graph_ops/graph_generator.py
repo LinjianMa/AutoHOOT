@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descendants, get_leaves
+from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_all_inputs
 
 import autodiff as ad
 import copy
@@ -104,17 +104,19 @@ def optimal_sub_einsum(einsum_node, contract_node):
     >>> optimal_sub_einsum(einsum_node, contract_node)
     ad.einsum('ebl,ge->bgl',ad.einsum('bej,lj->ebl',X3,A3),A3)
     """
-    sub_einsum = generate_optimal_tree(einsum_node)
+    assert contract_node in einsum_node.inputs
+    num_c_node = len(
+        list(filter(lambda node: node is contract_node, einsum_node.inputs)))
+    opt_einsum = generate_optimal_tree(einsum_node)
 
-    while contract_node not in sub_einsum.inputs:
-        einsum_inputs = [
-            node for node in sub_einsum.inputs
-            if isinstance(node, ad.EinsumNode)
-        ]
-        for node in einsum_inputs:
-            if contract_node in node.inputs or any(
-                    isinstance(input_node, ad.EinsumNode)
-                    for input_node in node.inputs):
-                sub_einsum = node
+    topo_order_list = find_topo_sort([opt_einsum])
 
-    return sub_einsum
+    for node in topo_order_list:
+        # we want to get the smallest subtree whose inputs contain all the contract_node
+        if isinstance(node, ad.EinsumNode):
+            num_c_node_in_leaves = len(
+                list(
+                    filter(lambda node: node is contract_node,
+                           get_all_inputs(node))))
+            if num_c_node == num_c_node_in_leaves:
+                return node
