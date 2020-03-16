@@ -1,7 +1,7 @@
 import pytest
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, simplify, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes
+from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 
@@ -505,6 +505,23 @@ def test_prune_identity():
         assert tree_eq(out, out_expect, [a1, a2])
 
 
+def test_prune_identity_w_dup():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a1 = ad.Variable(name="a1", shape=[3, 3])
+        i1 = ad.identity(3)
+        i2 = ad.identity(3)
+        i3 = ad.identity(3)
+
+        out = ad.einsum("ab,bc,cd,de,ef->af", a1, a1, i1, i2, i3)
+        prune_identity_nodes(out)
+        out_expect = ad.einsum("ab,bc->ac", a1, a1)
+        assert len(out.inputs) == 2
+
+        assert tree_eq(out, out_expect, [a1])
+
+
 def test_simplify_inv_w_identity():
 
     for datatype in BACKEND_TYPES:
@@ -536,3 +553,34 @@ def test_simplify_inv_w_redundent_einsum():
         assert isinstance(inv_node.inputs[0], ad.VariableNode)
 
         assert tree_eq(out, newout, [A], tol=1e-6)
+
+
+def test_simplify_optimize_w_tail_einsum():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[2, 2])
+
+        out = ad.einsum("ab,bc->ac", A,
+                        ad.einsum("ab,bc->ac", ad.identity(2), ad.identity(2)))
+        newout_optimize = optimize(out)
+        newout_simplify = simplify(out)
+
+        assert newout_optimize == A
+        assert newout_simplify == A
+
+
+def test_prune_scalar_nodes():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a1 = ad.Variable(name="a1", shape=[3, 3])
+        a2 = ad.Variable(name="a2", shape=[3, 3])
+        s = ad.scalar(3.)
+
+        out = ad.einsum("ab,,ab->ab", a1, s, a2)
+        out_prune = prune_scalar_nodes(out)
+
+        assert isinstance(out_prune, ad.MulByConstNode)
+        assert tree_eq(out, out_prune, [a1, a2])

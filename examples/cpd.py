@@ -59,13 +59,13 @@ def cpd_als(size, rank, num_iter, input_val=[]):
     delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
     delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
 
-    delta_A = simplify(delta_A)
-    delta_B = simplify(delta_B)
-    delta_C = simplify(delta_C)
-
     new_A = A - delta_A
     new_B = B - delta_B
     new_C = C - delta_C
+
+    new_A = simplify(new_A)
+    new_B = simplify(new_B)
+    new_C = simplify(new_C)
 
     executor_A = ad.Executor([loss, new_A])
     executor_B = ad.Executor([loss, new_B])

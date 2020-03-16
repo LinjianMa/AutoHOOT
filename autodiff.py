@@ -612,17 +612,22 @@ class MulNode(OpNode):
         ]
 
 
-class MulByConstNode(OpNode):
+class MulByConstNode(DistributiveNode):
     """Node to element-wise multiply a nodes by a constant."""
     @staticmethod
     def create(*args, **kwargs):
+        # If the input is 1.0 * node, we return the node.
+        const_val = args[1]
+        if const_val == 1.:
+            return args[0]
         return MulByConstNode(*args, **kwargs)
 
     def __init__(self, node_A, const_val):
         super().__init__()
+        assert isinstance(const_val, (int, float))
         self.const_attr = const_val
         self.inputs = [node_A]
-        self.name = "(%s*%s)" % (node_A.name, str(const_val))
+        self.name = "(%s*%s)" % (node_A.name, str(float(const_val)))
         self.shape = node_A.shape
 
     def set_inputs(self, inputs):
