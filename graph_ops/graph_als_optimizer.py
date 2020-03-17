@@ -110,5 +110,7 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node):
         second_einsum = split_einsum(einsum_node, input_node_subset)
         second_einsums.append(second_einsum)
 
+    # Note that second_einsums[-1] will be directly returned and not be resued.
+    # Its inputs will contain one splited_einsum, and other variable nodes.
     return dimension_tree(second_einsums[:-1], input_nodes[:-1],
                           input_nodes[-1]) + [second_einsums[-1]]

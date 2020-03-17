@@ -95,17 +95,15 @@ def get_common_ancestor(root, leaf):
     ----------
     ancestor: A ancestor that covers all the leaf(s).
     """
-    num_c_node = len(list(filter(lambda n: n is leaf, get_all_inputs(root))))
-
+    num_leaves = len(list(filter(lambda n: n is leaf, get_all_inputs(root))))
     topo_order_list = find_topo_sort([root])
 
     for node in topo_order_list:
-        # We want to get the smallest subtree whose inputs contain all the contract_node.
+        # We want to get the smallest subtree whose inputs contain all the leaves.
         if isinstance(node, ad.EinsumNode):
-            num_c_node_in_leaves = len(
+            num_leaves_subtree = len(
                 list(filter(lambda n: n is leaf, get_all_inputs(node))))
-            if num_c_node == num_c_node_in_leaves:
-                print(node)
+            if num_leaves == num_leaves_subtree:
                 return node
 
 

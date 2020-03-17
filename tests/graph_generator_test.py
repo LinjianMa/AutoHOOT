@@ -68,6 +68,33 @@ def test_split_einsum():
     assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
 
 
+def test_optimal_sub_einsum_simple():
+
+    A = ad.Variable(name="A", shape=[3, 2])
+
+    X1 = ad.Variable(name="X1", shape=[3, 4, 4])
+    X2 = ad.Variable(name="X2", shape=[3, 2, 2])
+    """
+        The network and indices positions are as follows:
+
+             g - A
+                 |
+        d        e
+        |        |
+        X1 - b - X2
+        |        |
+        i        j
+    """
+    einsum_node = ad.einsum('ge,bdi,bej->gdij', A, X1, X2)
+    sub_einsum = optimal_sub_einsum(einsum_node, A)
+
+    inputs_set = set(
+        filter(lambda node: isinstance(node, ad.VariableNode),
+               find_topo_sort([sub_einsum])))
+
+    assert inputs_set == {A, X2}
+
+
 def test_optimal_sub_einsum():
 
     A = ad.Variable(name="A", shape=[3, 2])
