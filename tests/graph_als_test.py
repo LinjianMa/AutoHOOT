@@ -30,6 +30,27 @@ def test_dimension_tree():
     assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, X])
 
 
+def test_dimension_tree_w_identity():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.identity(2)
+    C = ad.Variable(name="C", shape=[2, 2])
+    X = ad.Variable(name="X", shape=[2, 2, 2])
+
+    einsum_node_A = ad.einsum("abc,bm,cm->am", X, B, C)
+    einsum_node_B = ad.einsum("abc,am,cm->bm", X, A, C)
+    einsum_node_C = ad.einsum("abc,am,bm->cm", X, A, B)
+
+    dt = generate_sequential_optiaml_tree(
+        {
+            einsum_node_A: A,
+            einsum_node_B: B
+        },
+        first_contract_node=C)
+
+    assert tree_eq(dt[0], einsum_node_A, [A, C, X])
+    assert tree_eq(dt[1], einsum_node_B, [A, C, X])
+
+
 def test_simple_dmrg_tree():
     A1 = ad.Variable(name="A1", shape=[3, 2])
     A2 = ad.Variable(name="A2", shape=[3, 3, 2])
@@ -66,10 +87,11 @@ def test_simple_dmrg_tree():
     assert tree_eq(dt[0], einsum_node_A1, [X1, X2, X3, A1, A1, A2, A2, A3, A3])
     assert tree_eq(dt[1], einsum_node_A2, [X1, X2, X3, A1, A1, A2, A2, A3, A3])
 
+    # In the correct contraction path, only X3 should be contracted with A3,
+    # all other X nodes should be contracted later.
     einsum_inputs = list(
         filter(lambda node: isinstance(node, ad.EinsumNode),
                find_topo_sort(dt)))
-
-    # In the correct contraction path, only X3 should be contracted with A3,
-    # all other X nodes should be contracted later.
-    assert set(einsum_inputs[0].inputs) == {A3, X3}
+    assert sorted(einsum_inputs[0].inputs,
+                  key=lambda node: node.name) == sorted(
+                      [A3, A3, X3], key=lambda node: node.name)

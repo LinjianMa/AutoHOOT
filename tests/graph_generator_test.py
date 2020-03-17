@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from utils import find_topo_sort
+from utils import get_all_inputs
 from graph_ops.graph_generator import generate_optimal_tree, split_einsum, optimal_sub_einsum
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
@@ -88,11 +88,9 @@ def test_optimal_sub_einsum_simple():
     einsum_node = ad.einsum('ge,bdi,bej->gdij', A, X1, X2)
     sub_einsum = optimal_sub_einsum(einsum_node, A)
 
-    inputs_set = set(
-        filter(lambda node: isinstance(node, ad.VariableNode),
-               find_topo_sort([sub_einsum])))
-
-    assert inputs_set == {A, X2}
+    assert sorted(get_all_inputs(sub_einsum),
+                  key=lambda node: node.name) == sorted(
+                      [A, X2], key=lambda node: node.name)
 
 
 def test_optimal_sub_einsum():
@@ -119,11 +117,9 @@ def test_optimal_sub_einsum():
     einsum_node = ad.einsum('lj,ge,bej,abdi,ach->cdhigl', A, A, X3, X2, X1)
     sub_einsum = optimal_sub_einsum(einsum_node, A)
 
-    inputs_set = set(
-        filter(lambda node: isinstance(node, ad.VariableNode),
-               find_topo_sort([sub_einsum])))
-
-    assert inputs_set == {A, X3}
+    assert sorted(get_all_inputs(sub_einsum),
+                  key=lambda node: node.name) == sorted(
+                      [A, A, X3], key=lambda node: node.name)
 
 
 def test_split_einsum_dup():

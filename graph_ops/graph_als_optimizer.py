@@ -4,7 +4,7 @@
 """
 import logging
 import autodiff as ad
-from utils import find_topo_sort
+from utils import get_all_inputs
 
 from graph_ops.graph_generator import split_einsum, optimal_sub_einsum
 from graph_ops.graph_dedup import dedup
@@ -98,13 +98,9 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node):
         sub_splitted_einsum = optimal_sub_einsum(splitted_einsum,
                                                  first_contract_node)
 
-        sub_splitted_inputs = list(
-            filter(lambda node: isinstance(node, ad.VariableNode),
-                   find_topo_sort([sub_splitted_einsum])))
-
         input_node_subset = [
             node for node in einsum_node.inputs
-            if node not in sub_splitted_inputs
+            if node not in get_all_inputs(sub_splitted_einsum)
         ]
 
         second_einsum = split_einsum(einsum_node, input_node_subset)
