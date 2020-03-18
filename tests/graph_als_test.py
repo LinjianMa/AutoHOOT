@@ -21,13 +21,14 @@ def test_dimension_tree():
         {
             einsum_node_A: A,
             einsum_node_B: B,
-            einsum_node_C: C
-        },
-        first_contract_node=D)
+            einsum_node_C: C,
+            einsum_node_D: D
+        })
 
     assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
     assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
     assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, X])
+    assert tree_eq(dt[3], einsum_node_D, [A, B, C, D, X])
 
 
 def test_dimension_tree_w_identity():

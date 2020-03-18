@@ -49,7 +49,7 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     return dt
 
 
-def dimension_tree(einsum_nodes, input_nodes, first_contract_node):
+def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
     """
     Calculating einsum expressions based on the dimension tree.
 
@@ -82,6 +82,13 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node):
 
     if len(einsum_nodes) == 1 and len(input_nodes) == 1:
         return einsum_nodes
+
+    if first_contract_node == None:
+        # if first_contract_node is none, the right most tree will not be reused.
+        return dimension_tree(einsum_nodes[:-1], input_nodes[:-1],
+                              input_nodes[-1]) + [einsum_nodes[-1]]
+
+    assert first_contract_node not in input_nodes
 
     second_einsums = []
     for einsum_node in einsum_nodes:
