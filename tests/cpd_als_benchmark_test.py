@@ -7,7 +7,7 @@ from tensors.synthetic_tensors import init_rand_3d
 from examples.cpd import cpd_als
 from tensorly.decomposition import parafac
 from sktensor import dtensor
-from sktensor import cp_als as sk_cpals
+from sktensor import cp_als as sk_cp_als
 
 BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
@@ -35,7 +35,7 @@ def test_cpd_als_sktensor(benchmark):
     for datatype in BACKEND_TYPES:
 
         _, _, _, input_tensor_val = init_rand_3d(size, rank)
-        benchmark(sk_cpals,
+        benchmark(sk_cp_als,
                   dtensor(input_tensor_val),
                   rank=rank,
                   max_iter=1,
