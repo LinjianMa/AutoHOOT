@@ -1,6 +1,7 @@
 import autodiff as ad
 import backend as T
-from graph_ops.graph_generator import generate_optimal_tree, split_einsum
+from utils import get_all_inputs
+from graph_ops.graph_generator import generate_optimal_tree, split_einsum, optimal_sub_einsum
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
@@ -65,6 +66,60 @@ def test_split_einsum():
     new_einsum = split_einsum(einsum_node, split_input_nodes)
     assert len(new_einsum.inputs) == 3  # A, B, einsum(C, D, E)
     assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
+
+
+def test_optimal_sub_einsum_simple():
+
+    A = ad.Variable(name="A", shape=[3, 2])
+
+    X1 = ad.Variable(name="X1", shape=[3, 4, 4])
+    X2 = ad.Variable(name="X2", shape=[3, 2, 2])
+    """
+        The network and indices positions are as follows:
+
+             g - A
+                 |
+        d        e
+        |        |
+        X1 - b - X2
+        |        |
+        i        j
+    """
+    einsum_node = ad.einsum('ge,bdi,bej->gdij', A, X1, X2)
+    sub_einsum = optimal_sub_einsum(einsum_node, A)
+
+    assert sorted(get_all_inputs(sub_einsum),
+                  key=lambda node: node.name) == sorted(
+                      [A, X2], key=lambda node: node.name)
+
+
+def test_optimal_sub_einsum():
+
+    A = ad.Variable(name="A", shape=[3, 2])
+
+    X1 = ad.Variable(name="X1", shape=[3, 2, 2])
+    X2 = ad.Variable(name="X2", shape=[3, 3, 2, 2])
+    X3 = ad.Variable(name="X3", shape=[3, 2, 2])
+    """
+        The network and indices positions are as follows:
+
+                      g - A
+                          |
+        c        d        e
+        |        |        |
+        X1 - a - X2 - b - X3
+        |        |        |
+        h        i        j
+                          |
+                      l - A
+
+    """
+    einsum_node = ad.einsum('lj,ge,bej,abdi,ach->cdhigl', A, A, X3, X2, X1)
+    sub_einsum = optimal_sub_einsum(einsum_node, A)
+
+    assert sorted(get_all_inputs(sub_einsum),
+                  key=lambda node: node.name) == sorted(
+                      [A, A, X3], key=lambda node: node.name)
 
 
 def test_split_einsum_dup():

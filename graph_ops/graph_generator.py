@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descendants, get_leaves
+from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_all_inputs
 
 import autodiff as ad
 import copy
@@ -51,17 +51,20 @@ def generate_optimal_tree(node, path=None):
 def split_einsum(einsum_node, split_input_nodes):
     """
     Split the einsum node into two einsum nodes.
+
     Parameters
     ----------
     einsum_node : ad.EinsumNode
         Input einsum node
     split_input_nodes : list
         List of input nodes that are split out from the first einsum contraction
+
     Returns
     -------
     second_einsum : ad.EinsumNode
         A newly written einsum composed of an intermediate node composed of
         input nodes except split_input_nodes.
+
     Examples
     --------
     >>> einsum_node = ad.einsum("ab,bc,cd,de->ae", A,B,C,D)
@@ -77,3 +80,57 @@ def split_einsum(einsum_node, split_input_nodes):
     merge = tuple(range(len(einsum_node.inputs) - len(indices) + 1))
     return generate_optimal_tree(einsum_node,
                                  path=['einsum_path', indices, merge])
+
+
+def get_common_ancestor(root, leaf):
+    """
+    Get node's common ancestor of a tree(defined by root). 
+    Here our tree may let a leaf node has multiple parents.
+
+    Parameters
+    ----------
+    root: Tree root.
+    leaf: A leaf. Multiple intermediate nodes can have it as children.
+    Returns
+    ----------
+    ancestor: A ancestor that covers all the leaf(s).
+    """
+    num_leaves = len(list(filter(lambda n: n is leaf, get_all_inputs(root))))
+    topo_order_list = find_topo_sort([root])
+
+    for node in topo_order_list:
+        # We want to get the smallest subtree whose inputs contain all the leaves.
+        if isinstance(node, ad.EinsumNode):
+            num_leaves_subtree = len(
+                list(filter(lambda n: n is leaf, get_all_inputs(node))))
+            if num_leaves == num_leaves_subtree:
+                return node
+
+
+def optimal_sub_einsum(einsum_node, contract_node):
+    """
+    Find the optimal sub einsum of the input einsum_node such that
+    the optimal contraction order is preserved and the returned sub einsum node
+    contains contract_node.
+
+    Parameters
+    ----------
+    einsum_node : ad.EinsumNode, input einsum node
+    contract_node : list, the node that is the input of the returned sub_einsum node
+
+    Returns
+    -------
+    sub_einsum : ad.EinsumNode
+
+    Examples
+    --------
+    >>> einsum_node = ad.einsum('lj,ge,bej,abdi,ach->cdhigl',A3,A3,X3,X2,X1)
+    >>> contract_node = A3
+    >>> optimal_sub_einsum(einsum_node, contract_node)
+    ad.einsum('ebl,ge->bgl',ad.einsum('bej,lj->ebl',X3,A3),A3)
+
+    Note that here we want to include both of the A3s.
+    """
+    assert contract_node in einsum_node.inputs
+    opt_einsum = generate_optimal_tree(einsum_node)
+    return get_common_ancestor(opt_einsum, contract_node)
