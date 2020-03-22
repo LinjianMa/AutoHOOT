@@ -1401,11 +1401,6 @@ class Executor:
         A list of values for nodes in eval_node_list.
         """
 
-        if reset_graph:
-            self.node_to_val_map = dict(feed_dict)
-        else:
-            self.node_to_val_map.update(dict(feed_dict))
-
         if len(out_nodes) == 0:
             out_nodes = self.eval_node_list
 
@@ -1423,6 +1418,10 @@ class Executor:
                 for e_node in evicted_inputs:
                     recur(e_node)
         assert not (len(evicted_inputs) > 0 and reset_graph)
+        if reset_graph:
+            self.node_to_val_map = dict(feed_dict)
+        else:
+            self.node_to_val_map.update(dict(feed_dict))
 
         # Traverse graph in topological sort order
         topo_order = find_topo_sort(out_nodes, feed_dict.keys())

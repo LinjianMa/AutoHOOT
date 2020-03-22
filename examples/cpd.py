@@ -66,6 +66,7 @@ def cpd_als(size, rank, num_iter, input_val=[]):
     new_A = simplify(new_A)
     new_B = simplify(new_B)
     new_C = simplify(new_C)
+    loss = simplify(loss)
 
     executor_A = ad.Executor([loss, new_A])
     executor_B = ad.Executor([loss, new_B])
@@ -96,6 +97,67 @@ def cpd_als(size, rank, num_iter, input_val=[]):
             B: B_val,
             C: C_val
         })
+        print(f'At iteration {i} the loss is: {loss_val}')
+
+    return A_val, B_val, C_val
+
+
+def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
+
+    A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+
+    hes = ad.hessian(loss, [A, B, C])
+    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+
+    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+
+    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
+    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
+    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
+
+    new_A = A - delta_A
+    new_B = B - delta_B
+    new_C = C - delta_C
+
+    new_A = simplify(new_A)
+    new_B = simplify(new_B)
+    new_C = simplify(new_C)
+    loss = simplify(loss)
+
+    executor = ad.Executor([loss, new_A, new_B, new_C])
+
+    if input_val == []:
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+    else:
+        A_val, B_val, C_val, input_tensor_val = input_val
+
+    for i in range(num_iter):
+        # als iterations
+        loss_val, A_val = executor.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        },
+                                       out_nodes=[loss, new_A])
+        loss_val, B_val = executor.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        },
+                                       reset_graph=False,
+                                       out_nodes=[loss, new_B],
+                                       evicted_inputs=[A])
+        loss_val, C_val = executor.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        },
+                                       reset_graph=False,
+                                       out_nodes=[loss, new_C],
+                                       evicted_inputs=[A, B])
         print(f'At iteration {i} the loss is: {loss_val}')
 
     return A_val, B_val, C_val

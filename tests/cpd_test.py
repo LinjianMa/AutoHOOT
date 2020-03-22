@@ -3,7 +3,7 @@ import backend as T
 from graph_ops.graph_transformer import optimize, linearize, simplify
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_3d
-from examples.cpd import cpd_graph, cpd_als
+from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
 from utils import find_topo_sort
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
@@ -276,6 +276,31 @@ def test_cpd_als():
         A_val, B_val, C_val, input_tensor_val = input_val
 
         outputs = cpd_als(size, rank, 1, input_val)
+
+        # expected values
+        A_val = T.einsum(
+            "abc,bk,ck->ak", input_tensor_val, B_val, C_val) @ T.inv(
+                (T.transpose(B_val) @ B_val) * (T.transpose(C_val) @ C_val))
+        B_val = T.einsum(
+            "abc,ak,ck->bk", input_tensor_val, A_val, C_val) @ T.inv(
+                (T.transpose(A_val) @ A_val) * (T.transpose(C_val) @ C_val))
+        C_val = T.einsum(
+            "abc,ak,bk->ck", input_tensor_val, A_val, B_val) @ T.inv(
+                (T.transpose(A_val) @ A_val) * (T.transpose(B_val) @ B_val))
+
+        assert T.norm(outputs[0] - A_val) < 1e-8
+        assert T.norm(outputs[1] - B_val) < 1e-8
+        assert T.norm(outputs[2] - C_val) < 1e-8
+
+
+def test_cpd_shared_exec():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        input_val = init_rand_3d(size, rank)
+        A_val, B_val, C_val, input_tensor_val = input_val
+
+        outputs = cpd_als_shared_exec(size, rank, 1, input_val)
 
         # expected values
         A_val = T.einsum(
