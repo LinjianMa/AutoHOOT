@@ -82,27 +82,32 @@ def split_einsum(einsum_node, split_input_nodes):
                                  path=['einsum_path', indices, merge])
 
 
-def get_common_ancestor(root, leaf):
+def get_common_ancestor(root, leaf, subtree_leaves):
     """
-    Get node's common ancestor of a tree(defined by root). 
+    Get node's common ancestor of a tree(defined by root and subtree_leaves).
     Here our tree may let a leaf node has multiple parents.
 
     Parameters
     ----------
     root: Tree root.
     leaf: A leaf. Multiple intermediate nodes can have it as children.
+    subtree_leaves: A list of leaf nodes define the inputs of the subtree.
     Returns
     ----------
-    ancestor: A ancestor that covers all the leaf(s).
+    ancestor: A ancestor that covers all the leaf(s) in the subtree.
     """
-    num_leaves = len(list(filter(lambda n: n is leaf, get_all_inputs(root))))
+    num_leaves = len(list(filter(lambda n: n is leaf, subtree_leaves)))
     topo_order_list = find_topo_sort([root])
 
     for node in topo_order_list:
         # We want to get the smallest subtree whose inputs contain all the leaves.
         if isinstance(node, ad.EinsumNode):
+            node_leaves = [
+                in_node for in_node in get_all_inputs(node)
+                if in_node in subtree_leaves
+            ]
             num_leaves_subtree = len(
-                list(filter(lambda n: n is leaf, get_all_inputs(node))))
+                list(filter(lambda n: n is leaf, node_leaves)))
             if num_leaves == num_leaves_subtree:
                 return node
 
@@ -133,4 +138,4 @@ def optimal_sub_einsum(einsum_node, contract_node):
     """
     assert contract_node in einsum_node.inputs
     opt_einsum = generate_optimal_tree(einsum_node)
-    return get_common_ancestor(opt_einsum, contract_node)
+    return get_common_ancestor(opt_einsum, contract_node, einsum_node.inputs)

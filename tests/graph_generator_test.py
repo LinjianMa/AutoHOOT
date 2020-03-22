@@ -122,6 +122,20 @@ def test_optimal_sub_einsum():
                       [A, A, X3], key=lambda node: node.name)
 
 
+def test_optimal_sub_einsum_w_inv():
+
+    A = ad.Variable(name="A", shape=[3, 2])
+    X = ad.Variable(name="X", shape=[3, 3, 3])
+    inv = ad.tensorinv(ad.einsum("ab,ac->bc", A, A), ind=1)
+    einsum_node = ad.einsum('abc,ad,de->bce', X, A, inv)
+    sub_einsum = optimal_sub_einsum(einsum_node, A)
+
+    # sub_einsum should be ad.einsum('ad,abc->dbc',A,X), and shouldn't include the inv node.
+    assert sorted(get_all_inputs(sub_einsum),
+                  key=lambda node: node.name) == sorted(
+                      [A, X], key=lambda node: node.name)
+
+
 def test_split_einsum_dup():
     for datatype in BACKEND_TYPES:
 
