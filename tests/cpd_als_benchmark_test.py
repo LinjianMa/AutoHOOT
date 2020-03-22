@@ -4,7 +4,7 @@ import pytest
 import tensorly as tl
 
 from tensors.synthetic_tensors import init_rand_3d
-from examples.cpd import cpd_als
+from examples.cpd import cpd_als, cpd_als_shared_exec
 from tensorly.decomposition import parafac
 from sktensor import dtensor
 from sktensor import cp_als as sk_cp_als
@@ -47,3 +47,10 @@ def test_cpd_als(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_3d(size, rank)
         outputs = benchmark(cpd_als, size, rank, 1, input_tensor)
+
+
+@pytest.mark.benchmark(group="als")
+def test_cpd_als_shared_exec(benchmark):
+    for datatype in BACKEND_TYPES:
+        input_tensor = init_rand_3d(size, rank)
+        outputs = benchmark(cpd_als_shared_exec, size, rank, 1, input_tensor)
