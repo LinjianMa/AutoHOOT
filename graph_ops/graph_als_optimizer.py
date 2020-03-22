@@ -6,7 +6,7 @@ import logging
 import autodiff as ad
 from utils import get_all_inputs
 
-from graph_ops.graph_generator import split_einsum, optimal_sub_einsum
+from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree
 from graph_ops.graph_dedup import dedup
 
 from numpy.core.einsumfunc import _parse_einsum_input
@@ -101,9 +101,10 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
             for node in split_einsum(einsum_node, input_node_subset).inputs
             if isinstance(node, ad.EinsumNode)
         ]
-
-        sub_splitted_einsum = optimal_sub_einsum(splitted_einsum,
-                                                 first_contract_node)
+        opt_einsum = generate_optimal_tree(splitted_einsum)
+        sub_splitted_einsum = get_common_ancestor(opt_einsum,
+                                                  splitted_einsum.inputs,
+                                                  first_contract_node)
 
         input_node_subset = [
             node for node in einsum_node.inputs
