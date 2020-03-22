@@ -40,7 +40,7 @@ def test_kronecker_product_repeated_inputs():
         for node in newinv.inputs:
             assert isinstance(node, ad.TensorInverseNode)
 
-        assert tree_eq(inv, newinv, [A], tol=1e-6)
+        assert tree_eq(inv, newinv, [A], tol=1e-5)
 
 
 def test_complex_product_inv():
