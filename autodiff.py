@@ -3,7 +3,7 @@ import copy
 import backend as T
 import numpy as np
 from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode
+from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
@@ -1383,34 +1383,61 @@ class Executor:
         eval_node_list: list of nodes whose values need to be computed.
         """
         self.eval_node_list = eval_node_list
+        self.node_to_val_map = {}
 
-    def run(self, feed_dict):
+    def run(self, feed_dict, reset_graph=True, out_nodes=[],
+            evicted_inputs=[]):
         """Computes values of nodes in eval_node_list given computation graph.
+        All computations are saved by default.
         Parameters
         ----------
         feed_dict: list of variable nodes whose values are supplied by user.
+        reset_graph: Whether to remove the intermediate values.
+        out_nodes: nodes to calculate, default to be existing eval node list.
+        evicted_inputs: inputs that should not be reused.
 
         Returns
         -------
         A list of values for nodes in eval_node_list.
         """
-        node_to_val_map = dict(feed_dict)
+
+        if reset_graph:
+            self.node_to_val_map = dict(feed_dict)
+        else:
+            self.node_to_val_map.update(dict(feed_dict))
+
+        if len(out_nodes) == 0:
+            out_nodes = self.eval_node_list
+
+        if len(evicted_inputs) > 0:
+            # Evict all inputs from the graph.
+            all_nodes = find_topo_sort(self.eval_node_list)
+            with OutputInjectedMode(all_nodes):
+
+                def recur(node):
+                    for o in node.outputs:
+                        recur(o)
+                    if node in self.node_to_val_map:
+                        del self.node_to_val_map[node]
+
+                for e_node in evicted_inputs:
+                    recur(e_node)
+        assert not (len(evicted_inputs) > 0 and reset_graph)
+
         # Traverse graph in topological sort order
-        topo_order = find_topo_sort(self.eval_node_list, feed_dict.keys())
+        topo_order = find_topo_sort(out_nodes, feed_dict.keys())
         # compute the values for constant nodes and save that in the map
         for node in topo_order:
             if isinstance(node, ConstantNode):
-                node_to_val_map[node] = node.compute()
+                self.node_to_val_map[node] = node.compute()
         # Compute values for all nodes.
         for node in topo_order:
-            if node not in node_to_val_map:
-                input_vals = [node_to_val_map[val] for val in node.inputs]
+            if node not in self.node_to_val_map:
+                input_vals = [self.node_to_val_map[val] for val in node.inputs]
                 result = node.compute(input_vals)
-                node_to_val_map[node] = result
+                self.node_to_val_map[node] = result
         # Collect node values.
-        node_val_results = [
-            node_to_val_map[node] for node in self.eval_node_list
-        ]
+        node_val_results = [self.node_to_val_map[node] for node in out_nodes]
         return node_val_results
 
 
