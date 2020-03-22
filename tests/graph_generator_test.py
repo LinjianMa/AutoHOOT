@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 from utils import get_all_inputs
-from graph_ops.graph_generator import generate_optimal_tree, split_einsum, optimal_sub_einsum
+from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
@@ -68,7 +68,7 @@ def test_split_einsum():
     assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
 
 
-def test_optimal_sub_einsum_simple():
+def test_get_common_ancestor_simple():
 
     A = ad.Variable(name="A", shape=[3, 2])
 
@@ -86,14 +86,15 @@ def test_optimal_sub_einsum_simple():
         i        j
     """
     einsum_node = ad.einsum('ge,bdi,bej->gdij', A, X1, X2)
-    sub_einsum = optimal_sub_einsum(einsum_node, A)
+    opt_einsum = generate_optimal_tree(einsum_node)
+    sub_einsum = get_common_ancestor(opt_einsum, einsum_node.inputs, A)
 
     assert sorted(get_all_inputs(sub_einsum),
                   key=lambda node: node.name) == sorted(
                       [A, X2], key=lambda node: node.name)
 
 
-def test_optimal_sub_einsum():
+def test_get_common_ancestor():
 
     A = ad.Variable(name="A", shape=[3, 2])
 
@@ -115,20 +116,22 @@ def test_optimal_sub_einsum():
 
     """
     einsum_node = ad.einsum('lj,ge,bej,abdi,ach->cdhigl', A, A, X3, X2, X1)
-    sub_einsum = optimal_sub_einsum(einsum_node, A)
+    opt_einsum = generate_optimal_tree(einsum_node)
+    sub_einsum = get_common_ancestor(opt_einsum, einsum_node.inputs, A)
 
     assert sorted(get_all_inputs(sub_einsum),
                   key=lambda node: node.name) == sorted(
                       [A, A, X3], key=lambda node: node.name)
 
 
-def test_optimal_sub_einsum_w_inv():
+def test_get_common_ancestor_w_inv():
 
     A = ad.Variable(name="A", shape=[3, 2])
     X = ad.Variable(name="X", shape=[3, 3, 3])
     inv = ad.tensorinv(ad.einsum("ab,ac->bc", A, A), ind=1)
     einsum_node = ad.einsum('abc,ad,de->bce', X, A, inv)
-    sub_einsum = optimal_sub_einsum(einsum_node, A)
+    opt_einsum = generate_optimal_tree(einsum_node)
+    sub_einsum = get_common_ancestor(opt_einsum, einsum_node.inputs, A)
 
     # sub_einsum should be ad.einsum('ad,abc->dbc',A,X), and shouldn't include the inv node.
     assert sorted(get_all_inputs(sub_einsum),
