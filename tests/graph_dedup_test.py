@@ -83,4 +83,4 @@ def test_transpose_equiv():
     assert not transpose_equivalent(ad.einsum('acb,bd->adc', a, b),
                                     ad.einsum('dab,bc->dac', a, b))
     assert transpose_equivalent(ad.einsum('adb,bc->adc', a, b),
-                                ad.einsum('dab,bc->dac', a, b))
+                                ad.einsum('dab,bc->adc', a, b))
