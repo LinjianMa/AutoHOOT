@@ -3,6 +3,7 @@ from utils import find_topo_sort, OutputInjectedMode, replace_node
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
 import copy
+import numpy as np
 
 
 def dedup(*nodes):
@@ -115,15 +116,15 @@ def get_transpose_indices(A, B):
 
     Returns
     -------
-        Return None if these nodes are not transposable, return a list of tranpose indices
-        elsewise.
+        Return None if these nodes are not transposable, return a list of
+        list of tranpose indices elsewise.
 
     Examples
     --------
     >>> node_A = ad.einsum('bec,ca->abe',input_tensor,C)
     >>> node_B = ad.einsum('ebc,ca->abe',input_tensor,C)
-    >>> get_transpose_indices(node_A, node_A)
-    [[1, 2]]
+    >>> get_transpose_indices(node_A, node_B)
+    [[2, 0, 1], [2, 1, 0]]
     """
     from graph_ops.graph_transformer import generate_einsum_info
 
@@ -136,8 +137,13 @@ def get_transpose_indices(A, B):
     def get_disjoint_set(node):
         """
         The returned set element has the following [key]:[value] structure:
-        ["".join(list of connected dims)]:[output index].
-        When the connected dims are contract dims, the output index will be -1.
+        ["".join(connected_dims)]:[output index].
+
+        connected_dims: list of input node dims connected by one char.
+        Each element in the connected_dims is a string,
+            formatted as f'{nodename}-{node order in einsum}-{dim number}'.
+
+        When the list of dims is connected by a contraction char, the output index will be -1.
 
         Example:
         For the example above, the dset_ret for node_A will be:
@@ -186,17 +192,22 @@ def get_transpose_indices(A, B):
                                            and dset_B[key] == -1):
             return None
 
-    trans_indices = []
-    for key in dset_A.keys():
-        if (dset_A[key] != dset_B[key]):
-            indices = sorted([dset_A[key], dset_B[key]])
-            if indices not in trans_indices:
-                trans_indices.append(indices)
+    # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
+    # two argsorts can be used to make them idential lists.
+    indices_A = []
+    indices_B = []
+    for key in sorted(dset_A.keys()):
+        if dset_A[key] != -1:
+            indices_A.append(dset_A[key])
+            indices_B.append(dset_B[key])
 
-    # same expression, return None
-    if len(trans_indices) == 0:
+    indices_argsort_A = list(np.argsort(indices_A))
+    indices_argsort_B = list(np.argsort(indices_B))
+
+    if indices_argsort_A == indices_argsort_B:
         return None
-    return trans_indices
+
+    return [indices_argsort_A, indices_argsort_B]
 
 
 def dedup_transpose(graph, node, trans_node, trans_indices):
@@ -212,6 +223,7 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
     """
     assert node in graph
     assert trans_node in graph
+    assert len(trans_indices) == 2
 
     with OutputInjectedMode(graph):
         for onode in node.outputs:
@@ -224,12 +236,9 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
                 if n is node:
                     onode.inputs[i] = trans_node
                     for indices in trans_indices:
-                        assert len(indices) == 2
                         str_list = list(in_subs_list[i])
-                        temp = str_list[indices[0]]
-                        str_list[indices[0]] = str_list[indices[1]]
-                        str_list[indices[1]] = temp
-                        in_subs_list[i] = "".join(str_list)
+                        in_subs_list[i] = "".join(
+                            [str_list[j] for j in indices])
 
             new_subscripts = ",".join(in_subs_list) + "->" + out_subs
             onode.einsum_subscripts = new_subscripts

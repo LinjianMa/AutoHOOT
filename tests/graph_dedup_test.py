@@ -106,8 +106,10 @@ def test_get_transpose_indices():
                                  ad.einsum('dab,bc->dac', a, b)) == None
 
     # transposable
+    # Note: it's hard to test the correctness here, the correctness is tested
+    # in the test_remove_transposes.
     assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
-                                 ad.einsum('dab,bc->dac', a, b)) == [[1, 2]]
+                                 ad.einsum('dab,bc->dac', a, b)) != None
 
 
 def test_remove_transposes():
@@ -128,3 +130,17 @@ def test_remove_transposes():
     remove_transposes(find_topo_sort([abcd1, abcd2]))
 
     assert abcd1.name == abcd2.name
+
+
+def test_remove_transposes_multiple_trans():
+    a = ad.Variable(name="a", shape=[2, 2, 2, 2])
+
+    intermediate1 = ad.einsum("abcd->dcba", a)
+    intermediate2 = ad.einsum("abcd->abdc", a)
+
+    ret1 = ad.einsum("dcba->badc", intermediate1)
+    ret2 = ad.einsum("abdc->badc", intermediate2)
+
+    remove_transposes(find_topo_sort([ret1, ret2]))
+
+    assert ret1.name == ret2.name
