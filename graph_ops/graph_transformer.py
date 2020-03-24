@@ -97,6 +97,7 @@ def distribute_tree(output):
         3. Apply distribute.
         4. Iterate 1->3
     """
+    linearize(output)
     def get_first_binary_op(nodes):
         for node in nodes:
             if isinstance(node,
@@ -123,6 +124,7 @@ def distribute_tree(output):
                     output = new_node
     # This is need for source generation.
     output.set_inputs(output.inputs)
+    output = declone(output)
     return output
 
 
@@ -480,10 +482,17 @@ def simplify(output_node):
         sympy_inputs = []
         all_nodes = find_topo_sort([output_node])
         for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                # To make sure the same einsum nodes have the same name,
+                # so that they can be reduced by sympy.
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
             if isinstance(node, ad.DistributiveNode):
                 for in_node in node.inputs:
                     if not isinstance(in_node, ad.DistributiveNode):
                         sympy_inputs.append(in_node)
+
         output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node

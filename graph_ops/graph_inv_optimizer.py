@@ -204,9 +204,9 @@ def prune_inv_node(einsum_node):
         filter(lambda node: isinstance(node, ad.TensorInverseNode),
                einsum_node.inputs))
 
-    if len(inv_inputs_list) != 1:
+    if len(inv_inputs_list) == 0:
         logger.info(
-            f"More than one or no inv nodes in the inputs, can't prune inv")
+            f"No inv nodes in the inputs, can't prune inv")
         return einsum_node
 
     inv_node_input = inv_inputs_list[0].inputs[0]
@@ -232,7 +232,7 @@ def prune_inv_node(einsum_node):
     for i, node in enumerate(split_einsum_node.inputs):
         if isinstance(node, ad.EinsumNode):
             p_einsum_input = PseudoNode(node=node, subscript=in_subs_list[i])
-        elif isinstance(node, ad.TensorInverseNode):
+        elif node is inv_inputs_list[0]:
             p_inv_input = PseudoNode(node=node, subscript=in_subs_list[i])
         else:
             updated_p_in_nodes.append(
@@ -280,4 +280,8 @@ def prune_inv_node(einsum_node):
                    subscript=uncontract_str)
     ]
 
-    return generate_new_einsum(updated_p_in_nodes, out_subs)
+    new_einsum_node = generate_new_einsum(updated_p_in_nodes, out_subs)
+    if len(inv_inputs_list) > 1:
+        return prune_inv_node(new_einsum_node)
+    else:
+        return new_einsum_node
