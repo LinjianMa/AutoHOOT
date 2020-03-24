@@ -1,6 +1,7 @@
 import autodiff as ad
-from graph_ops.graph_dedup import dedup, declone, transpose_equivalent
+from graph_ops.graph_dedup import dedup, declone, transpose_equivalent, get_transpose_indices, remove_transposes
 from tests.test_utils import tree_eq, gen_dict
+from utils import find_topo_sort
 from visualizer import print_computation_graph
 
 
@@ -84,3 +85,46 @@ def test_transpose_equiv():
                                     ad.einsum('dab,bc->dac', a, b))
     assert transpose_equivalent(ad.einsum('adb,bc->adc', a, b),
                                 ad.einsum('dab,bc->adc', a, b))
+
+
+def test_get_transpose_indices():
+    a = ad.Variable(name="a", shape=[2, 2, 2])
+    b = ad.Variable(name="b", shape=[2, 2])
+
+    # not transposable
+    assert get_transpose_indices(a, b) == None
+    assert get_transpose_indices(ad.einsum("abc,cd->abd", a, b), b) == None
+    assert get_transpose_indices(ad.einsum('iii->', a), ad.einsum('ii->',
+                                                                  b)) == None
+    assert get_transpose_indices(ad.einsum('adb,cb->adc', a, b),
+                                 ad.einsum('dab,bc->dac', a, b)) == None
+
+    # same expression
+    assert get_transpose_indices(ad.einsum('iii->', a), ad.einsum('iii->',
+                                                                  a)) == None
+    assert get_transpose_indices(ad.einsum('adb,bc->adc', a, b),
+                                 ad.einsum('dab,bc->dac', a, b)) == None
+
+    # transposable
+    assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
+                                 ad.einsum('dab,bc->dac', a, b)) == [[1, 2]]
+
+
+def test_remove_transposes():
+    a = ad.Variable(name="a", shape=[2, 2, 2, 2])
+    b = ad.Variable(name="b", shape=[2, 2])
+    c = ad.Variable(name="b", shape=[2, 2])
+    d = ad.Variable(name="b", shape=[2, 2])
+
+    ab1 = ad.einsum("abcd,de->abce", a, b)
+    ab2 = ad.einsum("abcd,de->ecba", a, b)
+
+    abc1 = ad.einsum("abce,ce->abe", ab1, c)
+    abc2 = ad.einsum("ecba,ce->eba", ab2, c)
+
+    abcd1 = ad.einsum("abe,be->ae", abc1, d)
+    abcd2 = ad.einsum("eba,be->ae", abc2, d)
+
+    remove_transposes(find_topo_sort([abcd1, abcd2]))
+
+    assert abcd1.name == abcd2.name
