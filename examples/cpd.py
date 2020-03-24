@@ -138,6 +138,7 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
         A_val, B_val, C_val, input_tensor_val = input_val
 
     for i in range(num_iter):
+        t0 = time.time()
         # als iterations
         loss_val, A_val = executor.run(feed_dict={
             input_tensor: input_tensor_val,
@@ -165,6 +166,8 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
                                        out_nodes=[loss, new_C],
                                        evicted_inputs=[A, B])
         print(f'At iteration {i} the loss is: {loss_val}')
+        t1 = time.time()
+        print(f"[ {i} ] Sweep took {t1 - t0} seconds")
 
     return A_val, B_val, C_val
 
@@ -339,4 +342,5 @@ def cpd_newton(size, rank):
 if __name__ == "__main__":
     # cpd_gradient_descent(size=20, rank=5, learning_rate=1e-3)
     # cpd_newton(size=20, rank=5)
-    cpd_nls_benchmark()
+    # cpd_nls_benchmark()
+    cpd_als_shared_exec(400, 100, 1)

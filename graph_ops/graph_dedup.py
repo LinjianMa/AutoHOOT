@@ -2,6 +2,7 @@ import autodiff as ad
 from utils import find_topo_sort, OutputInjectedMode, replace_node
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
+import copy
 
 
 def dedup(*nodes):
@@ -100,9 +101,145 @@ def transpose_equivalent(A, B):
     return True
 
 
-def detranspose(o_node):
+def get_transpose_indices(A, B):
     """
-    Identifies the equivalent transpose nodes and transform one to the other by propogating changes to the output nodes.
+    If two nodes are transposable, then get the indices such that transposing
+    one of the node with the specific indices will get same nodes.
+
+    Two nodes are transposable if transposing one node's output tensor indices
+    will get the same tensor as the second node.
+
+    Parameters
+    ----------
+    A, B : einsum nodes.
+
+    Returns
+    -------
+        Return None if these nodes are not transposable, return a list of tranpose indices
+        elsewise.
+
+    Examples
+    --------
+    >>> node_A = ad.einsum('bec,ca->abe',input_tensor,C)
+    >>> node_B = ad.einsum('ebc,ca->abe',input_tensor,C)
+    >>> get_transpose_indices(node_A, node_A)
+    [[1, 2]]
     """
-    pass
-    pass
+    from graph_ops.graph_transformer import generate_einsum_info
+
+    if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
+        return None
+
+    if A.inputs != B.inputs:
+        return None
+
+    def get_disjoint_set(node):
+        """
+        The returned set element has the following [key]:[value] structure:
+        ["".join(list of connected dims)]:[output index].
+        When the connected dims are contract dims, the output index will be -1.
+
+        Example:
+        For the example above, the dset_ret for node_A will be:
+        {'C-1-1': 0, 'input_tensor-0-0': 1, 'input_tensor-0-1': 2, 'C-1-0input_tensor-0-2': -1}
+        """
+        node_copy = copy.deepcopy(node)
+        # this is used to normalize the output node name
+        temp_name = "_temp_einsum"
+        node_copy.name = temp_name
+
+        uf, _, _ = generate_einsum_info(node_copy)
+        # each set contains the dimension names connected by one char
+        dset = uf.disjoint_set()
+        dset_ret = defaultdict(dict)
+
+        for connected_dims in dset:
+            if not any(temp_name in name for name in connected_dims):
+                # contracted char
+                connect_dims_str = "".join(sorted(list(connected_dims)))
+                dset_ret[connect_dims_str] = -1
+            else:
+                # uncontracted char
+                for name in connected_dims:
+                    if temp_name in name:
+                        connect_dims_str = "".join(
+                            sorted(
+                                list(
+                                    filter(lambda dim: dim != name,
+                                           connected_dims))))
+                        # get the output dim
+                        dset_ret[connect_dims_str] = int(
+                            name.replace(f'{temp_name}-', ''))
+                        break
+        return dset_ret
+
+    dset_A = get_disjoint_set(A)
+    dset_B = get_disjoint_set(B)
+
+    if dset_A.keys() != dset_B.keys():
+        return None
+
+    # Check if all the contracted char refers to the same dim.
+    for key in dset_A.keys():
+        if (dset_A[key] == -1
+                and dset_B[key] != -1) or (dset_A[key] != -1
+                                           and dset_B[key] == -1):
+            return None
+
+    trans_indices = []
+    for key in dset_A.keys():
+        if (dset_A[key] != dset_B[key]):
+            indices = sorted([dset_A[key], dset_B[key]])
+            if indices not in trans_indices:
+                trans_indices.append(indices)
+
+    # same expression, return None
+    if len(trans_indices) == 0:
+        return None
+    return trans_indices
+
+
+def dedup_transpose(graph, node, trans_node, trans_indices):
+    """
+    Replace the node with the trans_node, and change its output nodes in graph accordingly.
+
+    Parameters
+    ----------
+    graph: list of nodes denoting a connected graph.
+    node: node to be replaced.
+    trans_node: the transposed node that will replace node.
+    trans_indices: the transpose indices.
+    """
+    assert node in graph
+    assert trans_node in graph
+
+    with OutputInjectedMode(graph):
+        for onode in node.outputs:
+            # NOTE: currently we cannot deal with non-einsum nodes.
+            assert isinstance(onode, ad.EinsumNode)
+            in_subs, out_subs, _ = _parse_einsum_input(
+                (onode.einsum_subscripts, *onode.inputs))
+            in_subs_list = in_subs.split(',')
+            for (i, n) in enumerate(onode.inputs):
+                if n is node:
+                    onode.inputs[i] = trans_node
+                    for indices in trans_indices:
+                        assert len(indices) == 2
+                        str_list = list(in_subs_list[i])
+                        temp = str_list[indices[0]]
+                        str_list[indices[0]] = str_list[indices[1]]
+                        str_list[indices[1]] = temp
+                        in_subs_list[i] = "".join(str_list)
+
+            new_subscripts = ",".join(in_subs_list) + "->" + out_subs
+            onode.einsum_subscripts = new_subscripts
+            onode.set_inputs(onode.inputs)
+
+
+def remove_transposes(topo_list):
+    for i in range(len(topo_list)):
+        for j in range(i):
+            trans_indices = get_transpose_indices(topo_list[i], topo_list[j])
+            if trans_indices != None:
+                dedup_transpose(topo_list, topo_list[i], topo_list[j],
+                                trans_indices)
