@@ -83,6 +83,7 @@ def _distribute(binary_op_node, output):
 def distribute_tree(output):
     """ Distribute a tree of einsum and add nodes.
 
+    NOTE: the output node should be a linearized node.
     Behavior undefined if there are other kind of nodes.
 
     Args:
@@ -97,7 +98,6 @@ def distribute_tree(output):
         3. Apply distribute.
         4. Iterate 1->3
     """
-    linearize(output)
     def get_first_binary_op(nodes):
         for node in nodes:
             if isinstance(node,
@@ -124,7 +124,6 @@ def distribute_tree(output):
                     output = new_node
     # This is need for source generation.
     output.set_inputs(output.inputs)
-    output = declone(output)
     return output
 
 
@@ -427,7 +426,10 @@ def simplify(output_node):
         node = declone(node)
         return node
 
+    linearize(output_node)
     output_node = distribute_tree(output_node)
+    output_node = declone(output_node)
+
     output_node = fuse_all_einsums(output_node)
 
     all_nodes = find_topo_sort([output_node])
