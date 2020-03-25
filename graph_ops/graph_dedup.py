@@ -116,8 +116,7 @@ def get_transpose_indices(A, B):
 
     Returns
     -------
-        Return None if these nodes are not transposable, return a list of
-        list of tranpose indices elsewise.
+        Return None if these nodes are not transposable, return a list of tranpose indices elsewise.
 
     Examples
     --------
@@ -151,31 +150,31 @@ def get_transpose_indices(A, B):
         """
         node_copy = copy.deepcopy(node)
         # this is used to normalize the output node name
-        temp_name = "_temp_einsum"
-        node_copy.name = temp_name
+        temp_out_name = "_temp_einsum"
+        node_copy.name = temp_out_name
 
         uf, _, _ = generate_einsum_info(node_copy)
         # each set contains the dimension names connected by one char
         dset = uf.disjoint_set()
-        dset_ret = defaultdict(dict)
+        dset_ret = {}
 
         for connected_dims in dset:
-            if not any(temp_name in name for name in connected_dims):
+            if not any(temp_out_name in name for name in connected_dims):
                 # contracted char
-                connect_dims_str = "".join(sorted(list(connected_dims)))
+                connect_dims_str = "|".join(sorted(list(connected_dims)))
                 dset_ret[connect_dims_str] = -1
             else:
                 # uncontracted char
                 for name in connected_dims:
-                    if temp_name in name:
-                        connect_dims_str = "".join(
+                    if temp_out_name in name:
+                        connect_dims_str = "|".join(
                             sorted(
                                 list(
                                     filter(lambda dim: dim != name,
                                            connected_dims))))
                         # get the output dim
                         dset_ret[connect_dims_str] = int(
-                            name.replace(f'{temp_name}-', ''))
+                            name.replace(f'{temp_out_name}-', ''))
                         break
         return dset_ret
 
@@ -193,7 +192,10 @@ def get_transpose_indices(A, B):
             return None
 
     # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
-    # two argsorts can be used to make them idential lists.
+    # the goal is two find the reorder of indices_A, such that it equals indices_B.
+    # argsort serves as an intermediate to do this transformation.
+    # For example: if indices_A = [2,4,3,1] and indices_B = [3,1,4,2],
+    # then indices_A -> argsort(indices_A) -> [1,2,3,4] -> argsort(indices_B) -> indices_B
     indices_A = []
     indices_B = []
     for key in sorted(dset_A.keys()):
@@ -207,7 +209,10 @@ def get_transpose_indices(A, B):
     if indices_argsort_A == indices_argsort_B:
         return None
 
-    return [indices_argsort_A, indices_argsort_B]
+    # combining the two transformations mentioned above into one step.
+    # Example: transfer an array based on two index arrays [2,0,1] and then [2,1,0]
+    # is equivalent to transformation [1,0,2].
+    return [indices_argsort_A[elem] for elem in indices_argsort_B]
 
 
 def dedup_transpose(graph, node, trans_node, trans_indices):
@@ -223,7 +228,6 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
     """
     assert node in graph
     assert trans_node in graph
-    assert len(trans_indices) == 2
 
     with OutputInjectedMode(graph):
         for onode in node.outputs:
@@ -235,10 +239,9 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
             for (i, n) in enumerate(onode.inputs):
                 if n is node:
                     onode.inputs[i] = trans_node
-                    for indices in trans_indices:
-                        str_list = list(in_subs_list[i])
-                        in_subs_list[i] = "".join(
-                            [str_list[j] for j in indices])
+                    str_list = list(in_subs_list[i])
+                    in_subs_list[i] = "".join(
+                        [str_list[j] for j in trans_indices])
 
             new_subscripts = ",".join(in_subs_list) + "->" + out_subs
             onode.einsum_subscripts = new_subscripts
