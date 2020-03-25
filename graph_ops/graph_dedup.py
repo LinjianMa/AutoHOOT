@@ -129,8 +129,9 @@ def get_transpose_indices(A, B):
 
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
         return None
-
     if A.inputs != B.inputs:
+        return None
+    if len(A.shape) != len(B.shape):
         return None
 
     def get_disjoint_set(node):
@@ -183,12 +184,9 @@ def get_transpose_indices(A, B):
 
     if dset_A.keys() != dset_B.keys():
         return None
-
     # Check if all the contracted char refers to the same dim.
     for key in dset_A.keys():
-        if (dset_A[key] == -1
-                and dset_B[key] != -1) or (dset_A[key] != -1
-                                           and dset_B[key] == -1):
+        if (dset_A[key] == -1 and dset_B[key] != dset_A[key]):
             return None
 
     # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
