@@ -98,6 +98,8 @@ def test_get_transpose_indices():
                                                                   b)) == None
     assert get_transpose_indices(ad.einsum('adb,cb->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == None
+    assert get_transpose_indices(ad.einsum('abc,bc->ab', a, b),
+                                 ad.einsum('abc,bc->ac', a, b)) == None
 
     # same expression
     assert get_transpose_indices(ad.einsum('iii->', a), ad.einsum('iii->',
