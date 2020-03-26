@@ -372,7 +372,7 @@ def test_tree_distribution_ppE(dist_op):
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
 def test_distribute_dup(dist_op):
-    from graph_ops.graph_dedup import declone
+    from graph_ops.graph_transformer import distribute_graph_w_linearize
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -384,9 +384,7 @@ def test_distribute_dup(dist_op):
         output = ad.einsum("ab,ab->",
                            dist_op(ad.einsum("ab,bc->ac", a, b), c),
                            dist_op(ad.einsum("ab,bc->ac", a, b), c))
-        linearize(output)
-        new_output = distribute_tree(output)
-        new_output = declone(new_output)
+        new_output = distribute_graph_w_linearize(output)
         assert tree_eq(output, new_output, [a, b, c])
 
 

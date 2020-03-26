@@ -127,6 +127,13 @@ def distribute_tree(output):
     return output
 
 
+def distribute_graph_w_linearize(output):
+    linearize(output)
+    output = distribute_tree(output)
+    output = declone(output)
+    return output
+
+
 def copy_tree(node):
     """
         Copies a tree, creating new nodes for each one in the tree.
@@ -426,10 +433,7 @@ def simplify(output_node):
         node = declone(node)
         return node
 
-    linearize(output_node)
-    output_node = distribute_tree(output_node)
-    output_node = declone(output_node)
-
+    output_node = distribute_graph_w_linearize(output_node)
     output_node = fuse_all_einsums(output_node)
 
     all_nodes = find_topo_sort([output_node])
