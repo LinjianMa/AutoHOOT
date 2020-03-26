@@ -1,5 +1,5 @@
 import autodiff as ad
-from graph_ops.graph_dedup import dedup, declone, transpose_equivalent, get_transpose_indices, remove_transposes
+from graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes
 from tests.test_utils import tree_eq, gen_dict
 from utils import find_topo_sort
 from visualizer import print_computation_graph
@@ -68,23 +68,6 @@ def test_declone_long():
     c = a3 + b
     c = declone(c)
     assert c.inputs == [a, b]
-
-
-def test_transpose_equiv():
-    """
-    Test if several pattern of transpose equivalence.
-    """
-    a = ad.Variable(name="a", shape=[2, 2, 2])
-    b = ad.Variable(name="b", shape=[2, 2])
-    assert not transpose_equivalent(ad.einsum('iii->', a), ad.einsum(
-        'ii->', b))
-    assert transpose_equivalent(ad.einsum('iii->', a), ad.einsum('iii->', a))
-    assert not transpose_equivalent(ad.einsum('adb,cb->adc', a, b),
-                                    ad.einsum('dab,bc->dac', a, b))
-    assert not transpose_equivalent(ad.einsum('acb,bd->adc', a, b),
-                                    ad.einsum('dab,bc->dac', a, b))
-    assert transpose_equivalent(ad.einsum('adb,bc->adc', a, b),
-                                ad.einsum('dab,bc->adc', a, b))
 
 
 def test_get_transpose_indices():
