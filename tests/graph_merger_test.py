@@ -3,7 +3,7 @@ import backend as T
 from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
 from graph_ops.graph_transformer import linearize
 from utils import find_topo_sort
-from utils import replace_node, OutputInjectedMode
+from utils import replace_node, OutputInjectedMode, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
@@ -102,11 +102,11 @@ def test_einsum_fuse_graph():
         out = ad.einsum('jk, ki->ji', ABC, BC)  # 3x3
 
         linearize(out)
-        tree, = find_sub_einsumtree(out)
+        tree, = find_sub_einsumtree(PseudoNode(out))
         out, ins = tree
-        new_z = fuse_einsums(out, ins)
+        new_z = fuse_einsums(out.node, ins)
 
-        assert tree_eq(out, new_z, [a, b, c])
+        assert tree_eq(out.node, new_z, [a, b, c])
 
 
 def test_einsum_fuse_w_identity():
@@ -133,10 +133,10 @@ def test_einsum_fuse_w_identity():
         es_identity = ad.einsum('ik,kj->ij', ad.identity(3), ad.identity(3))
         out = ad.einsum('ai,ij->aj', a, es_identity)
 
-        tree, = find_sub_einsumtree(out)
+        tree, = find_sub_einsumtree(PseudoNode(out))
         out, ins = tree
-        new_out = fuse_einsums(out, ins)
-        assert tree_eq(out, new_out, [a])
+        new_out = fuse_einsums(out.node, ins)
+        assert tree_eq(out.node, new_out, [a])
 
 
 def test_einsum_fuse_only_identity():
@@ -147,10 +147,10 @@ def test_einsum_fuse_only_identity():
         es_identity = ad.einsum('ik,kj->ij', ad.identity(3), ad.identity(3))
         out = ad.einsum('ai,ij->aj', ad.identity(3), es_identity)
 
-        tree, = find_sub_einsumtree(out)
+        tree, = find_sub_einsumtree(PseudoNode(out))
         out, ins = tree
-        new_out = fuse_einsums(out, ins)
-        assert tree_eq(out, new_out, [])
+        new_out = fuse_einsums(out.node, ins)
+        assert tree_eq(out.node, new_out, [])
 
 
 def test_einsum_multiuse():
@@ -240,11 +240,11 @@ def test_einsum_multitier():
         z_val, = executor.run(feed_dict=generated_feed_dict)
 
         with OutputInjectedMode(find_topo_sort([out])):
-            trees = find_sub_einsumtree(out)
+            trees = find_sub_einsumtree(PseudoNode(out))
             for tree in trees:
                 out_node, in_nodes = tree
-                new_z = fuse_einsums(out_node, in_nodes)
-                replace_node(out_node, new_z)
+                new_z = fuse_einsums(out_node.node, in_nodes)
+                replace_node(out_node.node, new_z)
 
         executor = ad.Executor([out])
         z_new_val, = executor.run(feed_dict=generated_feed_dict)
@@ -291,12 +291,12 @@ def test_einsum_subtree_clone():
         out_val, = executor.run(feed_dict=generated_feed_dict)
 
         with OutputInjectedMode(find_topo_sort([out])):
-            trees = find_sub_einsumtree(out)
+            trees = find_sub_einsumtree(PseudoNode(out))
             assert len(trees) == 2
             for tree in trees:
                 out_node, in_nodes = tree
-                new_z = fuse_einsums(out_node, in_nodes)
-                replace_node(out_node, new_z)
+                new_z = fuse_einsums(out_node.node, in_nodes)
+                replace_node(out_node.node, new_z)
 
         new_out_val, = executor.run(feed_dict=generated_feed_dict)
 

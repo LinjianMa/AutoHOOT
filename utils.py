@@ -275,6 +275,31 @@ def replace_node(prev, new):
             [tmp if tmp.name != prev.name else new for tmp in n_o.inputs])
 
 
+def replace_node_p(prev, new):
+    # TMP Pseudo Mode.
+    """Replaces the previous node with the new node.
+
+    Need OutputInjectedMode to be enabled.
+    It will replace all the inputs reference to prev node to new node.
+    Note that this is a mutation operation on the graph which is irreversible.
+
+    Args:
+        prev: A node in the graph.
+        new: Another node in the graph.
+    Returns:
+        None
+    """
+    assert prev.node.outputs != None
+    assert new.outputs != None
+    if len(prev.node.outputs) == 0:
+        prev.node = new
+        return
+    prev_node = prev.node
+    for n_o in prev_node.outputs:
+        n_o.set_inputs(
+            [tmp if tmp.name != prev_node.name else new for tmp in n_o.inputs])
+
+
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
     The input_node_list are used to stop. If ever met a input node, stop probing the graph.
