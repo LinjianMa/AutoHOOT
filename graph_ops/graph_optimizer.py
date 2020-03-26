@@ -177,33 +177,7 @@ def fuse_einsums(output_node, input_nodes):
     return output_node
 
 
-def find_sub_einsumtree(output_node):
-    """
-    Finds all the subtrees from the given graph definition.
-    There can be overlap of different subtrees.
-    Arguments:
-        output_node: the root of the tree
-        input_nodes: leaf of the tree
-    Returns:
-        Return many einsum trees.
-    """
-    trees = []
-    if isinstance(output_node, ad.EinsumNode):
-        tree_nodes = get_all_einsum_descendants(output_node)
-        leaves = get_leaves(tree_nodes)
-        for leaf in leaves:
-            new_trees = find_sub_einsumtree(leaf)
-            trees += new_trees
-        trees.append([output_node, leaves])
-        return trees
-    else:
-        for i_node in output_node.inputs:
-            new_trees = find_sub_einsumtree(i_node)
-            trees += new_trees
-        return trees
-
-
-def find_sub_einsumtree_p(output_node_p):
+def find_sub_einsumtree(output_node_p):
     # TMP Pseudo Mode.
     """
     Finds all the subtrees from the given graph definition.
@@ -221,12 +195,12 @@ def find_sub_einsumtree_p(output_node_p):
         tree_nodes = get_all_einsum_descendants(output_node)
         leaves = get_leaves(tree_nodes)
         for leaf in leaves:
-            new_trees = find_sub_einsumtree_p(PseudoNode(leaf))
+            new_trees = find_sub_einsumtree(PseudoNode(leaf))
             trees += new_trees
         trees.append([output_node_p, leaves])
         return trees
     else:
         for i_node in output_node.inputs:
-            new_trees = find_sub_einsumtree_p(PseudoNode(i_node))
+            new_trees = find_sub_einsumtree(PseudoNode(i_node))
             trees += new_trees
         return trees

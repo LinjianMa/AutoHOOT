@@ -4,6 +4,7 @@ import backend as T
 from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
+from utils import PseudoNode
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
@@ -96,7 +97,7 @@ def test_einsum_find_subtree_after_linearization():
 
         # New graph
         linearize(output)
-        tree, = find_sub_einsumtree(output)
+        tree, = find_sub_einsumtree(PseudoNode(output))
         assert (len(tree[1]) == 3)
 
 
