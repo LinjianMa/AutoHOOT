@@ -190,7 +190,7 @@ def get_transpose_indices(A, B):
             return None
 
     # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
-    # the goal is two find the reorder of indices_A, such that it equals indices_B.
+    # the goal is to find the reorder of indices_A, such that it equals indices_B.
     indices_A = []
     indices_B = []
     for key in sorted(dset_A.keys()):
@@ -203,7 +203,7 @@ def get_transpose_indices(A, B):
     if transpose_indices == sorted(transpose_indices):
         return None
 
-    return trans_indices
+    return transpose_indices
 
 
 def dedup_transpose(graph, node, trans_node, trans_indices):
