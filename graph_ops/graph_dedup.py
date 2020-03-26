@@ -123,7 +123,7 @@ def get_transpose_indices(A, B):
     >>> node_A = ad.einsum('bec,ca->abe',input_tensor,C)
     >>> node_B = ad.einsum('ebc,ca->abe',input_tensor,C)
     >>> get_transpose_indices(node_A, node_B)
-    [[2, 0, 1], [2, 1, 0]]
+    [1, 0, 2]
     """
     from graph_ops.graph_transformer import generate_einsum_info
 
@@ -191,9 +191,6 @@ def get_transpose_indices(A, B):
 
     # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
     # the goal is two find the reorder of indices_A, such that it equals indices_B.
-    # argsort serves as an intermediate to do this transformation.
-    # For example: if indices_A = [2,4,3,1] and indices_B = [3,1,4,2],
-    # then indices_A -> argsort(indices_A) -> [1,2,3,4] -> argsort(indices_B) -> indices_B
     indices_A = []
     indices_B = []
     for key in sorted(dset_A.keys()):
@@ -201,16 +198,12 @@ def get_transpose_indices(A, B):
             indices_A.append(dset_A[key])
             indices_B.append(dset_B[key])
 
-    indices_argsort_A = list(np.argsort(indices_A))
-    indices_argsort_B = list(np.argsort(indices_B))
-
-    if indices_argsort_A == indices_argsort_B:
+    transpose_indices = [indices_A.index(elem) for elem in indices_B]
+    # If the transpose indices is sorted ascendingly. There is no transpose.
+    if transpose_indices == sorted(transpose_indices):
         return None
 
-    # combining the two transformations mentioned above into one step.
-    # Example: transfer an array based on two index arrays [2,0,1] and then [2,1,0]
-    # is equivalent to transformation [1,0,2].
-    return [indices_argsort_A[elem] for elem in indices_argsort_B]
+    return trans_indices
 
 
 def dedup_transpose(graph, node, trans_node, trans_indices):
