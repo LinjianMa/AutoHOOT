@@ -209,10 +209,11 @@ def find_sub_einsumtree_p(output_node_p):
     Finds all the subtrees from the given graph definition.
     There can be overlap of different subtrees.
     Arguments:
-        output_node: the root of the tree
+        output_node_p: the root of the tree, must be PseudoNode.
         input_nodes: leaf of the tree
     Returns:
-        Return many einsum trees.
+        Return many einsum trees of the form 
+        [[Pseudo root node, leaf nodes], ... ]
     """
     trees = []
     output_node = output_node_p.node
@@ -220,12 +221,12 @@ def find_sub_einsumtree_p(output_node_p):
         tree_nodes = get_all_einsum_descendants(output_node)
         leaves = get_leaves(tree_nodes)
         for leaf in leaves:
-            new_trees = find_sub_einsumtree(leaf)
+            new_trees = find_sub_einsumtree_p(PseudoNode(leaf))
             trees += new_trees
         trees.append([output_node_p, leaves])
         return trees
     else:
         for i_node in output_node.inputs:
-            new_trees = find_sub_einsumtree(i_node)
+            new_trees = find_sub_einsumtree_p(PseudoNode(i_node))
             trees += new_trees
         return trees
