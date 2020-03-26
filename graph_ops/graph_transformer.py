@@ -15,7 +15,7 @@ import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect, find_sub_einsumtree_p
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode
 from utils import replace_node, sympy_simplify, replace_node_p
@@ -373,7 +373,7 @@ def optimize(node):
     all_nodes = find_topo_sort([node])
     ret_node = PseudoNode(node)
     with OutputInjectedMode(all_nodes):
-        trees = find_sub_einsumtree_p(ret_node)
+        trees = find_sub_einsumtree(ret_node)
         for tree in trees:
             out_node_p, in_nodes = tree
             new_z = fuse_einsums(out_node_p.node, in_nodes)
@@ -411,7 +411,7 @@ def simplify(output_node):
         ret_node = PseudoNode(node)
 
         with OutputInjectedMode(all_nodes):
-            trees = find_sub_einsumtree_p(ret_node)
+            trees = find_sub_einsumtree(ret_node)
             for tree in trees:
                 out_node_p, in_nodes = tree
                 new_z = fuse_einsums(out_node_p.node, in_nodes)
