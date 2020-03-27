@@ -17,8 +17,8 @@ from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode, PseudoNode
-from utils import replace_node, sympy_simplify, replace_node_p
+from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p
+from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -119,7 +119,7 @@ def distribute_tree(output):
                     continue
                 assert isinstance(einsum_node, ad.EinsumNode)
                 new_node = _distribute(first_binary_op, einsum_node)
-                replace_node(einsum_node, new_node)
+                replace_node(PseudoNode(einsum_node), new_node)
                 if einsum_node == output:
                     output = new_node
     # This is need for source generation.
@@ -387,7 +387,7 @@ def optimize(node):
             new_z = fuse_einsums(out_node_p.node, in_nodes)
             prune_identity_nodes(new_z)
             new_z = generate_optimal_tree(new_z)
-            replace_node_p(out_node_p, new_z)
+            replace_node(out_node_p, new_z)
 
     node = declone(ret_node.node)
     all_nodes = find_topo_sort([node])
@@ -424,19 +424,21 @@ def simplify(output_node):
                 out_node_p, in_nodes = tree
                 new_z = fuse_einsums(out_node_p.node, in_nodes)
                 prune_identity_nodes(new_z)
-                replace_node_p(out_node_p, new_z)
+                replace_node(out_node_p, new_z)
 
-        node = ret_node.node
-        node = declone(node)
+        node = declone(ret_node.node)
         return node
 
     output_node = distribute_graph_w_linearize(output_node)
     output_node = fuse_all_einsums(output_node)
 
-    all_nodes = find_topo_sort([output_node])
+    output_pnode = PseudoNode(output_node)
+    all_pnodes = find_topo_sort_p([output_pnode])
+    all_nodes = [n.node for n in all_pnodes]
     # optimize inverse
     with OutputInjectedMode(all_nodes):
-        for node in all_nodes:
+        for pnode in all_pnodes:
+            node = pnode.node
             if isinstance(node, ad.EinsumNode):
                 # To make sure the same einsum nodes have the same same,
                 # so that we can collapse the add node.
@@ -445,40 +447,37 @@ def simplify(output_node):
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.TensorInverseNode):
                 new_inv_node = optimize_inverse(node)
-                if node.outputs == []:
-                    output_node = new_inv_node
-                else:
-                    replace_node(node, new_inv_node)
+                replace_node(pnode, new_inv_node)
 
     # fuse again
+    output_node = output_pnode.node
     output_node = fuse_all_einsums(output_node)
 
     # prune inverse nodes
-    all_nodes = find_topo_sort([output_node])
+    output_pnode = PseudoNode(output_node)
+    all_pnodes = find_topo_sort_p([output_pnode])
+    all_nodes = [n.node for n in all_pnodes]
     with OutputInjectedMode(all_nodes):
-        for node in all_nodes:
+        for pnode in all_pnodes:
+            node = pnode.node
             if node.inputs != []:
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.EinsumNode):
                 new_node = prune_inv_node(node)
-                if node.outputs == []:
-                    output_node = new_node
-                else:
-                    replace_node(node, new_node)
+                replace_node(pnode, new_node)
 
     # prune the scalar nodes and remove unnecessary identity nodes
-    all_nodes = find_topo_sort([output_node])
+    all_pnodes = find_topo_sort_p([output_pnode])
+    all_nodes = [n.node for n in all_pnodes]
     with OutputInjectedMode(all_nodes):
-        for node in all_nodes:
+        for pnode in all_pnodes:
+            node = pnode.node
             if node.inputs != []:
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.EinsumNode):
                 prune_identity_nodes(node)
                 new_node = prune_scalar_nodes(node)
-                if node.outputs == []:
-                    output_node = new_node
-                else:
-                    replace_node(node, new_node)
+                replace_node(pnode, new_node)
 
     #sympy_simplify the distributed nodes
     if isinstance(output_node, ad.DistributiveNode):

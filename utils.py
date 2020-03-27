@@ -263,31 +263,12 @@ def replace_node(prev, new):
     Note that this is a mutation operation on the graph which is irreversible.
 
     Args:
-        prev: A node in the graph.
+        prev: A Pesudo node in the graph.
         new: Another node in the graph.
     Returns:
         None
-    """
-    assert prev.outputs != None
-    assert new.outputs != None
-    for n_o in prev.outputs:
-        n_o.set_inputs(
-            [tmp if tmp.name != prev.name else new for tmp in n_o.inputs])
-
-
-def replace_node_p(prev, new):
-    # TMP Pseudo Mode.
-    """Replaces the previous node with the new node.
-
-    Need OutputInjectedMode to be enabled.
-    It will replace all the inputs reference to prev node to new node.
-    Note that this is a mutation operation on the graph which is irreversible.
-
-    Args:
-        prev: A node in the graph.
-        new: Another node in the graph.
-    Returns:
-        None
+    Note: A pesudo node represents a node pointer so that the value can be
+    updated without discard the reference.
     """
     assert prev.node.outputs != None
     assert new.outputs != None
@@ -324,6 +305,34 @@ def topo_sort_dfs(node, visited, topo_order, input_node_list):
         for n in node.inputs:
             topo_sort_dfs(n, visited, topo_order, input_node_list)
     topo_order.append(node)
+
+
+def find_topo_sort_p(pnode_list, input_node_list=[]):
+    """Given a list of nodes, return a topological sort list of nodes ending in them.
+    The input_node_list are used to stop. If ever met a input node, stop probing the graph.
+    A simple algorithm is to do a post-order DFS traversal on the given nodes,
+    going backwards based on input edges. Since a node is added to the ordering
+    after all its predecessors are traversed due to post-order DFS, we get a topological
+    sort.
+    """
+    visited = set()
+    topo_order = []
+    for node in pnode_list:
+        topo_sort_dfs_p(node, visited, topo_order, input_node_list)
+    return topo_order
+
+
+def topo_sort_dfs_p(pnode, visited, topo_order, input_node_list):
+    """Post-order DFS"""
+    node = pnode.node
+    if node in visited:
+        return
+    visited.add(node)
+    if node not in input_node_list:
+        for n in node.inputs:
+            topo_sort_dfs_p(PseudoNode(n), visited, topo_order,
+                            input_node_list)
+    topo_order.append(pnode)
 
 
 def sum_node_list(node_list):
