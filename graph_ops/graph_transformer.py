@@ -17,7 +17,7 @@ from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p
+from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP
 from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -415,10 +415,9 @@ def simplify(output_node):
     """
     def fuse_all_einsums(node):
         linearize(node)
-        all_nodes = find_topo_sort([node])
         ret_node = PseudoNode(node)
-
-        with OutputInjectedMode(all_nodes):
+        all_pnodes = find_topo_sort_p([ret_node])
+        with OutputInjectedModeP(all_pnodes):
             trees = find_sub_einsumtree(ret_node)
             for tree in trees:
                 out_node_p, in_nodes = tree
@@ -434,9 +433,8 @@ def simplify(output_node):
 
     output_pnode = PseudoNode(output_node)
     all_pnodes = find_topo_sort_p([output_pnode])
-    all_nodes = [n.node for n in all_pnodes]
     # optimize inverse
-    with OutputInjectedMode(all_nodes):
+    with OutputInjectedModeP(all_pnodes):
         for pnode in all_pnodes:
             node = pnode.node
             if isinstance(node, ad.EinsumNode):
@@ -456,8 +454,7 @@ def simplify(output_node):
     # prune inverse nodes
     output_pnode = PseudoNode(output_node)
     all_pnodes = find_topo_sort_p([output_pnode])
-    all_nodes = [n.node for n in all_pnodes]
-    with OutputInjectedMode(all_nodes):
+    with OutputInjectedModeP(all_pnodes):
         for pnode in all_pnodes:
             node = pnode.node
             if node.inputs != []:
@@ -468,8 +465,7 @@ def simplify(output_node):
 
     # prune the scalar nodes and remove unnecessary identity nodes
     all_pnodes = find_topo_sort_p([output_pnode])
-    all_nodes = [n.node for n in all_pnodes]
-    with OutputInjectedMode(all_nodes):
+    with OutputInjectedModeP(all_pnodes):
         for pnode in all_pnodes:
             node = pnode.node
             if node.inputs != []:
