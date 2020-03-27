@@ -244,7 +244,7 @@ def test_einsum_multitier():
             for tree in trees:
                 out_node, in_nodes = tree
                 new_z = fuse_einsums(out_node.node, in_nodes)
-                replace_node(out_node.node, new_z)
+                replace_node(out_node, new_z)
 
         executor = ad.Executor([out])
         z_new_val, = executor.run(feed_dict=generated_feed_dict)
@@ -296,7 +296,7 @@ def test_einsum_subtree_clone():
             for tree in trees:
                 out_node, in_nodes = tree
                 new_z = fuse_einsums(out_node.node, in_nodes)
-                replace_node(out_node.node, new_z)
+                replace_node(out_node, new_z)
 
         new_out_val, = executor.run(feed_dict=generated_feed_dict)
 

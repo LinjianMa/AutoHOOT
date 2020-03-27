@@ -1,5 +1,5 @@
 import autodiff as ad
-from utils import find_topo_sort, OutputInjectedMode, replace_node
+from utils import find_topo_sort, OutputInjectedMode, replace_node, PseudoNode
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
 import copy
@@ -25,7 +25,7 @@ def dedup(*nodes):
         for tmp in topo_order:
             if tmp not in unique_nodes:
                 unique_copy = unique_nodes_map[tmp.name]
-                replace_node(tmp, unique_copy)
+                replace_node(PseudoNode(tmp), unique_copy)
 
 
 def declone(o_node):
