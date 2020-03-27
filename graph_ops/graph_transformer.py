@@ -83,6 +83,7 @@ def _distribute(binary_op_node, output):
 def distribute_tree(output):
     """ Distribute a tree of einsum and add nodes.
 
+    NOTE: the output node should be a linearized node.
     Behavior undefined if there are other kind of nodes.
 
     Args:
@@ -123,6 +124,13 @@ def distribute_tree(output):
                     output = new_node
     # This is need for source generation.
     output.set_inputs(output.inputs)
+    return output
+
+
+def distribute_graph_w_linearize(output):
+    linearize(output)
+    output = distribute_tree(output)
+    output = declone(output)
     return output
 
 
@@ -422,7 +430,7 @@ def simplify(output_node):
         node = declone(node)
         return node
 
-    output_node = distribute_tree(output_node)
+    output_node = distribute_graph_w_linearize(output_node)
     output_node = fuse_all_einsums(output_node)
 
     all_nodes = find_topo_sort([output_node])
@@ -477,10 +485,17 @@ def simplify(output_node):
         sympy_inputs = []
         all_nodes = find_topo_sort([output_node])
         for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                # To make sure the same einsum nodes have the same name,
+                # so that they can be reduced by sympy.
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
             if isinstance(node, ad.DistributiveNode):
                 for in_node in node.inputs:
                     if not isinstance(in_node, ad.DistributiveNode):
                         sympy_inputs.append(in_node)
+
         output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node

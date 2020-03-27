@@ -371,6 +371,24 @@ def test_tree_distribution_ppE(dist_op):
         assert tree_eq(output, new_output, [a, b, c, g])
 
 
+@pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
+def test_distribute_dup(dist_op):
+    from graph_ops.graph_transformer import distribute_graph_w_linearize
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[3, 3])
+        b = ad.Variable(name="b", shape=[3, 3])
+        c = ad.Variable(name="c", shape=[3, 3])
+
+        output = ad.einsum("ab,ab->",
+                           dist_op(ad.einsum("ab,bc->ac", a, b), c),
+                           dist_op(ad.einsum("ab,bc->ac", a, b), c))
+        new_output = distribute_graph_w_linearize(output)
+        assert tree_eq(output, new_output, [a, b, c])
+
+
 def test_copy_tree():
     """
         [Copy] Test copying a tree.

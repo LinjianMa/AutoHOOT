@@ -171,14 +171,13 @@ def optimize_inverse(inv_node):
     return inv_node
 
 
-def prune_inv_node(einsum_node):
+def prune_single_inv_node(einsum_node, inv_node):
     """
-    Prune the inverse node in an einsum node if condition mets.
+    Prune the inv_node in the einsum node if condition mets.
 
     Note:
-    1. currently only supports the case with only one inv in the einsum_node inputs.
-    2. can only optimize the node when the input of inv is an einsum node.
-    3. only supports the case when the splitted nodes are different from the remaining ones.
+    1. can only optimize the node when the input of inv is an einsum node.
+    2. only supports the case when the splitted nodes are different from the remaining ones.
         For example: ad.einsum("ab,bc,cd,de->ae", inv("ab,bc->ac", A, B), A, B, C) will be
         optimzied to ad.einsum("ab,bc->ac", C, ad.identity()),
         but we cannot optimize ad.einsum("ab,bc,cd,de->ae", inv("ab,bc->ac", A, B), A, B, B).
@@ -186,6 +185,7 @@ def prune_inv_node(einsum_node):
     Parameters
     ----------
     einsum_node: The fused einsum node
+    inv_node: the input inv node to be pruned
 
     Returns
     -------
@@ -196,20 +196,7 @@ def prune_inv_node(einsum_node):
     from graph_ops.graph_transformer import rewrite_einsum_expr
     from graph_ops.graph_generator import split_einsum
 
-    assert isinstance(einsum_node, ad.EinsumNode)
-    for node in einsum_node.inputs:
-        assert not isinstance(node, ad.EinsumNode)
-
-    inv_inputs_list = list(
-        filter(lambda node: isinstance(node, ad.TensorInverseNode),
-               einsum_node.inputs))
-
-    if len(inv_inputs_list) != 1:
-        logger.info(
-            f"More than one or no inv nodes in the inputs, can't prune inv")
-        return einsum_node
-
-    inv_node_input = inv_inputs_list[0].inputs[0]
+    inv_node_input = inv_node.inputs[0]
     if not isinstance(inv_node_input, ad.EinsumNode):
         logger.info(f"inv input is not einsum node, can't prune inv")
         return einsum_node
@@ -232,7 +219,7 @@ def prune_inv_node(einsum_node):
     for i, node in enumerate(split_einsum_node.inputs):
         if isinstance(node, ad.EinsumNode):
             p_einsum_input = PseudoNode(node=node, subscript=in_subs_list[i])
-        elif isinstance(node, ad.TensorInverseNode):
+        elif node is inv_node:
             p_inv_input = PseudoNode(node=node, subscript=in_subs_list[i])
         else:
             updated_p_in_nodes.append(
@@ -281,3 +268,35 @@ def prune_inv_node(einsum_node):
     ]
 
     return generate_new_einsum(updated_p_in_nodes, out_subs)
+
+
+def prune_inv_node(einsum_node):
+    """
+    Prune input inv nodes in the einsum node if condition mets.
+
+    Parameters
+    ----------
+    einsum_node: The fused einsum node
+
+    Returns
+    -------
+    If the einsum_node cannot be optimized, then return the input einsum_node.
+    If it can be optimized, return the optimized einsum node.
+
+    """
+    assert isinstance(einsum_node, ad.EinsumNode)
+    for node in einsum_node.inputs:
+        assert not isinstance(node, ad.EinsumNode)
+
+    inv_inputs_list = list(
+        filter(lambda node: isinstance(node, ad.TensorInverseNode),
+               einsum_node.inputs))
+
+    if len(inv_inputs_list) == 0:
+        logger.info(
+            f"No inv nodes in the inputs, can't prune inv")
+        return einsum_node
+
+    for inv_node in inv_inputs_list:
+        einsum_node = prune_single_inv_node(einsum_node, inv_node)
+    return einsum_node

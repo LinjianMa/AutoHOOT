@@ -210,6 +210,24 @@ def test_prune_inv_set_not_match():
     assert new_output is output
 
 
+def test_prune_inv_multiple_inv():
+    for datatype in BACKEND_TYPES:
+        A0 = ad.Variable(name="A0", shape=[2, 2])
+        A1 = ad.Variable(name="A1", shape=[2, 2])
+        A2 = ad.Variable(name="A2", shape=[2, 2])
+
+        out = ad.einsum('ab,bc,cd,de,ef,fg,gh->ah', A0, A1, A1,
+                        ad.tensorinv(ad.einsum('ab,bc->ac', A1, A1), ind=1),
+                        A2, A2,
+                        ad.tensorinv(ad.einsum('ab,bc->ac', A2, A2), ind=1))
+        new_out = prune_inv_node(out)
+
+        for node in new_out.inputs:
+            assert not isinstance(node, ad.EinsumNode)
+
+        assert tree_eq(out, new_out, [A0, A1, A2], tol=1e-6)
+
+
 def test_prune_inv_nodes_cpd():
     for datatype in BACKEND_TYPES:
         A = ad.Variable(name="A", shape=[2, 2])

@@ -351,7 +351,9 @@ class AddNode(DistributiveNode):
         """Compute the value of the self node given the input_vals"""
         assert len(input_vals) == 2
         # Don't allow broadcast.
-        assert input_vals[0].shape == input_vals[1].shape
+        if not isinstance(input_vals[0], (int, float)) and not isinstance(
+                input_vals[1], (int, float)):
+            assert input_vals[0].shape == input_vals[1].shape
         return input_vals[0] + input_vals[1]
 
     def transposed_vjp(self, output_grad):
