@@ -115,7 +115,7 @@ def distribute_tree(output):
             if first_binary_op is None:
                 break
             for einsum_node in first_binary_op.outputs:
-                if isinstance(einsum_node, ad.AddNode):
+                if isinstance(einsum_node, ad.DistributiveNode):
                     continue
                 assert isinstance(einsum_node, ad.EinsumNode)
                 new_node = _distribute(first_binary_op, einsum_node)

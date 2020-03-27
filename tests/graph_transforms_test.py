@@ -382,11 +382,9 @@ def test_distribute_dup(dist_op):
         b = ad.Variable(name="b", shape=[3, 3])
         c = ad.Variable(name="c", shape=[3, 3])
 
-        output = ad.einsum("ab,ab->",
-                           dist_op(ad.einsum("ab,bc->ac", a, b), c),
-                           dist_op(ad.einsum("ab,bc->ac", a, b), c))
+        output = ad.einsum("ab,ab->", dist_op(a, c), dist_op(a, c))
         new_output = distribute_graph_w_linearize(output)
-        assert tree_eq(output, new_output, [a, b, c])
+        assert tree_eq(output, new_output, [a, c])
 
 
 def test_copy_tree():
