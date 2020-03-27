@@ -155,6 +155,22 @@ class OutputInjectedMode:
             n.outputs = []
 
 
+class OutputInjectedModeP:
+    def __init__(self, pnodes):
+        self.pnodes = pnodes
+
+    def __enter__(self):
+        for n in self.pnodes:
+            n.node.outputs = []
+        for n in self.pnodes:
+            for n_i in n.node.inputs:
+                n_i.outputs.append(n.node)
+
+    def __exit__(self, type, value, traceback):
+        for n in self.pnodes:
+            n.node.outputs = []
+
+
 class StandardEinsumExprMode:
     """
     Change the einsum node to its stardard format.
