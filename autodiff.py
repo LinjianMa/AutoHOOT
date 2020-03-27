@@ -1251,7 +1251,7 @@ class TensorInverseNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         ind = len(self.shape) - self.input_indices_length
-        return f"T.tensorinv({inputs[0].name}, ind={ind})"
+        return f"T.linalg.tensorinv({inputs[0].name}, ind={ind})"
 
     def compute(self, input_vals):
         """Returns inverse of the same shape as input."""

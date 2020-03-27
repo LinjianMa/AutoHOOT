@@ -47,6 +47,48 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
+def cpd_als_jax(size, rank, num_iter, input_val=[]):
+
+    A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+
+    hes = ad.hessian(loss, [A, B, C])
+    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+
+    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+
+    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
+    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
+    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
+
+    new_A = A - delta_A
+    new_B = B - delta_B
+    new_C = C - delta_C
+
+    from source import SourceToSource
+    StS = SourceToSource()
+    StS.forward([loss, new_A], file=open("examples/jax_cpals_mode1.py", "w"), function_name='als_mode1', backend='jax')
+    StS.forward([loss, new_B], file=open("examples/jax_cpals_mode2.py", "w"), function_name='als_mode2', backend='jax')
+    StS.forward([loss, new_C], file=open("examples/jax_cpals_mode3.py", "w"), function_name='als_mode3', backend='jax')
+
+    from examples.jax_cpals_mode1 import als_mode1
+    from examples.jax_cpals_mode2 import als_mode2
+    from examples.jax_cpals_mode3 import als_mode3
+
+    if input_val == []:
+        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+    else:
+        A_val, B_val, C_val, input_tensor_val = input_val
+
+    for i in range(num_iter):
+        # als iterations
+        loss_val, A_val = als_mode1([A_val, B_val, C_val, input_tensor_val])
+        loss_val, B_val = als_mode2([A_val, B_val, C_val, input_tensor_val])
+        loss_val, C_val = als_mode3([A_val, B_val, C_val, input_tensor_val])
+        print(f'At iteration {i} the loss is: {loss_val}')
+
+    return A_val, B_val, C_val
+
+
 def cpd_als(size, rank, num_iter, input_val=[]):
 
     A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)

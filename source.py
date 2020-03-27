@@ -86,9 +86,9 @@ class SourceToSource():
         topo_order = find_topo_sort(output_node_list)
         self._print_to_file(f'\n{INDENT}# forward pass starts')
         for node in topo_order:
-            if len(node.inputs) == 0:
+            if isinstance(node, ad.VariableNode):
                 self._assign_init_variable(node)
-            else:
+            elif isinstance(node, ad.OpNode):
                 self._assign_mid_variable(node)
 
     def _sub_gradients(self, output_node, node_list):
@@ -152,7 +152,7 @@ class SourceToSource():
     def _jax_forward_head_print(self):
         self._print_to_file(f'import jax.numpy as T\n')
         self._print_to_file(f'from utils import jit_decorator\n')
-        self._print_to_file(f'@jit_decorator\n')
+        self._print_to_file(f'@jit_decorator')
 
     def forward(self,
                 output_node_list,
