@@ -2,8 +2,8 @@ import copy
 
 import backend as T
 import numpy as np
-from utils import find_topo_sort, sum_node_list, inner_product
-from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode
+from utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
+from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
