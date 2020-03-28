@@ -45,8 +45,8 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     """
     dt = dimension_tree(list(einsum_node_map.keys()),
                         list(einsum_node_map.values()), first_contract_node)
-    remove_transposes(find_topo_sort(dt))
     dedup(*dt)
+    remove_transposes(find_topo_sort(dt))
     return dt
 
 
@@ -102,17 +102,24 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
             for node in split_einsum(einsum_node, input_node_subset).inputs
             if isinstance(node, ad.EinsumNode)
         ]
-        opt_einsum = generate_optimal_tree(splitted_einsum)
-        sub_splitted_einsum = get_common_ancestor(opt_einsum,
-                                                  splitted_einsum.inputs,
-                                                  first_contract_node)
 
-        input_node_subset = [
-            node for node in einsum_node.inputs
-            if node not in get_all_inputs(sub_splitted_einsum)
+        opt_contract_tree = get_common_ancestor(
+            generate_optimal_tree(splitted_einsum), splitted_einsum.inputs,
+            first_contract_node)
+        opt_contract_tree_leaves = get_all_inputs(opt_contract_tree)
+
+        # Get the inputs of splitted_einsum such that its leaves are included
+        # in the leaves of opt_contract_tree
+        first_contract_inputs = [
+            node for node in splitted_einsum.inputs
+            if set(get_all_inputs(node)).issubset(opt_contract_tree_leaves)
         ]
 
-        second_einsum = split_einsum(einsum_node, input_node_subset)
+        split_out_inputs = [
+            node for node in einsum_node.inputs
+            if node not in first_contract_inputs
+        ]
+        second_einsum = split_einsum(einsum_node, split_out_inputs)
         second_einsums.append(second_einsum)
 
     # Note that second_einsums[-1] will be directly returned and not be resued.

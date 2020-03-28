@@ -279,4 +279,4 @@ def tucker_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
 
 
 if __name__ == "__main__":
-    tucker_als(dim=4, size=5, rank=3, num_iter=5)
+    tucker_als_shared_exec(dim=4, size=5, rank=3, num_iter=5)

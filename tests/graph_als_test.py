@@ -25,6 +25,9 @@ def test_dimension_tree():
             einsum_node_D: D
         })
 
+    # 5 inputs, 4 outputs, 2 intermedaites (einsum(X, D) and einsum(Einsum(X, D), C))
+    assert len(find_topo_sort(dt)) == 11
+
     assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
     assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
     assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, X])

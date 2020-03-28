@@ -140,16 +140,9 @@ def get_transpose_indices(A, B):
         if (dset_A[key] == -1 and dset_B[key] != dset_A[key]):
             return None
 
-    # indices_A(B) is an array stores the output dimension index ordered by the sorted keys.
-    # the goal is to find the reorder of indices_A, such that it equals indices_B.
-    indices_A = []
-    indices_B = []
-    for key in sorted(dset_A.keys()):
-        if dset_A[key] != -1:
-            indices_A.append(dset_A[key])
-            indices_B.append(dset_B[key])
+    inv_dset_B = dict(zip(dset_B.values(), dset_B.keys()))
+    transpose_indices = [dset_A[inv_dset_B[i]] for i in range(len(B.shape))]
 
-    transpose_indices = [indices_A.index(elem) for elem in indices_B]
     # If the transpose indices is sorted ascendingly. There is no transpose.
     if transpose_indices == sorted(transpose_indices):
         return None
