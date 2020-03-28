@@ -1,5 +1,6 @@
 import autodiff as ad
-from utils import find_topo_sort, OutputInjectedMode, replace_node, PseudoNode
+from utils import find_topo_sort, OutputInjectedModeP, replace_node, PseudoNode
+from utils import find_topo_sort_p
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
 import copy
@@ -13,19 +14,21 @@ def dedup(*nodes):
     """
     assert len(nodes) > 0
 
-    topo_order = find_topo_sort(nodes)
-    with OutputInjectedMode(topo_order):
+    topo_order = find_topo_sort_p([PseudoNode(n) for n in nodes])
+    with OutputInjectedModeP(topo_order):
         unique_nodes_map = {}
         unique_nodes = set()
         # Use the last occurrence.
-        for tmp in topo_order:
+        for ptmp in topo_order:
+            tmp = ptmp.node
             unique_nodes_map[tmp.name] = tmp
         unique_nodes = set(unique_nodes_map.values())
 
-        for tmp in topo_order:
+        for ptmp in topo_order:
+            tmp = ptmp.node
             if tmp not in unique_nodes:
                 unique_copy = unique_nodes_map[tmp.name]
-                replace_node(PseudoNode(tmp), unique_copy)
+                replace_node(ptmp, unique_copy)
 
 
 def declone(o_node):
@@ -168,7 +171,7 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
     assert node in graph
     assert trans_node in graph
 
-    with OutputInjectedMode(graph):
+    with OutputInjectedModeP([PseudoNode(n) for n in graph]):
         for onode in node.outputs:
             # NOTE: currently we cannot deal with non-einsum nodes.
             assert isinstance(onode, ad.EinsumNode)

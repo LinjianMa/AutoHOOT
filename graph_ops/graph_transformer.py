@@ -40,10 +40,11 @@ def linearize(output_node):
 
     """
     # Need to create new nodes for whichever node that has 2 or more outgoing edges.
-    all_nodes = find_topo_sort([output_node])
+    all_pnodes = find_topo_sort_p([PseudoNode(output_node)])
     # Inject outputs relationship.
-    with OutputInjectedMode(all_nodes):
-        for n in all_nodes:
+    with OutputInjectedModeP(all_pnodes):
+        for pn in all_pnodes:
+            n = pn.node
             if len(n.outputs) > 1:
                 for n_o in set(n.outputs):
                     n_o.set_inputs([
@@ -98,8 +99,9 @@ def distribute_tree(output):
         3. Apply distribute.
         4. Iterate 1->3
     """
-    def get_first_binary_op(nodes):
-        for node in nodes:
+    def get_first_binary_op(pnodes):
+        for pnode in pnodes:
+            node = pnode.node
             if isinstance(node,
                           ad.DistributiveNode) and len(node.outputs) >= 1:
                 has_einsum_nodes = all(
@@ -109,9 +111,9 @@ def distribute_tree(output):
         return None
 
     while 1:
-        all_nodes = find_topo_sort([output])
-        with OutputInjectedMode(all_nodes):
-            first_binary_op = get_first_binary_op(all_nodes)
+        all_pnodes = find_topo_sort_p([PseudoNode(output)])
+        with OutputInjectedModeP(all_pnodes):
+            first_binary_op = get_first_binary_op(all_pnodes)
             if first_binary_op is None:
                 break
             for einsum_node in first_binary_op.outputs:

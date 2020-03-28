@@ -2,8 +2,8 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
 from graph_ops.graph_transformer import linearize
-from utils import find_topo_sort
-from utils import replace_node, OutputInjectedMode, PseudoNode
+from utils import find_topo_sort, find_topo_sort_p
+from utils import replace_node, OutputInjectedModeP, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
@@ -239,7 +239,7 @@ def test_einsum_multitier():
         executor = ad.Executor([out])
         z_val, = executor.run(feed_dict=generated_feed_dict)
 
-        with OutputInjectedMode(find_topo_sort([out])):
+        with OutputInjectedModeP(find_topo_sort_p([PseudoNode(out)])):
             trees = find_sub_einsumtree(PseudoNode(out))
             for tree in trees:
                 out_node, in_nodes = tree
@@ -290,7 +290,7 @@ def test_einsum_subtree_clone():
         executor = ad.Executor([out])
         out_val, = executor.run(feed_dict=generated_feed_dict)
 
-        with OutputInjectedMode(find_topo_sort([out])):
+        with OutputInjectedModeP(find_topo_sort_p([PseudoNode(out)])):
             trees = find_sub_einsumtree(PseudoNode(out))
             assert len(trees) == 2
             for tree in trees:
