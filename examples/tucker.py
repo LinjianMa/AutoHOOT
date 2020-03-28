@@ -1,6 +1,7 @@
 import copy
 import autodiff as ad
 import backend as T
+import time
 from utils import CharacterGetter
 from tensors.synthetic_tensors import init_rand_tucker
 from graph_ops.graph_generator import split_einsum
@@ -88,7 +89,7 @@ class TuckerGraph(object):
         self.A_list = []
         A_list_subscripts = []
         for i in range(dim):
-            node = ad.Variable(name=f'A{i}', shape=[size, rank])
+            node = ad.Variable(name=f'A{i}', shape=[size, rank], orthogonal=True)
             self.A_list.append(node)
             A_list_subscripts.append(f"{X_subscripts[i]}{core_subscripts[i]}")
 
@@ -151,7 +152,7 @@ def tucker_als_graph(dim, size, rank):
     """
     tg = TuckerGraph(dim, size, rank)
 
-    executors = []
+    executors_update = []
 
     for i in range(dim):
 
@@ -163,11 +164,14 @@ def tucker_als_graph(dim, size, rank):
         new_core_A = core_A - ad.tensordot(
             ad.tensorinv(hes), grad,
             [[i + dim for i in range(dim)], [i for i in range(dim)]])
+        new_core_A = simplify(new_core_A)
 
-        executor = ad.Executor([tg.losses[i], new_core_A])
-        executors.append(executor)
+        executor = ad.Executor([new_core_A])
+        executors_update.append(executor)
+    
+    executor_loss = ad.Executor([simplify(tg.losses[0])])
 
-    return tg, executors, tg.intermediates
+    return tg, executors_update, executor_loss, tg.intermediates
 
 
 def tucker_als_graph_shared_exec(dim, size, rank):
@@ -210,14 +214,15 @@ def tucker_als_graph_shared_exec(dim, size, rank):
         assert loss.name == simplify(tg.losses[i]).name
 
     updates = generate_sequential_optiaml_tree(dict(zip(updates, tg.A_list)))
-    executor = ad.Executor([loss] + updates)
+    executor_updates = ad.Executor(updates)
+    executor_loss = ad.Executor([loss])
 
-    return tg, executor, loss, updates, tg.intermediates
+    return tg, executor_updates, executor_loss, loss, updates, tg.intermediates
 
 
 def tucker_als(dim, size, rank, num_iter, input_val=[]):
 
-    tg, executors, intermediates = tucker_als_graph(dim, size, rank)
+    tg, executors_update, executor_loss, intermediates = tucker_als_graph(dim, size, rank)
 
     if input_val == []:
         A_val_list, core_val, X_val = init_rand_tucker(dim, size, rank)
@@ -231,20 +236,23 @@ def tucker_als(dim, size, rank, num_iter, input_val=[]):
             feed_dict = dict(zip(tg.A_list, A_val_list))
             feed_dict.update({tg.core: core_val, tg.X: X_val})
 
-            loss_val, new_core_A_val = executors[i].run(feed_dict=feed_dict)
+            new_core_A_val, = executors_update[i].run(feed_dict=feed_dict)
 
             # update core_val and A_val_list[i] using SVD
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
 
-        print(f'At iteration {iter} the loss is: {loss_val}')
+        # feed_dict = dict(zip(tg.A_list, A_val_list))
+        # feed_dict.update({tg.core: core_val, tg.X: X_val})
+        # loss_val, = executor_loss.run(feed_dict=feed_dict)
+        # print(f'At iteration {iter} the loss is: {loss_val}')
 
     return A_val_list, core_val, X_val
 
 
 def tucker_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
 
-    tg, executor, loss, updates, intermediates = tucker_als_graph_shared_exec(
+    tg, executor_updates, executor_loss, loss, updates, intermediates = tucker_als_graph_shared_exec(
         dim, size, rank)
 
     if input_val == []:
@@ -260,20 +268,25 @@ def tucker_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
             feed_dict.update({tg.core: core_val, tg.X: X_val})
 
             if i == 0:
-                loss_val, new_core_A_val = executor.run(
-                    feed_dict=feed_dict, out_nodes=[loss, updates[0]])
+                new_core_A_val, = executor_updates.run(
+                    feed_dict=feed_dict, out_nodes=[updates[0]])
             else:
-                loss_val, new_core_A_val = executor.run(
+                new_core_A_val, = executor_updates.run(
                     feed_dict=feed_dict,
-                    out_nodes=[loss, updates[i]],
+                    out_nodes=[updates[i]],
                     reset_graph=False,
                     evicted_inputs=tg.A_list[:i])
 
             # update core_val and A_val_list[i] using SVD
+            t0 = time.time()
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
+            dt = time.time() - t0
 
-        print(f'At iteration {iter} the loss is: {loss_val}')
+        # feed_dict = dict(zip(tg.A_list, A_val_list))
+        # feed_dict.update({tg.core: core_val, tg.X: X_val})
+        # loss_val, = executor_loss.run(feed_dict=feed_dict)
+        # print(f'At iteration {iter} the loss is: {loss_val}')
 
     return A_val_list, core_val, X_val
 

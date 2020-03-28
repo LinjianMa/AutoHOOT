@@ -13,7 +13,7 @@ BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
 
 
-@pytest.mark.benchmark(group="als")
+@pytest.mark.benchmark(group="cp_als")
 def test_cpd_als_tensorly(benchmark):
     for datatype in BACKEND_TYPES:
         tl.set_backend(datatype)
@@ -30,7 +30,7 @@ def test_cpd_als_tensorly(benchmark):
                             verbose=0)
 
 
-@pytest.mark.benchmark(group="als")
+@pytest.mark.benchmark(group="cp_als")
 def test_cpd_als_sktensor(benchmark):
     for datatype in BACKEND_TYPES:
 
@@ -42,14 +42,14 @@ def test_cpd_als_sktensor(benchmark):
                   init='random')
 
 
-@pytest.mark.benchmark(group="als")
+@pytest.mark.benchmark(group="cp_als")
 def test_cpd_als(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_3d(size, rank)
         outputs = benchmark(cpd_als, size, rank, 1, input_tensor)
 
 
-@pytest.mark.benchmark(group="als")
+@pytest.mark.benchmark(group="cp_als")
 def test_cpd_als_shared_exec(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_3d(size, rank)
