@@ -1408,8 +1408,9 @@ class Executor:
 
         if len(evicted_inputs) > 0:
             # Evict all inputs from the graph.
-            all_nodes = find_topo_sort(self.eval_node_list)
-            with OutputInjectedMode(all_nodes):
+            all_pnodes = find_topo_sort_p(
+                [PseudoNode(n) for n in self.eval_node_list])
+            with OutputInjectedModeP(all_pnodes):
 
                 def recur(node):
                     for o in node.outputs:
