@@ -45,6 +45,8 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     """
     dt = dimension_tree(list(einsum_node_map.keys()),
                         list(einsum_node_map.values()), first_contract_node)
+    # The order of dedup and remove_transposes matters.
+    # Remove transposes happen only when the inputs are same nodes.
     dedup(*dt)
     remove_transposes(find_topo_sort(dt))
     return dt
@@ -108,8 +110,8 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
             first_contract_node)
         opt_contract_tree_leaves = get_all_inputs(opt_contract_tree)
 
-        # Get the inputs of splitted_einsum such that its leaves are included
-        # in the leaves of opt_contract_tree
+        # Get part of the inputs of splitted_einsum,
+        # whose common_ancestor is opt_contract_tree (along the optimal contraction path)
         first_contract_inputs = [
             node for node in splitted_einsum.inputs
             if set(get_all_inputs(node)).issubset(opt_contract_tree_leaves)
