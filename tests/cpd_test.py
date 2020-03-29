@@ -2,7 +2,7 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import optimize, linearize, simplify
 from graph_ops.graph_dedup import dedup
-from tensors.synthetic_tensors import init_rand_3d
+from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
 from utils import find_topo_sort
 
@@ -27,11 +27,13 @@ def test_cpd_grad():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
         loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
             feed_dict={
                 input_tensor: input_tensor_val,
@@ -69,13 +71,16 @@ def test_cpd_jtjvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-        v_A_val, v_B_val, v_C_val, _ = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
+        v_A_list, _ = init_rand_cp(3, size, rank)
+        v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
                            node_list=[A, B, C],
@@ -105,13 +110,16 @@ def test_cpd_jtjvp_optimize():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-        v_A_val, v_B_val, v_C_val, _ = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
+        v_A_list, _ = init_rand_cp(3, size, rank)
+        v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
                            node_list=[A, B, C],
@@ -146,8 +154,10 @@ def test_cpd_hessian_simplify():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
 
         hessian = ad.hessian(loss, [A, B, C])
         # TODO (issue #101): test the off-diagonal elements
@@ -182,8 +192,10 @@ def test_cpd_hessian_optimize_diag():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
 
         hessian = ad.hessian(loss, [A, B, C])
         hessian_diag = [hessian[0][0], hessian[1][1], hessian[2][2]]
@@ -231,8 +243,10 @@ def test_cpd_hessian_optimize_offdiag():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A, B, C = A_list
+        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_val, B_val, C_val = A_list
 
         hessian = ad.hessian(loss, [A, B, C])
         hessian_offdiag = [hessian[0][1], hessian[1][0]]
@@ -272,8 +286,9 @@ def test_cpd_als():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        input_val = init_rand_3d(size, rank)
-        A_val, B_val, C_val, input_tensor_val = input_val
+        input_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = input_val
+        A_val, B_val, C_val = A_list
 
         outputs = cpd_als(size, rank, 1, input_val)
 
@@ -297,8 +312,9 @@ def test_cpd_shared_exec():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        input_val = init_rand_3d(size, rank)
-        A_val, B_val, C_val, input_tensor_val = input_val
+        input_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = input_val
+        A_val, B_val, C_val = A_list
 
         outputs = cpd_als_shared_exec(size, rank, 1, input_val)
 
