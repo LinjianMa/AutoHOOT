@@ -42,16 +42,17 @@ def cpd_graph(dim, size, rank):
 
 
 def cpd_gradient_descent(size, rank, learning_rate):
+    dim = 3
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
         A, B, C = A_list
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
 
         for i in range(100):
@@ -69,8 +70,9 @@ def cpd_gradient_descent(size, rank, learning_rate):
 
 
 def cpd_als(size, rank, num_iter, input_val=[]):
+    dim = 3
 
-    A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
     A, B, C = A_list
 
     hes = ad.hessian(loss, [A, B, C])
@@ -96,7 +98,7 @@ def cpd_als(size, rank, num_iter, input_val=[]):
     executor_C = ad.Executor([loss, new_C])
 
     if input_val == []:
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
         A_list, input_tensor_val = input_val
     A_val, B_val, C_val = A_list
@@ -127,8 +129,9 @@ def cpd_als(size, rank, num_iter, input_val=[]):
 
 
 def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
+    dim = 3
 
-    A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
     A, B, C = A_list
 
     hes = ad.hessian(loss, [A, B, C])
@@ -157,7 +160,7 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
     executor = ad.Executor([loss, new_A, new_B, new_C])
 
     if input_val == []:
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
         A_list, input_tensor_val = input_val
     A_val, B_val, C_val = A_list
@@ -203,11 +206,13 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
     """
     assert mode in {'ad', 'jax', 'optimized'}
 
+    dim = 3
+
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         T.seed(1)
 
-        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
         A, B, C = A_list
 
         v_A = ad.Variable(name="v_A", shape=[size, rank])
@@ -218,7 +223,7 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                            node_list=[A, B, C],
                            vector_list=[v_A, v_B, v_C])
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
 
         if mode == 'jax':
@@ -315,11 +320,12 @@ def cpd_nls_benchmark(size=100, rank=100):
 
 
 def cpd_newton(size, rank):
+    dim = 3
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
         A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
@@ -332,7 +338,7 @@ def cpd_newton(size, rank):
         executor_grads = ad.Executor([loss] + grads)
         executor_Hvps = ad.Executor(Hvps)
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
 
         for i in range(100):

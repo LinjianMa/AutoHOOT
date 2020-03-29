@@ -8,6 +8,7 @@ import pytest
 
 BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
+dim = 3
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
@@ -28,15 +29,15 @@ def test_cpd_raw(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
         A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
-        v_A_list, _ = init_rand_cp(3, size, rank)
+        v_A_list, _ = init_rand_cp(dim, size, rank)
         v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
@@ -61,9 +62,9 @@ def test_cpd_jtjvp(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
-        v_A_list, _ = init_rand_cp(3, size, rank)
+        v_A_list, _ = init_rand_cp(dim, size, rank)
         v_A_val, v_B_val, v_C_val = v_A_list
         expected_hvp_val = benchmark(expect_jtjvp_val, A_val, B_val, C_val,
                                      v_A_val, v_B_val, v_C_val)
@@ -74,15 +75,15 @@ def test_cpd_jtjvp_optimized(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_list, input_tensor, loss, residual = cpd_graph(3, size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
         A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_list, input_tensor_val = init_rand_cp(3, size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
-        v_A_list, _ = init_rand_cp(3, size, rank)
+        v_A_list, _ = init_rand_cp(dim, size, rank)
         v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
