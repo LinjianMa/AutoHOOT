@@ -1,8 +1,8 @@
 import math
 import autodiff as ad
 import backend as T
-from tensors.synthetic_tensors import init_rand_3d
-from utils import conjugate_gradient, cp_nls_optimizer
+from tensors.synthetic_tensors import init_rand_cp
+from utils import conjugate_gradient, cp_nls_optimizer, CharacterGetter
 from graph_ops.graph_transformer import optimize, simplify
 from graph_ops.graph_dedup import dedup
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
@@ -11,27 +11,49 @@ import time
 BACKEND_TYPES = ['numpy']
 
 
-def cpd_graph(size, rank):
-    A = ad.Variable(name='A', shape=[size, rank])
-    B = ad.Variable(name='B', shape=[size, rank])
-    C = ad.Variable(name='C', shape=[size, rank])
-    input_tensor = ad.Variable(name='input_tensor', shape=[size, size, size])
-    output_tensor = ad.einsum("ia,ja,ka->ijk", A, B, C)
-    residual = output_tensor - input_tensor
-    loss = ad.einsum("ijk,ijk->", residual, residual)
-    return A, B, C, input_tensor, loss, residual
+def cpd_graph(dim, size, rank):
+    cg = CharacterGetter()
+
+    input_tensor = ad.Variable(name='input_tensor',
+                               shape=[size for _ in range(dim)])
+    input_tensor_subs = "".join([cg.getchar() for _ in range(dim)])
+
+    rank_char = cg.getchar()
+
+    A_list = []
+    A_list_subs = []
+    for i in range(dim):
+        node = ad.Variable(name=f'A{i}', shape=[size, rank])
+        A_list.append(node)
+        A_list_subs.append(f"{input_tensor_subs[i]}{rank_char}")
+
+    input_subs = ','.join(A_list_subs)
+    einsum_subscripts = input_subs + '->' + input_tensor_subs
+    output = ad.einsum(einsum_subscripts, *A_list)
+
+    residual = output - input_tensor
+    residual_shape = list(range(len(residual.shape)))
+
+    loss = ad.tensordot(residual,
+                        residual,
+                        axes=[residual_shape, residual_shape])
+
+    return A_list, input_tensor, loss, residual
 
 
 def cpd_gradient_descent(size, rank, learning_rate):
+    dim = 3
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+        A, B, C = A_list
         grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
         executor = ad.Executor([loss, grad_A, grad_B, grad_C])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
 
         for i in range(100):
             loss_val, grad_A_val, grad_B_val, grad_C_val = executor.run(
@@ -48,8 +70,10 @@ def cpd_gradient_descent(size, rank, learning_rate):
 
 
 def cpd_als(size, rank, num_iter, input_val=[]):
+    dim = 3
 
-    A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+    A, B, C = A_list
 
     hes = ad.hessian(loss, [A, B, C])
     hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
@@ -70,9 +94,10 @@ def cpd_als(size, rank, num_iter, input_val=[]):
     executor_loss = ad.Executor([simplify(loss)])
 
     if input_val == []:
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
-        A_val, B_val, C_val, input_tensor_val = input_val
+        A_list, input_tensor_val = input_val
+    A_val, B_val, C_val = A_list
 
     for i in range(num_iter):
         # als iterations
@@ -106,8 +131,10 @@ def cpd_als(size, rank, num_iter, input_val=[]):
 
 
 def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
+    dim = 3
 
-    A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+    A, B, C = A_list
 
     hes = ad.hessian(loss, [A, B, C])
     hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
@@ -136,9 +163,10 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
     executor_loss = ad.Executor([loss])
 
     if input_val == []:
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
-        A_val, B_val, C_val, input_tensor_val = input_val
+        A_list, input_tensor_val = input_val
+    A_val, B_val, C_val = A_list
 
     for i in range(num_iter):
         t0 = time.time()
@@ -187,11 +215,15 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
     """
     assert mode in {'ad', 'jax', 'optimized'}
 
+    dim = 3
+
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
         T.seed(1)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+        A, B, C = A_list
+
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
@@ -200,7 +232,8 @@ def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
                            node_list=[A, B, C],
                            vector_list=[v_A, v_B, v_C])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
 
         if mode == 'jax':
             from source import SourceToSource
@@ -296,11 +329,13 @@ def cpd_nls_benchmark(size=100, rank=100):
 
 
 def cpd_newton(size, rank):
+    dim = 3
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+        A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
@@ -312,7 +347,8 @@ def cpd_newton(size, rank):
         executor_grads = ad.Executor([loss] + grads)
         executor_Hvps = ad.Executor(Hvps)
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
 
         for i in range(100):
 

@@ -2,12 +2,13 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_transformer import optimize, linearize
 from graph_ops.graph_dedup import dedup
-from tensors.synthetic_tensors import init_rand_3d
+from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph
 import pytest
 
 BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
+dim = 3
 
 
 def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
@@ -28,13 +29,16 @@ def test_cpd_raw(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+        A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-        v_A_val, v_B_val, v_C_val, _ = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
+        v_A_list, _ = init_rand_cp(dim, size, rank)
+        v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
                            node_list=[A, B, C],
@@ -58,8 +62,10 @@ def test_cpd_jtjvp(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-        v_A_val, v_B_val, v_C_val, _ = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
+        v_A_list, _ = init_rand_cp(dim, size, rank)
+        v_A_val, v_B_val, v_C_val = v_A_list
         expected_hvp_val = benchmark(expect_jtjvp_val, A_val, B_val, C_val,
                                      v_A_val, v_B_val, v_C_val)
 
@@ -69,13 +75,16 @@ def test_cpd_jtjvp_optimized(benchmark):
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
 
-        A, B, C, input_tensor, loss, residual = cpd_graph(size, rank)
+        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+        A, B, C = A_list
         v_A = ad.Variable(name="v_A", shape=[size, rank])
         v_B = ad.Variable(name="v_B", shape=[size, rank])
         v_C = ad.Variable(name="v_C", shape=[size, rank])
 
-        A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
-        v_A_val, v_B_val, v_C_val, _ = init_rand_3d(size, rank)
+        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val, B_val, C_val = A_list
+        v_A_list, _ = init_rand_cp(dim, size, rank)
+        v_A_val, v_B_val, v_C_val = v_A_list
 
         JtJvps = ad.jtjvps(output_node=residual,
                            node_list=[A, B, C],
