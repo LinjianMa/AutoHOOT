@@ -135,6 +135,7 @@ def test_tucker_als_4d():
         input_val = init_rand_tucker(dim, size, rank)
         A_val_list, _, X_val = input_val
 
+
         A_val_list_ad, core_val_ad, _ = tucker_als(dim, size, rank, 1,
                                                    input_val)
 

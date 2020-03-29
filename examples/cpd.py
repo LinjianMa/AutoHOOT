@@ -64,14 +64,10 @@ def cpd_als(size, rank, num_iter, input_val=[]):
     new_B = B - delta_B
     new_C = C - delta_C
 
-    new_A = simplify(new_A)
-    new_B = simplify(new_B)
-    new_C = simplify(new_C)
-    loss = simplify(loss)
-
-    executor_A = ad.Executor([loss, new_A])
-    executor_B = ad.Executor([loss, new_B])
-    executor_C = ad.Executor([loss, new_C])
+    executor_A = ad.Executor([simplify(new_A)])
+    executor_B = ad.Executor([simplify(new_B)])
+    executor_C = ad.Executor([simplify(new_C)])
+    executor_loss = ad.Executor([simplify(loss)])
 
     if input_val == []:
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
@@ -80,19 +76,25 @@ def cpd_als(size, rank, num_iter, input_val=[]):
 
     for i in range(num_iter):
         # als iterations
-        loss_val, A_val = executor_A.run(feed_dict={
+        A_val, = executor_A.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
             C: C_val
         })
-        loss_val, B_val = executor_B.run(feed_dict={
+        B_val, = executor_B.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
             C: C_val
         })
-        loss_val, C_val = executor_C.run(feed_dict={
+        C_val, = executor_C.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
+        loss_val, = executor_loss.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
@@ -130,7 +132,8 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
         new_B: B,
         new_C: C
     })
-    executor = ad.Executor([loss, new_A, new_B, new_C])
+    executor_update = ad.Executor([new_A, new_B, new_C])
+    executor_loss = ad.Executor([loss])
 
     if input_val == []:
         A_val, B_val, C_val, input_tensor_val = init_rand_3d(size, rank)
@@ -140,31 +143,37 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
     for i in range(num_iter):
         t0 = time.time()
         # als iterations
-        loss_val, A_val = executor.run(feed_dict={
+        A_val, = executor_update.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
             C: C_val
         },
-                                       out_nodes=[loss, new_A])
-        loss_val, B_val = executor.run(feed_dict={
+                                     out_nodes=[new_A])
+        B_val, = executor_update.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
             C: C_val
         },
-                                       reset_graph=False,
-                                       out_nodes=[loss, new_B],
-                                       evicted_inputs=[A])
-        loss_val, C_val = executor.run(feed_dict={
+                                     reset_graph=False,
+                                     out_nodes=[new_B],
+                                     evicted_inputs=[A])
+        C_val, = executor_update.run(feed_dict={
             input_tensor: input_tensor_val,
             A: A_val,
             B: B_val,
             C: C_val
         },
-                                       reset_graph=False,
-                                       out_nodes=[loss, new_C],
-                                       evicted_inputs=[A, B])
+                                     reset_graph=False,
+                                     out_nodes=[new_C],
+                                     evicted_inputs=[A, B])
+        loss_val, = executor_loss.run(feed_dict={
+            input_tensor: input_tensor_val,
+            A: A_val,
+            B: B_val,
+            C: C_val
+        })
         print(f'At iteration {i} the loss is: {loss_val}')
         t1 = time.time()
         print(f"[ {i} ] Sweep took {t1 - t0} seconds")
