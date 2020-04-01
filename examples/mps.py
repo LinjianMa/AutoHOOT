@@ -10,6 +10,7 @@ from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import simplify
 from utils import PseudoNode, find_topo_sort_p, OutputInjectedModeP
 from utils import replace_node
+from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 
 BACKEND_TYPES = ['numpy']
 
@@ -239,7 +240,7 @@ class DmrgGraph(object):
 
         intermediates, executors, hessians = [], [], []
         for i in range(num - 1):
-            intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
+            intermediate, hes = cls.get_sub_hessian(i, mpo_graph, mps_graph)
             hes = simplify(hes)
             hessians.append(hes)
             executor = ad.Executor([hes])
@@ -249,7 +250,7 @@ class DmrgGraph(object):
                    executors)
 
     @classmethod
-    def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
+    def get_sub_hessian(cls, index, mpo_graph, mps_graph):
 
         # rebuild mps graph
         intermediate_set = {
@@ -285,6 +286,62 @@ class DmrgGraph(object):
         hes, = ad.jacobians(jac, [intermediate])
 
         return intermediate, hes
+
+
+@attr.s()
+class DmrgGraph_shared_exec(object):
+
+    mpo_inputs = attr.ib()
+    mps_inputs = attr.ib()
+    executor = attr.ib()
+    intermediates = attr.ib(default=[])
+    hessians = attr.ib(default=[])
+
+    def update_graph(self, num, mpo_ranks, mps_ranks, size):
+        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
+        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
+        self.mpo_inputs = H_list
+        self.mps_inputs = A_list
+
+        variable_dict = {node.name: node for node in A_list}
+        variable_dict.update({node.name: node for node in H_list})
+
+        pnodes = [
+            PseudoNode(node) for node in self.hessians + self.intermediates
+        ]
+        all_pnodes = find_topo_sort_p(pnodes)
+
+        with OutputInjectedModeP(all_pnodes):
+            for pnode in all_pnodes:
+                node = pnode.node
+                if node.inputs != []:
+                    node.set_inputs(node.inputs)
+                if isinstance(node, ad.VariableNode):
+                    new_node = variable_dict[node.name]
+                    replace_node(pnode, new_node)
+
+    @classmethod
+    def create(cls, num, mpo_ranks, mps_ranks, size):
+        mpo_graph = MpoGraph.create(num, mpo_ranks, size)
+        mps_graph = MpsGraph.create(num, mps_ranks, size)
+
+        intermediates, hessians = [], []
+        for i in range(num - 1):
+            intermediate, hes = DmrgGraph.get_sub_hessian(
+                i, mpo_graph, mps_graph)
+            hes = simplify(hes)
+            hessians.append(hes)
+            intermediates.append(intermediate)
+
+        hessians = generate_sequential_optiaml_tree(
+            dict(zip(hessians, mps_graph.inputs[1:])))
+        # from visualizer import print_computation_graph
+        # print_computation_graph(hessians)
+        print(hessians)
+        executor = ad.Executor(hessians)
+
+        return cls(mpo_graph.inputs, mps_graph.inputs, executor, intermediates,
+                   hessians)
 
 
 def dmrg_local_update(intermediate, hes_val, max_mps_rank):
@@ -374,6 +431,7 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     # Here we divide the eigval by 2 because we were take hessian of vTHv.
     eig_val = T.tensordot(hes_val, vvT, [vvT_indices, vvT_indices])
     eig_val /= vTv
+    # eig_val = T.min(eigvals)
 
     return left, right, eig_val
 
@@ -434,9 +492,69 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
     return mps_tensors, eig_val
 
 
+def dmrg_shared_exec(mpo_tensors,
+                     init_mps_tensors,
+                     max_mps_rank,
+                     num_iter=1,
+                     sequence='R'):
+    """
+    Perform DMRG iterations with shared execution.
+
+    Parameters
+    ----------
+    mpo_tensors: an array of mpo tensor data
+    init_mps_tensors: an array of mps tensor data
+    max_mps_rank: maximum mps rank in the iterations
+    num_iter: total number of iterations
+    sequence: str, String made of 'L' and 'R' defining the sweep sequence, e.g 'RRL'.
+        The sequence will be repeated until num_iter is reached.
+
+    """
+    if sequence != "R":
+        raise NotImplementedError
+
+    num = len(mpo_tensors)
+    size = mpo_tensors[0].shape[1]
+    mpo_ranks = [mpo_tensors[i].shape[0] for i in range(1, len(mpo_tensors))]
+
+    mps_tensors = copy.deepcopy(init_mps_tensors)
+    mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
+
+    dg = DmrgGraph_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+
+    # sequence is R
+    for iter in range(num_iter):
+
+        mps_tensors = gauge_transform_mps(mps_tensors, right=True)
+        mps_ranks = [
+            mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
+        ]
+
+        for i in range(num - 1):
+
+            dg.update_graph(num, mpo_ranks, mps_ranks, size)
+
+            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+
+            hes_val, = dg.executor.run(feed_dict=feed_dict,
+                                       out_nodes=[dg.hessians[i]])
+
+            # Update the two sites of mps
+            mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
+                dg.intermediates[i], hes_val, max_mps_rank)
+
+            # update the rank
+            mps_ranks[i] = mps_tensors[i + 1].shape[0]
+
+        print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
+
+    return mps_tensors, eig_val
+
+
 if __name__ == "__main__":
     # mps = mps_graph(4, 10)
     # mpo = mpo_graph(4, 10)
-    mpo_tensors = ham_heis_mpo(num=7)
-    mps_tensors = rand_mps(num=7, rank=2, size=2)
+    mpo_tensors = ham_heis_mpo(num=4)
+    mps_tensors = rand_mps(num=4, rank=2, size=2)
     dmrg(mpo_tensors, mps_tensors, max_mps_rank=4, num_iter=2)

@@ -1,6 +1,7 @@
 import backend as T
 import quimb.tensor as qtn
 
+
 def load_quimb_tensors(network):
     tensors = []
 
@@ -25,6 +26,11 @@ def ham_heis_mpo(num):
     and size is set to be 2 implicitly.
     """
     mpo = qtn.MPO_ham_heis(num)
+    return load_quimb_tensors(mpo)
+
+
+def ham_rand_mpo(num, rank, size=2):
+    mpo = qtn.MPO_rand_herm(num, rank, phys_dim=size)
     return load_quimb_tensors(mpo)
 
 

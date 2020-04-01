@@ -4,10 +4,11 @@
 """
 import logging
 import autodiff as ad
-from utils import get_all_inputs, find_topo_sort
+from utils import get_all_inputs, find_topo_sort, OutputInjectedMode
 
 from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree
 from graph_ops.graph_dedup import dedup, remove_transposes
+from graph_ops.graph_transformer import rewrite_einsum_expr
 
 from numpy.core.einsumfunc import _parse_einsum_input
 
@@ -45,6 +46,15 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     """
     dt = dimension_tree(list(einsum_node_map.keys()),
                         list(einsum_node_map.values()), first_contract_node)
+
+    all_nodes = find_topo_sort(dt)
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+
     # The order of dedup and remove_transposes matters.
     # Remove transposes happen only when the inputs are same nodes.
     dedup(*dt)

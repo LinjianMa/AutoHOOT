@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 import quimb.tensor as qtn
-from examples.mps import dmrg, MpoGraph, MpsGraph
+from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
@@ -80,11 +80,13 @@ def test_gauge_transform_left():
 
 
 def test_dmrg_one_sweep():
-    max_mps_rank = 5
-    num = 4
+    max_mps_rank = 3
+    num = 5
+    mpo_rank = 5
+    size = 5
     for datatype in BACKEND_TYPES:
 
-        h = qtn.MPO_ham_heis(num)
+        h = qtn.MPO_rand_herm(num, mpo_rank, size)
         dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
 
         h_tensors = load_quimb_tensors(h)
@@ -96,9 +98,48 @@ def test_dmrg_one_sweep():
                                    max_mps_rank=max_mps_rank)
 
         # dmrg based on quimb
-        quimb_energy = dmrg_quimb.sweep_right(canonize=True)
+        opts = {'max_bond': max_mps_rank}
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True,
+                                              verbosity=0,
+                                              **opts)
 
         # We only test on energy (lowest eigenvalue of h), rather than the output
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
-        assert (abs(energy - quimb_energy) < 1e-8)
+        assert (abs(energy - quimb_energy) < 1e-3)
+
+
+def test_dmrg_shared_exec_one_sweep():
+    max_mps_rank = 5
+    num = 7
+    mpo_rank = 5
+    size = 5
+    for datatype in BACKEND_TYPES:
+
+        h = qtn.MPO_rand_herm(num, mpo_rank, size)
+        dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
+
+        h_tensors = load_quimb_tensors(h)
+        mps_tensors = load_quimb_tensors(dmrg_quimb.state)
+
+        # dmrg based on ad
+        mps_tensors, energy = dmrg_shared_exec(h_tensors,
+                                               mps_tensors,
+                                               max_mps_rank=max_mps_rank)
+
+        # dmrg based on quimb
+        opts = {'max_bond': max_mps_rank}
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True,
+                                              verbosity=0,
+                                              **opts)
+
+        # print(dmrg_quimb.total_energies)
+
+        # We only test on energy (lowest eigenvalue of h), rather than the output
+        # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
+        # eigenvalue unchanged.
+        print(abs(energy - quimb_energy))
+        assert (abs(energy - quimb_energy) < 1e-3)
+
+
+test_dmrg_shared_exec_one_sweep()
