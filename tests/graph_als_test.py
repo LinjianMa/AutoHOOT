@@ -5,7 +5,7 @@ from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
 
-def test_dimension_tree():
+def test_dimension_tree_4d():
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
     C = ad.Variable(name="C", shape=[2, 2])
@@ -17,21 +17,52 @@ def test_dimension_tree():
     einsum_node_C = ad.einsum("abcd,am,bm,dm->cm", X, A, B, D)
     einsum_node_D = ad.einsum("abcd,am,bm,cm->dm", X, A, B, C)
 
-    dt = generate_sequential_optiaml_tree(
-        {
-            einsum_node_A: A,
-            einsum_node_B: B,
-            einsum_node_C: C,
-            einsum_node_D: D
-        })
+    dt = generate_sequential_optiaml_tree({
+        einsum_node_A: A,
+        einsum_node_B: B,
+        einsum_node_C: C,
+        einsum_node_D: D
+    })
 
-    # 5 inputs, 4 outputs, 2 intermedaites (einsum(X, D) and einsum(Einsum(X, D), C))
-    assert len(find_topo_sort(dt)) == 11
+    # 5 inputs, 4 outputs, 5 intermedaites
+    assert len(find_topo_sort(dt)) == 14
 
     assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
     assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
     assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, X])
     assert tree_eq(dt[3], einsum_node_D, [A, B, C, D, X])
+
+
+def test_dimension_tree_5d():
+    A = ad.Variable(name="A", shape=[2, 2])
+    B = ad.Variable(name="B", shape=[2, 2])
+    C = ad.Variable(name="C", shape=[2, 2])
+    D = ad.Variable(name="D", shape=[2, 2])
+    E = ad.Variable(name="E", shape=[2, 2])
+    X = ad.Variable(name="X", shape=[2, 2, 2, 2, 2])
+
+    einsum_node_A = ad.einsum("abcde,bm,cm,dm,em->am", X, B, C, D, E)
+    einsum_node_B = ad.einsum("abcde,am,cm,dm,em->bm", X, A, C, D, E)
+    einsum_node_C = ad.einsum("abcde,am,bm,dm,em->cm", X, A, B, D, E)
+    einsum_node_D = ad.einsum("abcde,am,bm,cm,em->dm", X, A, B, C, E)
+    einsum_node_E = ad.einsum("abcde,am,bm,cm,dm->em", X, A, B, C, D)
+
+    dt = generate_sequential_optiaml_tree({
+        einsum_node_A: A,
+        einsum_node_B: B,
+        einsum_node_C: C,
+        einsum_node_D: D,
+        einsum_node_E: E
+    })
+
+    # 6 inputs, 5 outputs, 9 intermedaites
+    assert len(find_topo_sort(dt)) == 20
+
+    assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, E, X])
+    assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, E, X])
+    assert tree_eq(dt[2], einsum_node_C, [A, B, C, D, E, X])
+    assert tree_eq(dt[3], einsum_node_D, [A, B, C, D, E, X])
+    assert tree_eq(dt[4], einsum_node_E, [A, B, C, D, E, X])
 
 
 def test_dimension_tree_w_identity():
@@ -44,12 +75,11 @@ def test_dimension_tree_w_identity():
     einsum_node_B = ad.einsum("abc,am,cm->bm", X, A, C)
     einsum_node_C = ad.einsum("abc,am,bm->cm", X, A, B)
 
-    dt = generate_sequential_optiaml_tree(
-        {
-            einsum_node_A: A,
-            einsum_node_B: B
-        },
-        first_contract_node=C)
+    dt = generate_sequential_optiaml_tree({
+        einsum_node_A: A,
+        einsum_node_B: B
+    },
+                                          first_contract_node=C)
 
     assert tree_eq(dt[0], einsum_node_A, [A, C, X])
     assert tree_eq(dt[1], einsum_node_B, [A, C, X])

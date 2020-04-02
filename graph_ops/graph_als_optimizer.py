@@ -6,7 +6,7 @@ import logging
 import autodiff as ad
 from utils import get_all_inputs, find_topo_sort, OutputInjectedMode
 
-from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree
+from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree, generate_optimal_tree_w_constraint
 from graph_ops.graph_dedup import dedup, remove_transposes
 from graph_ops.graph_transformer import rewrite_einsum_expr
 
@@ -96,45 +96,19 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
     if len(einsum_nodes) == 1 and len(input_nodes) == 1:
         return einsum_nodes
 
-    if first_contract_node == None:
-        # if first_contract_node is none, the right most tree will not be reused.
-        return dimension_tree(einsum_nodes[:-1], input_nodes[:-1],
-                              input_nodes[-1]) + [einsum_nodes[-1]]
+    assert len(einsum_nodes) == len(input_nodes)
 
-    assert first_contract_node not in input_nodes
+    new_nodes = []
+    for (i, node) in enumerate(einsum_nodes):
+        contract_order = input_nodes[i + 1:]
+        contract_order.reverse()
+        contract_order = contract_order + input_nodes[:i]
+        contract_order = [first_contract_node] + contract_order
+        # get the subarray that is the inputs of node
+        contract_order = list(
+            filter(lambda n: n in node.inputs, contract_order))
 
-    second_einsums = []
-    for einsum_node in einsum_nodes:
-        input_node_subset = list(set(input_nodes) & set(einsum_node.inputs))
-        input_node_subset = sorted(input_node_subset,
-                                   key=lambda node: node.name)
+        new_nodes.append(
+            generate_optimal_tree_w_constraint(node, contract_order))
 
-        splitted_einsum, = [
-            node
-            for node in split_einsum(einsum_node, input_node_subset).inputs
-            if isinstance(node, ad.EinsumNode)
-        ]
-
-        opt_contract_tree = get_common_ancestor(
-            generate_optimal_tree(splitted_einsum), splitted_einsum.inputs,
-            first_contract_node)
-        opt_contract_tree_leaves = get_all_inputs(opt_contract_tree)
-
-        # Get part of the inputs of splitted_einsum,
-        # whose common_ancestor is opt_contract_tree (along the optimal contraction path)
-        first_contract_inputs = [
-            node for node in splitted_einsum.inputs
-            if set(get_all_inputs(node)).issubset(opt_contract_tree_leaves)
-        ]
-
-        split_out_inputs = [
-            node for node in einsum_node.inputs
-            if node not in first_contract_inputs
-        ]
-        second_einsum = split_einsum(einsum_node, split_out_inputs)
-        second_einsums.append(second_einsum)
-
-    # Note that second_einsums[-1] will be directly returned and not be resued.
-    # Its inputs will contain one splited_einsum, and other variable nodes.
-    return dimension_tree(second_einsums[:-1], input_nodes[:-1],
-                          input_nodes[-1]) + [second_einsums[-1]]
+    return new_nodes
