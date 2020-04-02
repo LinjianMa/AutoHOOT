@@ -60,13 +60,13 @@ def indices_to_subscripts(in_indices, out_index, dim_size):
 ##############################
 
 
-def get_all_inputs(out):
+def get_all_inputs(out, input_node_list=[]):
     all_inputs = []
-    if len(out.inputs) == 0:
+    if len(out.inputs) == 0 or out in input_node_list:
         all_inputs.append(out)
     else:
         for i in out.inputs:
-            all_inputs += get_all_inputs(i)
+            all_inputs += get_all_inputs(i, input_node_list)
     return all_inputs
 
 

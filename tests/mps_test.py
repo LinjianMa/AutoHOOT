@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 import quimb.tensor as qtn
-from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph
+from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph, DmrgGraph_shared_exec
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
@@ -107,6 +107,26 @@ def test_dmrg_one_sweep():
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
         assert (abs(energy - quimb_energy) < 1e-3)
+
+
+def test_dmrg_als():
+    from utils import find_topo_sort
+
+    max_mps_rank = 5
+    num = 7
+    mpo_rank = 5
+    size = 5
+
+    mpo_ranks = [mpo_rank for i in range(1, num)]
+    mps_ranks = [max_mps_rank for i in range(1, num)]
+
+    dg = DmrgGraph_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+
+    num_inputs = num * 2
+    num_outputs = num - 1
+    num_intermediates = 2 * (num_outputs - 2)
+    assert len(find_topo_sort(
+        dg.hessians)) == num_inputs + num_outputs + num_intermediates
 
 
 def test_dmrg_shared_exec_one_sweep():

@@ -3,6 +3,8 @@
     alternating least squares.
 """
 import logging
+from functools import reduce
+from operator import add
 import autodiff as ad
 from utils import get_all_inputs, find_topo_sort, OutputInjectedMode
 
@@ -44,8 +46,32 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     
     This will produce an intermediate node that contract (C,D).
     """
-    dt = dimension_tree(list(einsum_node_map.keys()),
-                        list(einsum_node_map.values()), first_contract_node)
+    einsum_nodes = list(einsum_node_map.keys())
+
+    # To collapse the inverse nodes with the same name
+    all_nodes = find_topo_sort(einsum_nodes)
+    dedup(*all_nodes)
+
+    # form the input_nodes
+    all_inputs = [node.inputs for node in einsum_nodes]
+    all_inputs_set = set(reduce(add, all_inputs))
+    complement_inputs = [
+        all_inputs_set - set(node.inputs) for node in einsum_nodes
+    ]
+
+    input_nodes = []
+    for (i, input_set) in enumerate(complement_inputs):
+        remaining_input_nodes_set = set().union(*complement_inputs[i + 1:])
+        unique_input_set = input_set - remaining_input_nodes_set
+
+        input_nodes += list(unique_input_set - set(input_nodes))
+        input_nodes += list(input_set - unique_input_set)
+
+    # ALS sequence will only depend on the variable nodes.
+    input_nodes = list(
+        filter(lambda n: isinstance(n, ad.VariableNode), input_nodes))
+
+    dt = dimension_tree(einsum_nodes, input_nodes, first_contract_node)
 
     all_nodes = find_topo_sort(dt)
     with OutputInjectedMode(all_nodes):
@@ -95,8 +121,6 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
 
     if len(einsum_nodes) == 1 and len(input_nodes) == 1:
         return einsum_nodes
-
-    assert len(einsum_nodes) == len(input_nodes)
 
     new_nodes = []
     for (i, node) in enumerate(einsum_nodes):

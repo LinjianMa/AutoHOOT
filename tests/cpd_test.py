@@ -5,6 +5,7 @@ from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
 from utils import find_topo_sort
+from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 size, rank = 10, 5
@@ -314,6 +315,40 @@ def test_cpd_als():
         assert T.norm(outputs[0] - A_val) < 1e-8
         assert T.norm(outputs[1] - B_val) < 1e-8
         assert T.norm(outputs[2] - C_val) < 1e-8
+
+
+def test_cpd_shared_exec_shape():
+    dim = 3
+
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+    A, B, C = A_list
+
+    hes = ad.hessian(loss, [A, B, C])
+    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+
+    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+
+    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
+    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
+    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
+
+    new_A = A - delta_A
+    new_B = B - delta_B
+    new_C = C - delta_C
+
+    new_A = simplify(new_A)
+    new_B = simplify(new_B)
+    new_C = simplify(new_C)
+    loss = simplify(loss)
+
+    new_A, new_B, new_C = generate_sequential_optiaml_tree({
+        new_A: A,
+        new_B: B,
+        new_C: C
+    })
+
+    for node in find_topo_sort([new_A, new_B, new_C]):
+        assert len(node.shape) <= 3
 
 
 def test_cpd_shared_exec():
