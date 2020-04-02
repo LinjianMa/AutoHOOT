@@ -154,11 +154,8 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
     new_C = simplify(new_C)
     loss = simplify(loss)
 
-    new_A, new_B, new_C = generate_sequential_optiaml_tree({
-        new_A: A,
-        new_B: B,
-        new_C: C
-    })
+    new_A, new_B, new_C = generate_sequential_optiaml_tree(
+        [new_A, new_B, new_C])
     executor_update = ad.Executor([new_A, new_B, new_C])
     executor_loss = ad.Executor([loss])
 

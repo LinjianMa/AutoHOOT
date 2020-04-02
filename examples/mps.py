@@ -333,8 +333,7 @@ class DmrgGraph_shared_exec(object):
             hessians.append(hes)
             intermediates.append(intermediate)
 
-        hessians = generate_sequential_optiaml_tree(
-            dict(zip(hessians, mps_graph.inputs[1:])))
+        hessians = generate_sequential_optiaml_tree(hessians)
         # from visualizer import print_computation_graph
         # print_computation_graph(hessians)
         print(hessians)

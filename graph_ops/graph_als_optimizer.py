@@ -21,8 +21,7 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
-def generate_sequential_optiaml_tree(einsum_node_map={},
-                                     first_contract_node=None):
+def generate_sequential_optiaml_tree(einsum_nodes):
     """Generates a list of nodes in-order. 
     Args: 
         einsum_node_map: a dict that maps from an output node to a input node.
@@ -46,8 +45,6 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     
     This will produce an intermediate node that contract (C,D).
     """
-    einsum_nodes = list(einsum_node_map.keys())
-
     # To collapse the inverse nodes with the same name
     all_nodes = find_topo_sort(einsum_nodes)
     dedup(*all_nodes)
@@ -71,7 +68,7 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     input_nodes = list(
         filter(lambda n: isinstance(n, ad.VariableNode), input_nodes))
 
-    dt = dimension_tree(einsum_nodes, input_nodes, first_contract_node)
+    dt = dimension_tree(einsum_nodes, input_nodes)
 
     all_nodes = find_topo_sort(dt)
     with OutputInjectedMode(all_nodes):
@@ -88,7 +85,7 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     return dt
 
 
-def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
+def dimension_tree(einsum_nodes, input_nodes):
     """
     Calculating einsum expressions based on the dimension tree.
 
@@ -127,7 +124,6 @@ def dimension_tree(einsum_nodes, input_nodes, first_contract_node=None):
         contract_order = input_nodes[i + 1:]
         contract_order.reverse()
         contract_order = contract_order + input_nodes[:i]
-        contract_order = [first_contract_node] + contract_order
         # get the subarray that is the inputs of node
         contract_order = list(
             filter(lambda n: n in node.inputs, contract_order))

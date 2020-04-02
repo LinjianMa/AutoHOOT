@@ -211,7 +211,7 @@ def tucker_als_graph_shared_exec(dim, size, rank):
     for i in range(1, len(tg.losses)):
         assert loss.name == simplify(tg.losses[i]).name
 
-    updates = generate_sequential_optiaml_tree(dict(zip(updates, tg.A_list)))
+    updates = generate_sequential_optiaml_tree(updates)
     executor_updates = ad.Executor(updates)
     executor_loss = ad.Executor([loss])
 
