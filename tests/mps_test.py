@@ -80,8 +80,8 @@ def test_gauge_transform_left():
 
 
 def test_dmrg_one_sweep():
-    max_mps_rank = 3
-    num = 5
+    max_mps_rank = 5
+    num = 7
     mpo_rank = 5
     size = 5
     for datatype in BACKEND_TYPES:
@@ -124,7 +124,7 @@ def test_dmrg_als():
 
     num_inputs = num * 2
     num_outputs = num - 1
-    num_intermediates = 2 * (num_outputs - 2)
+    num_intermediates = 2 * (num_outputs - 1)
     assert len(find_topo_sort(
         dg.hessians)) == num_inputs + num_outputs + num_intermediates
 
@@ -158,8 +158,4 @@ def test_dmrg_shared_exec_one_sweep():
         # We only test on energy (lowest eigenvalue of h), rather than the output
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
-        print(abs(energy - quimb_energy))
         assert (abs(energy - quimb_energy) < 1e-3)
-
-
-test_dmrg_shared_exec_one_sweep()

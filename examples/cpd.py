@@ -69,7 +69,7 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
-def cpd_als(size, rank, num_iter, input_val=[]):
+def cpd_als(size, rank, num_iter, input_val=[], calculate_loss=True):
     dim = 3
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -119,18 +119,24 @@ def cpd_als(size, rank, num_iter, input_val=[]):
             B: B_val,
             C: C_val
         })
-        loss_val, = executor_loss.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        print(f'At iteration {i} the loss is: {loss_val}')
+
+        if calculate_loss:
+            loss_val, = executor_loss.run(feed_dict={
+                input_tensor: input_tensor_val,
+                A: A_val,
+                B: B_val,
+                C: C_val
+            })
+            print(f'At iteration {i} the loss is: {loss_val}')
 
     return A_val, B_val, C_val
 
 
-def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
+def cpd_als_shared_exec(size,
+                        rank,
+                        num_iter,
+                        input_val=[],
+                        calculate_loss=True):
     dim = 3
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -193,13 +199,16 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
                                      reset_graph=False,
                                      out_nodes=[new_C],
                                      evicted_inputs=[A, B])
-        loss_val, = executor_loss.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        print(f'At iteration {i} the loss is: {loss_val}')
+
+        if calculate_loss:
+            loss_val, = executor_loss.run(feed_dict={
+                input_tensor: input_tensor_val,
+                A: A_val,
+                B: B_val,
+                C: C_val
+            })
+            print(f'At iteration {i} the loss is: {loss_val}')
+
         t1 = time.time()
         print(f"[ {i} ] Sweep took {t1 - t0} seconds")
 

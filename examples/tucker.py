@@ -218,7 +218,7 @@ def tucker_als_graph_shared_exec(dim, size, rank):
     return tg, executor_updates, executor_loss, loss, updates, tg.intermediates
 
 
-def tucker_als(dim, size, rank, num_iter, input_val=[]):
+def tucker_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
 
     tg, executors_update, executor_loss, intermediates = tucker_als_graph(
         dim, size, rank)
@@ -241,16 +241,22 @@ def tucker_als(dim, size, rank, num_iter, input_val=[]):
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
 
-        feed_dict = dict(zip(tg.A_list, A_val_list))
-        feed_dict.update({tg.core: core_val, tg.X: X_val})
-        loss_val, = executor_loss.run(feed_dict=feed_dict)
+        if calculate_loss:
+            feed_dict = dict(zip(tg.A_list, A_val_list))
+            feed_dict.update({tg.core: core_val, tg.X: X_val})
+            loss_val, = executor_loss.run(feed_dict=feed_dict)
 
-        print(f'At iteration {iter} the loss is: {loss_val}')
+            print(f'At iteration {iter} the loss is: {loss_val}')
 
     return A_val_list, core_val, X_val
 
 
-def tucker_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
+def tucker_als_shared_exec(dim,
+                           size,
+                           rank,
+                           num_iter,
+                           input_val=[],
+                           calculate_loss=True):
 
     tg, executor_updates, executor_loss, loss, updates, intermediates = tucker_als_graph_shared_exec(
         dim, size, rank)
@@ -281,11 +287,12 @@ def tucker_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
 
-        feed_dict = dict(zip(tg.A_list, A_val_list))
-        feed_dict.update({tg.core: core_val, tg.X: X_val})
-        loss_val, = executor_loss.run(feed_dict=feed_dict)
+        if calculate_loss:
+            feed_dict = dict(zip(tg.A_list, A_val_list))
+            feed_dict.update({tg.core: core_val, tg.X: X_val})
+            loss_val, = executor_loss.run(feed_dict=feed_dict)
 
-        print(f'At iteration {iter} the loss is: {loss_val}')
+            print(f'At iteration {iter} the loss is: {loss_val}')
 
     return A_val_list, core_val, X_val
 

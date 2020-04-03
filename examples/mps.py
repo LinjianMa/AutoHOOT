@@ -536,8 +536,16 @@ def dmrg_shared_exec(mpo_tensors,
             feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
             feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
-            hes_val, = dg.executor.run(feed_dict=feed_dict,
-                                       out_nodes=[dg.hessians[i]])
+            if i == 0:
+                hes_val, = dg.executor.run(feed_dict=feed_dict,
+                                           out_nodes=[dg.hessians[i]])
+
+            else:
+                hes_val, = dg.executor.run(
+                    feed_dict=feed_dict,
+                    reset_graph=False,
+                    evicted_inputs=[dg.mps_inputs[i - 1]],
+                    out_nodes=[dg.hessians[i]])
 
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(

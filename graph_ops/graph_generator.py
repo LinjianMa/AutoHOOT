@@ -124,13 +124,13 @@ def generate_optimal_tree_w_constraint(einsum_node, contract_order):
         uncontracted_nodes = contract_order[i + 1:]
 
         if uncontracted_nodes == []:
-            return einsum_node
-
-        splitted_einsum, = [
-            node
-            for node in split_einsum(einsum_node, uncontracted_nodes).inputs
-            if isinstance(node, ad.EinsumNode)
-        ]
+            splitted_einsum = einsum_node
+        else:
+            splitted_einsum, = [
+                node for node in split_einsum(einsum_node,
+                                              uncontracted_nodes).inputs
+                if isinstance(node, ad.EinsumNode)
+            ]
 
         opt_contract_tree = get_common_ancestor(
             generate_optimal_tree(splitted_einsum), splitted_einsum.inputs,
