@@ -16,6 +16,21 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
+def update_variables(out_nodes, variable_dict):
+
+    pnodes = [PseudoNode(node) for node in out_nodes]
+    all_pnodes = find_topo_sort_p(pnodes)
+
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.VariableNode):
+                new_node = variable_dict[node.name]
+                replace_node(pnode, new_node)
+
+
 def jit_decorator(forward):
     from jax import jit
 

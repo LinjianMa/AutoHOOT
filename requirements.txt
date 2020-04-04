@@ -11,3 +11,4 @@ ply
 sympy
 tensorly
 git+https://github.com/mnick/scikit-tensor.git
+scipy

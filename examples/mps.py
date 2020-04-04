@@ -8,8 +8,7 @@ from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, ga
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import simplify
-from utils import PseudoNode, find_topo_sort_p, OutputInjectedModeP
-from utils import replace_node
+from utils import update_variables
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 
 BACKEND_TYPES = ['numpy']
@@ -219,19 +218,7 @@ class DmrgGraph(object):
         variable_dict = {node.name: node for node in A_list}
         variable_dict.update({node.name: node for node in H_list})
 
-        pnodes = [
-            PseudoNode(node) for node in self.hessians + self.intermediates
-        ]
-        all_pnodes = find_topo_sort_p(pnodes)
-
-        with OutputInjectedModeP(all_pnodes):
-            for pnode in all_pnodes:
-                node = pnode.node
-                if node.inputs != []:
-                    node.set_inputs(node.inputs)
-                if isinstance(node, ad.VariableNode):
-                    new_node = variable_dict[node.name]
-                    replace_node(pnode, new_node)
+        update_variables(self.intermediates + self.hessians, variable_dict)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
@@ -306,19 +293,7 @@ class DmrgGraph_shared_exec(object):
         variable_dict = {node.name: node for node in A_list}
         variable_dict.update({node.name: node for node in H_list})
 
-        pnodes = [
-            PseudoNode(node) for node in self.hessians + self.intermediates
-        ]
-        all_pnodes = find_topo_sort_p(pnodes)
-
-        with OutputInjectedModeP(all_pnodes):
-            for pnode in all_pnodes:
-                node = pnode.node
-                if node.inputs != []:
-                    node.set_inputs(node.inputs)
-                if isinstance(node, ad.VariableNode):
-                    new_node = variable_dict[node.name]
-                    replace_node(pnode, new_node)
+        update_variables(self.intermediates + self.hessians, variable_dict)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
@@ -553,6 +528,7 @@ def dmrg_shared_exec(mpo_tensors,
 
             # update the rank
             mps_ranks[i] = mps_tensors[i + 1].shape[0]
+            print(f'The smallest eigenvalue is: {eig_val}')
 
         print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
 

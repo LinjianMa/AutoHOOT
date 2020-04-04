@@ -2,10 +2,11 @@ import autodiff as ad
 import backend as T
 import quimb.tensor as qtn
 from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph, DmrgGraph_shared_exec
+from examples.mps_sparse_solve import dmrg_shared_exec_sparse_solve
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
+BACKEND_TYPES = ['numpy']
 
 
 def test_mps():
@@ -159,3 +160,33 @@ def test_dmrg_shared_exec_one_sweep():
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
         assert (abs(energy - quimb_energy) < 1e-3)
+
+
+def test_dmrg_shared_exec_sparse_solve_one_sweep():
+    max_mps_rank = 5
+    num = 7
+    mpo_rank = 5
+    size = 5
+    num_iter = 10
+
+    h = qtn.MPO_rand_herm(num, mpo_rank, size)
+    dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
+
+    h_tensors = load_quimb_tensors(h)
+    mps_tensors = load_quimb_tensors(dmrg_quimb.state)
+
+    # dmrg based on ad
+    mps_tensors, energy = dmrg_shared_exec_sparse_solve(
+        h_tensors, mps_tensors, num_iter=num_iter, max_mps_rank=max_mps_rank)
+
+    # dmrg based on quimb
+    opts = {'max_bond': max_mps_rank}
+    for _ in range(num_iter):
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True,
+                                              verbosity=0,
+                                              **opts)
+
+    # We only test on energy (lowest eigenvalue of h), rather than the output
+    # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
+    # eigenvalue unchanged.
+    assert (abs(energy - quimb_energy) < 1e-3)

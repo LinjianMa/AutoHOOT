@@ -3,6 +3,40 @@ from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_al
 import autodiff as ad
 import copy
 import numpy as np
+from opt_einsum import contract_path
+
+
+def generate_optimal_tree_opt_einsum(node):
+    """Generates the descendants of the optimal path.
+
+    Args:
+        node: The einsum node we are interested about.
+
+    Returns:
+        final_node: The newly generated node.
+    """
+    assert isinstance(node, ad.EinsumNode)
+
+    # Need to call with numpy array with same shape.
+    # This is a numpy specific tweak because this function relies on numpy
+    # implementation of parse_einsum_input.
+    np_inputs = [np.zeros(i_node.shape) for i_node in node.inputs]
+
+    _, contract_list = contract_path(node.einsum_subscripts,
+                                     *np_inputs,
+                                     einsum_call=True)
+
+    original_inputs = [i for i in node.inputs]
+    final_node = None
+    for contract in contract_list:
+        indices, _, subscript, _, _ = contract
+        input_nodes = [original_inputs[i] for i in indices]
+        new_node = ad.einsum(subscript, *input_nodes)
+        original_inputs.append(new_node)
+        for i_node in input_nodes:
+            original_inputs.remove(i_node)
+        final_node = new_node
+    return final_node
 
 
 def generate_optimal_tree(node, path=None):
