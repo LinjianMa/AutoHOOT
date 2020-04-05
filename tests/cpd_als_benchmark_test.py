@@ -47,11 +47,11 @@ def test_cpd_als_sktensor(benchmark):
 def test_cpd_als(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_cp(dim, size, rank)
-        outputs = benchmark(cpd_als, size, rank, 1, input_tensor)
+        outputs = benchmark(cpd_als, dim, size, rank, 1, input_tensor)
 
 
 @pytest.mark.benchmark(group="cp_als")
 def test_cpd_als_shared_exec(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_cp(dim, size, rank)
-        outputs = benchmark(cpd_als_shared_exec, size, rank, 1, input_tensor)
+        outputs = benchmark(cpd_als_shared_exec, dim, size, rank, 1, input_tensor)

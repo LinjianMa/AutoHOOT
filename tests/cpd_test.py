@@ -299,7 +299,7 @@ def test_cpd_als():
         A_list, input_tensor_val = input_val
         A_val, B_val, C_val = A_list
 
-        outputs = cpd_als(size, rank, 1, input_val)
+        outputs = cpd_als(dim, size, rank, 1, input_val)
 
         # expected values
         A_val = T.einsum(
@@ -358,7 +358,7 @@ def test_cpd_shared_exec():
         A_list, input_tensor_val = input_val
         A_val, B_val, C_val = A_list
 
-        outputs = cpd_als_shared_exec(size, rank, 1, input_val)
+        outputs = cpd_als_shared_exec(dim, size, rank, 1, input_val)
 
         # expected values
         A_val = T.einsum(

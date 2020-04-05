@@ -281,7 +281,7 @@ def tucker_als_shared_exec(dim,
                     feed_dict=feed_dict,
                     out_nodes=[updates[i]],
                     reset_graph=False,
-                    evicted_inputs=tg.A_list[:i])
+                    evicted_inputs=[tg.A_list[i - 1]])
 
             # update core_val and A_val_list[i] using SVD
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],

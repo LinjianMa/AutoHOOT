@@ -21,13 +21,14 @@ def cpd_als_benchmark_numpy():
 
     # als
     t0 = time.time()
-    cpd_als(size, rank, num_iter, input_tensor, calculate_loss=False)
+    cpd_als(dim, size, rank, num_iter, input_tensor, calculate_loss=False)
     time_als = time.time() - t0
     print(f'als time is: {time_als/num_iter}')
 
     # dt
     t0 = time.time()
-    cpd_als_shared_exec(size,
+    cpd_als_shared_exec(dim,
+                        size,
                         rank,
                         num_iter,
                         input_tensor,
