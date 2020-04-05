@@ -69,7 +69,13 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
-def cpd_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
+def cpd_als(dim,
+            size,
+            rank,
+            num_iter,
+            input_val=[],
+            calculate_loss=True,
+            return_time=False):
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
 
@@ -92,14 +98,18 @@ def cpd_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
     else:
         A_val_list, input_tensor_val = input_val
 
+    sweep_times = []
+
     for iter in range(num_iter):
         # als iterations
+        t0 = time.time()
         for i in range(len(A_list)):
 
             feed_dict = dict(zip(A_list, A_val_list))
             feed_dict.update({input_tensor: input_tensor_val})
             A_val_list[i], = executor.run(feed_dict=feed_dict,
                                           out_nodes=[new_A_list[i]])
+        sweep_times.append(time.time() - t0)
 
         if calculate_loss:
             feed_dict = dict(zip(A_list, A_val_list))
@@ -107,7 +117,10 @@ def cpd_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
             loss_val, = executor_loss.run(feed_dict=feed_dict)
             print(f'At iteration {iter} the loss is: {loss_val}')
 
-    return A_val_list
+    if return_time:
+        return A_val_list, sweep_times
+    else:
+        return A_val_list
 
 
 def cpd_als_shared_exec(dim,
@@ -115,7 +128,8 @@ def cpd_als_shared_exec(dim,
                         rank,
                         num_iter,
                         input_val=[],
-                        calculate_loss=True):
+                        calculate_loss=True,
+                        return_time=False):
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
 
@@ -139,8 +153,11 @@ def cpd_als_shared_exec(dim,
     else:
         A_val_list, input_tensor_val = input_val
 
+    sweep_times = []
+
     for iter in range(num_iter):
         # als iterations
+        t0 = time.time()
         for i in range(len(A_list)):
 
             feed_dict = dict(zip(A_list, A_val_list))
@@ -150,11 +167,11 @@ def cpd_als_shared_exec(dim,
                 A_val_list[0], = executor.run(feed_dict=feed_dict,
                                               out_nodes=[new_A_list[0]])
             else:
-                A_val_list[i], = executor.run(
-                    feed_dict=feed_dict,
-                    reset_graph=False,
-                    evicted_inputs=[A_list[i - 1]],
-                    out_nodes=[new_A_list[i]])
+                A_val_list[i], = executor.run(feed_dict=feed_dict,
+                                              reset_graph=False,
+                                              evicted_inputs=[A_list[i - 1]],
+                                              out_nodes=[new_A_list[i]])
+        sweep_times.append(time.time() - t0)
 
         if calculate_loss:
             feed_dict = dict(zip(A_list, A_val_list))
@@ -162,7 +179,10 @@ def cpd_als_shared_exec(dim,
             loss_val, = executor_loss.run(feed_dict=feed_dict)
             print(f'At iteration {iter} the loss is: {loss_val}')
 
-    return A_val_list
+    if return_time:
+        return A_val_list, sweep_times
+    else:
+        return A_val_list
 
 
 def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
