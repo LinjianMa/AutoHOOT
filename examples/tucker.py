@@ -1,4 +1,4 @@
-import copy
+import copy, time
 import autodiff as ad
 import backend as T
 from utils import CharacterGetter
@@ -218,7 +218,13 @@ def tucker_als_graph_shared_exec(dim, size, rank):
     return tg, executor_updates, executor_loss, loss, updates, tg.intermediates
 
 
-def tucker_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
+def tucker_als(dim,
+               size,
+               rank,
+               num_iter,
+               input_val=[],
+               calculate_loss=True,
+               return_time=False):
 
     tg, executors_update, executor_loss, intermediates = tucker_als_graph(
         dim, size, rank)
@@ -228,8 +234,11 @@ def tucker_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
     else:
         A_val_list, core_val, X_val = copy.deepcopy(input_val)
 
+    sweep_times = []
+
     for iter in range(num_iter):
         # als iterations
+        t0 = time.time()
         for i in range(dim):
 
             feed_dict = dict(zip(tg.A_list, A_val_list))
@@ -241,6 +250,8 @@ def tucker_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
 
+        sweep_times.append(time.time() - t0)
+
         if calculate_loss:
             feed_dict = dict(zip(tg.A_list, A_val_list))
             feed_dict.update({tg.core: core_val, tg.X: X_val})
@@ -248,7 +259,10 @@ def tucker_als(dim, size, rank, num_iter, input_val=[], calculate_loss=True):
 
             print(f'At iteration {iter} the loss is: {loss_val}')
 
-    return A_val_list, core_val, X_val
+    if return_time:
+        return A_val_list, core_val, X_val, sweep_times
+    else:
+        return A_val_list, core_val, X_val
 
 
 def tucker_als_shared_exec(dim,
@@ -256,7 +270,8 @@ def tucker_als_shared_exec(dim,
                            rank,
                            num_iter,
                            input_val=[],
-                           calculate_loss=True):
+                           calculate_loss=True,
+                           return_time=False):
 
     tg, executor_updates, executor_loss, loss, updates, intermediates = tucker_als_graph_shared_exec(
         dim, size, rank)
@@ -266,8 +281,11 @@ def tucker_als_shared_exec(dim,
     else:
         A_val_list, core_val, X_val = copy.deepcopy(input_val)
 
+    sweep_times = []
+
     for iter in range(num_iter):
         # als iterations
+        t0 = time.time()
         for i in range(dim):
 
             feed_dict = dict(zip(tg.A_list, A_val_list))
@@ -286,6 +304,7 @@ def tucker_als_shared_exec(dim,
             # update core_val and A_val_list[i] using SVD
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
+        sweep_times.append(time.time() - t0)
 
         if calculate_loss:
             feed_dict = dict(zip(tg.A_list, A_val_list))
@@ -294,7 +313,10 @@ def tucker_als_shared_exec(dim,
 
             print(f'At iteration {iter} the loss is: {loss_val}')
 
-    return A_val_list, core_val, X_val
+    if return_time:
+        return A_val_list, core_val, X_val, sweep_times
+    else:
+        return A_val_list, core_val, X_val
 
 
 if __name__ == "__main__":
