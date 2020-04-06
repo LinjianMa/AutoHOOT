@@ -405,6 +405,25 @@ def optimize(node):
     return node
 
 
+def optimize_inverse_orghogonal(inv_node):
+    assert isinstance(inv_node, ad.TensorInverseNode)
+    inode = inv_node.inputs[0]
+    if not isinstance(inode, ad.EinsumNode):
+        return inv_node
+
+    subs = inode.einsum_subscripts.split('->')
+    # A.T @ A, A orthogonal
+    subs_input = subs[0].split(',')
+    if len(subs_input) == 2 and inode.inputs[0] == inode.inputs[
+            1] and subs_input[0][0] == subs_input[1][
+                0] and subs_input[0][1] != subs_input[1][1] and {
+                    subs_input[0][1], subs_input[1][1]
+                } == set(subs[1]):
+        if inode.inputs[0].orthogonal:
+            return ad.identity(inode.inputs[0].shape[1])
+    return inv_node
+
+
 def simplify(output_node):
     """Simplify a graph with a single output node.
     The simplified form will distribute selected operations
@@ -476,6 +495,24 @@ def simplify(output_node):
                 prune_identity_nodes(node)
                 new_node = prune_scalar_nodes(node)
                 replace_node(pnode, new_node)
+
+    # HACKY: reduce the inverses with orthogonal inputs
+    all_nodes = find_topo_sort([output_node])
+    # optimize inverse
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.TensorInverseNode):
+                new_inv_node = optimize_inverse_orghogonal(node)
+                if node.outputs == []:
+                    output_node = new_inv_node
+                else:
+                    replace_node(PseudoNode(node), new_inv_node)
+
+    output_node = fuse_all_einsums(output_node)
 
     #sympy_simplify the distributed nodes
     if isinstance(output_node, ad.DistributiveNode):
