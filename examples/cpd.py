@@ -185,104 +185,112 @@ def cpd_als_shared_exec(dim,
         return A_val_list
 
 
-def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
+def cpd_nls(size,
+            rank,
+            regularization=1e-7,
+            mode='ad',
+            input_val=[],
+            num_iter=10,
+            return_cg_detail=False):
     """
     mode: ad / optimized / jax
     """
     assert mode in {'ad', 'jax', 'optimized'}
-
     dim = 3
 
-    for datatype in BACKEND_TYPES:
-        T.set_backend(datatype)
-        T.seed(1)
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
+    A, B, C = A_list
 
-        A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
-        A, B, C = A_list
+    v_A = ad.Variable(name="v_A", shape=[size, rank])
+    v_B = ad.Variable(name="v_B", shape=[size, rank])
+    v_C = ad.Variable(name="v_C", shape=[size, rank])
+    grads = ad.gradients(loss, [A, B, C])
+    JtJvps = ad.jtjvps(output_node=residual,
+                       node_list=[A, B, C],
+                       vector_list=[v_A, v_B, v_C])
 
-        v_A = ad.Variable(name="v_A", shape=[size, rank])
-        v_B = ad.Variable(name="v_B", shape=[size, rank])
-        v_C = ad.Variable(name="v_C", shape=[size, rank])
-        grads = ad.gradients(loss, [A, B, C])
-        JtJvps = ad.jtjvps(output_node=residual,
-                           node_list=[A, B, C],
-                           vector_list=[v_A, v_B, v_C])
-
+    if input_val == []:
         A_list, input_tensor_val = init_rand_cp(dim, size, rank)
         A_val, B_val, C_val = A_list
+    else:
+        A_list, input_tensor_val = input_val
+        A_val, B_val, C_val = A_list
 
-        if mode == 'jax':
-            from source import SourceToSource
-            StS = SourceToSource()
-            StS.forward(JtJvps,
-                        file=open("examples/jax_jtjvp.py", "w"),
-                        function_name='jtjvp',
-                        backend='jax')
+    if mode == 'jax':
+        from source import SourceToSource
+        StS = SourceToSource()
+        StS.forward(JtJvps,
+                    file=open("examples/jax_jtjvp.py", "w"),
+                    function_name='jtjvp',
+                    backend='jax')
 
-        executor_grads = ad.Executor([loss] + grads)
-        JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
-        dedup(*JtJvps)
-        executor_JtJvps = ad.Executor(JtJvps)
-        optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
+    executor_grads = ad.Executor([loss] + grads)
+    JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
+    dedup(*JtJvps)
+    executor_JtJvps = ad.Executor(JtJvps)
+    optimizer = cp_nls_optimizer(input_tensor_val, [A_val, B_val, C_val])
 
-        regu_increase = False
-        normT = T.norm(input_tensor_val)
-        time_all, fitness = 0., 0.
+    regu_increase = False
+    normT = T.norm(input_tensor_val)
+    time_all, fitness = 0., 0.
 
-        for i in range(10):
+    for i in range(num_iter):
 
-            t0 = time.time()
+        t0 = time.time()
 
-            def hess_fn(v):
-                if mode == 'optimized':
-                    from examples.cpd_jtjvp_optimized import jtjvp
-                    return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
-                elif mode == 'ad':
-                    return executor_JtJvps.run(
-                        feed_dict={
-                            A: A_val,
-                            B: B_val,
-                            C: C_val,
-                            input_tensor: input_tensor_val,
-                            v_A: v[0],
-                            v_B: v[1],
-                            v_C: v[2]
-                        })
-                elif mode == 'jax':
-                    from examples.jax_jtjvp import jtjvp
-                    return jtjvp([B_val, C_val, v[0], A_val, v[1], v[2]])
+        def hess_fn(v):
+            if mode == 'optimized':
+                from examples.cpd_jtjvp_optimized import jtjvp
+                return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
+            elif mode == 'ad':
+                return executor_JtJvps.run(
+                    feed_dict={
+                        A: A_val,
+                        B: B_val,
+                        C: C_val,
+                        input_tensor: input_tensor_val,
+                        v_A: v[0],
+                        v_B: v[1],
+                        v_C: v[2]
+                    })
+            elif mode == 'jax':
+                from examples.jax_jtjvp import jtjvp
+                return jtjvp([B_val, C_val, v[0], A_val, v[1], v[2]])
 
-            loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
-                feed_dict={
-                    A: A_val,
-                    B: B_val,
-                    C: C_val,
-                    input_tensor: input_tensor_val
-                })
+        loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
+            feed_dict={
+                A: A_val,
+                B: B_val,
+                C: C_val,
+                input_tensor: input_tensor_val
+            })
 
-            res = math.sqrt(loss_val)
-            fitness = 1 - res / normT
-            print(f"[ {i} ] Residual is {res} fitness is: {fitness}")
-            print(f"Regularization is: {regularization}")
+        res = math.sqrt(loss_val)
+        fitness = 1 - res / normT
+        print(f"[ {i} ] Residual is {res} fitness is: {fitness}")
+        print(f"Regularization is: {regularization}")
 
-            [A_val, B_val, C_val], total_cg_time = optimizer.step(
-                hess_fn=hess_fn,
-                grads=[grad_A_val / 2, grad_B_val / 2, grad_C_val / 2],
-                regularization=regularization)
+        [A_val, B_val, C_val], total_cg_time = optimizer.step(
+            hess_fn=hess_fn,
+            grads=[grad_A_val / 2, grad_B_val / 2, grad_C_val / 2],
+            regularization=regularization)
 
-            t1 = time.time()
-            print(f"[ {i} ] Sweep took {t1 - t0} seconds")
-            time_all += t1 - t0
+        t1 = time.time()
+        print(f"[ {i} ] Sweep took {t1 - t0} seconds")
+        time_all += t1 - t0
 
-            if regularization < 1e-07:
-                regu_increase = True
-            elif regularization > 1:
-                regu_increase = False
-            if regu_increase:
-                regularization = regularization * 2
-            else:
-                regularization = regularization / 2
+        if regularization < 1e-07:
+            regu_increase = True
+        elif regularization > 1:
+            regu_increase = False
+        if regu_increase:
+            regularization = regularization * 2
+        else:
+            regularization = regularization / 2
 
+    if return_cg_detail:
+        return total_cg_time, fitness, optimizer.cg_time_list
+    else:
         return total_cg_time, fitness
 
 
