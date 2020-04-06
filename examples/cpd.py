@@ -224,7 +224,8 @@ def cpd_nls(size,
                     function_name='jtjvp',
                     backend='jax')
 
-    executor_grads = ad.Executor([loss] + grads)
+    #executor_grads = ad.Executor([loss] + grads)
+    executor_grads = ad.Executor(grads)
     JtJvps = [optimize(JtJvp) for JtJvp in JtJvps]
     dedup(*JtJvps)
     executor_JtJvps = ad.Executor(JtJvps)
@@ -257,7 +258,7 @@ def cpd_nls(size,
                 from examples.jax_jtjvp import jtjvp
                 return jtjvp([B_val, C_val, v[0], A_val, v[1], v[2]])
 
-        loss_val, grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
+        grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
             feed_dict={
                 A: A_val,
                 B: B_val,
@@ -265,9 +266,10 @@ def cpd_nls(size,
                 input_tensor: input_tensor_val
             })
 
-        res = math.sqrt(loss_val)
-        fitness = 1 - res / normT
-        print(f"[ {i} ] Residual is {res} fitness is: {fitness}")
+        # res = math.sqrt(loss_val)
+        # fitness = 1 - res / normT
+        fitness = 1.
+        # print(f"[ {i} ] Residual is {res} fitness is: {fitness}")
         print(f"Regularization is: {regularization}")
 
         [A_val, B_val, C_val], total_cg_time = optimizer.step(
