@@ -59,6 +59,12 @@ def cpd_als_benchmark_numpy(dim, size, rank, num_iter):
                                         fit_method=None)
     print(f'sktensor time is: {np.mean(sk_sweep_times)}')
 
+    print('full summary')
+    print(f'als time is: {sweep_times_als}')
+    print(f'dt time is: {sweep_times_dt}')
+    print(f'Tensorly time is: {tensorly_sweep_times}')
+    print(f'sktensor time is: {sk_sweep_times}')
+
     print('summary')
     print(f'als time is: {np.mean(sweep_times_als)}')
     print(f'dt time is: {np.mean(sweep_times_dt)}')
