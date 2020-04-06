@@ -66,4 +66,57 @@ def cpd_als_benchmark_numpy(dim, size, rank, num_iter):
     print(f'sktensor time is: {np.mean(sk_sweep_times)}')
 
 
-cpd_als_benchmark_numpy(dim=3, size=200, rank=200, num_iter=3)
+def cpd_als_benchmark_tf(dim, size, rank, num_iter):
+    T.set_backend('tensorflow')
+    input_tensor = init_rand_cp(dim, size, rank)
+
+    # als
+    _, sweep_times_als = cpd_als(dim,
+                                 size,
+                                 rank,
+                                 num_iter,
+                                 input_tensor,
+                                 calculate_loss=False,
+                                 return_time=True)
+    print(f'als time is: {np.mean(sweep_times_als)}')
+
+    # dt
+    _, sweep_times_dt = cpd_als_shared_exec(dim,
+                                            size,
+                                            rank,
+                                            num_iter,
+                                            input_tensor,
+                                            calculate_loss=False,
+                                            return_time=True)
+    print(f'dt time is: {np.mean(sweep_times_dt)}')
+
+    # tensorly
+    #tl.set_backend('tensorflow')
+    #print(tl.get_backend())
+    #_, input_tensor_val = input_tensor
+    #input_tensor = tl.tensor(input_tensor_val, dtype='float')
+
+    #_, tensorly_sweep_times = parafac(input_tensor,
+    #                                  rank=rank,
+    #                                  init='random',
+    #                                  tol=None,
+    #                                  n_iter_max=num_iter,
+    #                                  normalize_factors=False,
+    #                                  verbose=1,
+    #                                  ret_time=True)
+    #print(f'Tensorly time is: {np.mean(tensorly_sweep_times)}')
+
+    print('summary')
+    print(f'als time is: {np.mean(sweep_times_als)}')
+    print(f'dt time is: {np.mean(sweep_times_dt)}')
+    #print(f'Tensorly time is: {np.mean(tensorly_sweep_times)}')
+
+    print('full sweep time')
+    print(f'als time is: {sweep_times_als}')
+    print(f'dt time is: {sweep_times_dt}')
+    #print(f'tensorly time is: {tensorly_sweep_times}')
+
+
+import tensorflow as tf
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+cpd_als_benchmark_tf(dim=3, size=800, rank=800, num_iter=10)

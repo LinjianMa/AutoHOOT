@@ -5,21 +5,22 @@ from .core import Backend
 
 class TensorflowBackend(Backend):
     backend_name = 'tensorflow'
+    tf_dtype = tf.float32
 
     @staticmethod
     def context(tensor):
         return {'dtype': tensor.dtype}
 
     @staticmethod
-    def tensor(data, dtype=tf.float64):
+    def tensor(data, dtype=tf_dtype):
         return tf.constant(data, dtype=dtype)
 
     @staticmethod
-    def random(shape, dtype=tf.float64):
+    def random(shape, dtype=tf_dtype):
         return tf.random.uniform(shape, dtype=dtype)
 
     @staticmethod
-    def identity(length, dtype=tf.float64):
+    def identity(length, dtype=tf_dtype):
         return tf.eye(length, dtype=dtype)
 
     @staticmethod
@@ -27,7 +28,7 @@ class TensorflowBackend(Backend):
         return isinstance(tensor, tf.Tensor)
 
     @staticmethod
-    def ones(shape, dtype=tf.float64):
+    def ones(shape, dtype=tf_dtype):
         return tf.ones(shape, dtype)
 
     @staticmethod
