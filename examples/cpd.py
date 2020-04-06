@@ -7,6 +7,7 @@ from graph_ops.graph_transformer import optimize, simplify
 from graph_ops.graph_dedup import dedup
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 import time
+import tensorflow as tf
 
 BACKEND_TYPES = ['numpy']
 
@@ -235,6 +236,8 @@ def cpd_nls(size,
     normT = T.norm(input_tensor_val)
     time_all, fitness = 0., 0.
 
+    feed_dict = {input_tensor: input_tensor_val}
+
     for i in range(num_iter):
 
         t0 = time.time()
@@ -244,27 +247,23 @@ def cpd_nls(size,
                 from examples.cpd_jtjvp_optimized import jtjvp
                 return jtjvp([v[0], B_val, C_val, v[1], A_val, v[2]])
             elif mode == 'ad':
-                return executor_JtJvps.run(
-                    feed_dict={
-                        A: A_val,
-                        B: B_val,
-                        C: C_val,
-                        input_tensor: input_tensor_val,
-                        v_A: v[0],
-                        v_B: v[1],
-                        v_C: v[2]
-                    })
+                feed_dict.update({A: A_val, B: B_val, C: C_val, v_A: v[0], v_B: v[1], v_C: v[2]})
+                return executor_JtJvps.run(feed_dict=feed_dict)
             elif mode == 'jax':
                 from examples.jax_jtjvp import jtjvp
                 return jtjvp([B_val, C_val, v[0], A_val, v[1], v[2]])
 
-        grad_A_val, grad_B_val, grad_C_val = executor_grads.run(
-            feed_dict={
-                A: A_val,
-                B: B_val,
-                C: C_val,
-                input_tensor: input_tensor_val
-            })
+        #if mode == 'jax':
+        feed_dict.update({A: A_val, B: B_val, C: C_val})
+        grad_A_val, grad_B_val, grad_C_val = executor_grads.run(feed_dict=feed_dict)
+        #else:
+        #    T.set_backend('numpy')
+        #    grad_A_val, grad_B_val, grad_C_val = executor_grads.run(feed_dict={A: A_val.numpy(), B: B_val.numpy(), C: C_val.numpy(), input_tensor: input_tensor_val.numpy()})
+        #    T.set_backend('tensorflow')
+        #    grad_A_val = tf.convert_to_tensor(grad_A_val)
+        #    grad_B_val = tf.convert_to_tensor(grad_B_val)
+        #    grad_C_val = tf.convert_to_tensor(grad_C_val)
+
 
         # res = math.sqrt(loss_val)
         # fitness = 1 - res / normT
