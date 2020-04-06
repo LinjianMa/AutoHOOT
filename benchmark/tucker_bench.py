@@ -72,4 +72,4 @@ def tucker_als_benchmark_numpy(dim, size, rank, num_iter):
     print(f'sktensor time is: {np.mean(sweep_time_sktensor)}')
 
 
-tucker_als_benchmark_numpy(dim=3, size=200, rank=40, num_iter=3)
+tucker_als_benchmark_numpy(dim=3, size=400, rank=50, num_iter=3)

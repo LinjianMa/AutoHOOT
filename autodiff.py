@@ -265,10 +265,13 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape):
+    def __init__(self, name, shape, orthogonal=False):
         super().__init__()
         self.name = name
         self.shape = shape
+        if orthogonal:
+            assert len(shape) == 2
+            self.orthogonal = orthogonal
         assert shape is not None
 
     def __deepcopy__(self, memo):

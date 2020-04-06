@@ -88,7 +88,9 @@ class TuckerGraph(object):
         self.A_list = []
         A_list_subscripts = []
         for i in range(dim):
-            node = ad.Variable(name=f'A{i}', shape=[size, rank])
+            node = ad.Variable(name=f'A{i}',
+                               shape=[size, rank],
+                               orthogonal=True)
             self.A_list.append(node)
             A_list_subscripts.append(f"{X_subscripts[i]}{core_subscripts[i]}")
 
@@ -238,19 +240,20 @@ def tucker_als(dim,
 
     for iter in range(num_iter):
         # als iterations
-        t0 = time.time()
+        dt = 0.
         for i in range(dim):
 
+            t0 = time.time()
             feed_dict = dict(zip(tg.A_list, A_val_list))
             feed_dict.update({tg.core: core_val, tg.X: X_val})
 
             new_core_A_val, = executors_update[i].run(feed_dict=feed_dict)
+            dt += time.time() - t0
 
             # update core_val and A_val_list[i] using SVD
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
-
-        sweep_times.append(time.time() - t0)
+        sweep_times.append(dt)
 
         if calculate_loss:
             feed_dict = dict(zip(tg.A_list, A_val_list))
