@@ -52,7 +52,7 @@ def cpd_gn_benchmark_numpy(size, rank, num_iter):
 
 
 def cpd_gn_benchmark_tf(size, rank, num_iter):
-    T.set_backend('numpy')
+    T.set_backend('tensorflow')
     input_val = init_rand_cp(dim, size, rank)
 
     # als
@@ -86,6 +86,14 @@ def cpd_gn_benchmark_tf_jax(size, rank, num_iter):
     T.set_backend('numpy')
     input_val = init_rand_cp(dim, size, rank)
 
+    # chagne to float
+    A_list, input_tensor_val = input_val
+    A_val, B_val, C_val = A_list
+    A_val, B_val, C_val = A_val.astype(np.float32), B_val.astype(
+        np.float32), C_val.astype(np.float32)
+    input_tensor_val = input_tensor_val.astype(np.float32)
+    input_val = [[A_val, B_val, C_val], input_tensor_val]
+
     # jax
     _, _, cg_times_jax = cpd_nls(size,
                                  rank,
@@ -105,5 +113,5 @@ def cpd_gn_benchmark_tf_jax(size, rank, num_iter):
 import tensorflow as tf
 print("Num GPUs Available: ",
       len(tf.config.experimental.list_physical_devices('GPU')))
-cpd_gn_benchmark_tf(size=100, rank=100, num_iter=10)
-cpd_gn_benchmark_tf_jax(size=100, rank=100, num_iter=10)
+cpd_gn_benchmark_tf(size=50, rank=50, num_iter=10)
+cpd_gn_benchmark_tf_jax(size=50, rank=50, num_iter=10)
