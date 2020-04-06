@@ -465,6 +465,7 @@ class cp_nls_optimizer():
         self.atol = 0
         self.total_iters = 0
         self.total_cg_time = 0.
+        self.cg_time_list = []
         self.num = 0
 
     def step(self, hess_fn, grads, regularization):
@@ -528,6 +529,8 @@ class cp_nls_optimizer():
         p = z
         counter = 0
         while True:
+            t0 = time.time()
+
             hvps = hess_fn(p)
             mv = self.fast_hessian_contract(p, regularization, hvps)
             mul = group_dot(r, z)
@@ -538,6 +541,7 @@ class cp_nls_optimizer():
             if group_vecnorm(r_new) < tol:
                 counter += 1
                 end = time.time()
+                self.cg_time_list.append(time.time() - t0)
                 break
 
             z_new = fast_block_diag_precondition(r_new, P)
@@ -546,6 +550,7 @@ class cp_nls_optimizer():
             r = r_new
             z = z_new
             counter += 1
+            self.cg_time_list.append(time.time() - t0)
 
         end = time.time()
         print(f"cg took: {end - start}")
