@@ -72,6 +72,24 @@ class TensorflowBackend(Backend):
             return tf.einsum(subscripts, *operands, optimize=optimize)
 
     @staticmethod
+    def diag_part(tensor):
+        return tf.linalg.diag_part(tensor)
+
+    @staticmethod
+    def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
+        if not from_left:
+            return tf.transpose(
+                tf.linalg.triangular_solve(tf.transpose(A),
+                                           tf.transpose(B),
+                                           adjoint=transp_L,
+                                           lower=not lower))
+        else:
+            return tf.linalg.triangular_solve(A,
+                                              B,
+                                              adjoint=transp_L,
+                                              lower=lower)
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         if order == 'inf':
             order = np.inf
@@ -117,5 +135,5 @@ _FUN_NAMES = [
 for source_fun, target_fun_name in _FUN_NAMES:
     TensorflowBackend.register_method(target_fun_name, source_fun)
 
-for name in ['solve', 'qr', 'inv', 'eigh', 'diag']:
+for name in ['solve', 'qr', 'inv', 'eigh', 'diag', 'cholesky']:
     TensorflowBackend.register_method(name, getattr(tf.linalg, name))

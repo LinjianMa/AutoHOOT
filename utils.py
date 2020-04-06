@@ -501,7 +501,7 @@ class cp_nls_optimizer():
             self.A[i].shape[1]
             P.append(
                 T.cholesky(self.gamma[i]) +
-                regularization * T.diag(self.gamma[i].diagonal()))
+                regularization * T.diag(T.diag_part(self.gamma[i])))
         return P
 
     def fast_hessian_contract(self, delta, regularization, hvps):

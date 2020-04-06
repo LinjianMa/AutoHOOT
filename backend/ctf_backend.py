@@ -41,6 +41,10 @@ class CTFBackend(Backend):
         raise NotImplementedError
 
     @staticmethod
+    def diag_part(tensor):
+        return tensor.diagonal()
+
+    @staticmethod
     def inv(matrix):
         U, s, V = ctf.svd(matrix)
         return ctf.dot(ctf.transpose(V),

@@ -43,6 +43,10 @@ class NumpyBackend(Backend):
         return np.einsum(subscripts, *operands, optimize=optimize)
 
     @staticmethod
+    def diag_part(tensor):
+        return tensor.diagonal()
+
+    @staticmethod
     def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
         if not from_left:
             return sla.solve_triangular(A.T,
