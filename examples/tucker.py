@@ -288,9 +288,10 @@ def tucker_als_shared_exec(dim,
 
     for iter in range(num_iter):
         # als iterations
-        t0 = time.time()
+        dt = 0.
         for i in range(dim):
 
+            t0 = time.time()
             feed_dict = dict(zip(tg.A_list, A_val_list))
             feed_dict.update({tg.core: core_val, tg.X: X_val})
 
@@ -303,11 +304,12 @@ def tucker_als_shared_exec(dim,
                     out_nodes=[updates[i]],
                     reset_graph=False,
                     evicted_inputs=[tg.A_list[i - 1]])
+            dt += time.time() - t0
 
             # update core_val and A_val_list[i] using SVD
             core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
                                                       new_core_A_val, rank)
-        sweep_times.append(time.time() - t0)
+        sweep_times.append(dt)
 
         if calculate_loss:
             feed_dict = dict(zip(tg.A_list, A_val_list))
