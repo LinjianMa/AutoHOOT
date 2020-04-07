@@ -317,10 +317,10 @@ def dmrg_shared_exec_hvp(mpo_tensors,
     # sequence is R
     for iter in range(num_iter):
 
-        mps_tensors = gauge_transform_mps(mps_tensors, right=True)
-        mps_ranks = [
-            mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
-        ]
+        # mps_tensors = gauge_transform_mps(mps_tensors, right=True)
+        # mps_ranks = [
+        #     mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
+        # ]
 
         t0 = time.time()
         for i in range(num - 1):
