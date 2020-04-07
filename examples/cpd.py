@@ -136,22 +136,18 @@ def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
     A, B, C = A_list
 
-    hes = ad.hessian(loss, [A, B, C])
-    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+    def get_update(cite):
+        hes = ad.hessian(loss, [cite])
+        grad, = ad.gradients(loss, [cite])
+        update_cite = cite - ad.tensordot(ad.tensorinv(hes[0][0]), grad,
+                                          [[2, 3], [0, 1]])
+        update_cite = simplify(update_cite)
+        return update_cite
 
-    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+    new_A = get_update(A)
+    new_B = get_update(B)
+    new_C = get_update(C)
 
-    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
-    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
-    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
-
-    new_A = A - delta_A
-    new_B = B - delta_B
-    new_C = C - delta_C
-
-    new_A = simplify(new_A)
-    new_B = simplify(new_B)
-    new_C = simplify(new_C)
     loss = simplify(loss)
 
     new_A, new_B, new_C = generate_sequential_optiaml_tree({
