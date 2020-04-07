@@ -2,6 +2,7 @@ import math, copy, attr
 import numpy as np
 import autodiff as ad
 import backend as T
+import time
 from numpy.core.einsumfunc import _parse_einsum_input
 from tensors.quimb_tensors import gauge_transform_mps
 from examples.mps import MpsGraph, MpoGraph, DmrgGraph
@@ -242,7 +243,6 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
 
     dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
 
-    import time
     dt, dt2 = 0, 0
 
     # sequence is R
@@ -292,3 +292,128 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
         print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
 
     return mps_tensors, eig_val
+
+
+def dmrg_shared_exec_hvp(mpo_tensors,
+                         init_mps_tensors,
+                         max_mps_rank,
+                         num_iter=1,
+                         num_inner_iter=1,
+                         sequence='R'):
+
+    if sequence != "R":
+        raise NotImplementedError
+
+    num = len(mpo_tensors)
+    size = mpo_tensors[0].shape[1]
+    mpo_ranks = [mpo_tensors[i].shape[0] for i in range(1, len(mpo_tensors))]
+
+    mps_tensors = copy.deepcopy(init_mps_tensors)
+    mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
+
+    dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+
+    sweep_times = []
+    # sequence is R
+    for iter in range(num_iter):
+
+        mps_tensors = gauge_transform_mps(mps_tensors, right=True)
+        mps_ranks = [
+            mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
+        ]
+
+        t0 = time.time()
+        for i in range(num - 1):
+
+            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+
+            intermediate, = dg.executor_intermediates.run(
+                feed_dict=feed_dict, out_nodes=[dg.intermediates[i]])
+
+            feed_dict.update({dg.v_nodes[i]: intermediate})
+
+            for j in range(num_inner_iter):
+                if num_inner_iter == 0:
+                    if i == 0:
+                        reset_graph = True
+                        evicted_inputs = []
+                    else:
+                        reset_graph = False
+                        evicted_inputs = [dg.mps_inputs[i - 1], dg.v_nodes[i]]
+                else:
+                    reset_graph = False
+                    evicted_inputs = [dg.v_nodes[i]]
+
+                dg.executor.run(feed_dict=feed_dict,
+                                reset_graph=reset_graph,
+                                evicted_inputs=evicted_inputs,
+                                out_nodes=[dg.hes_vecs[i]])
+
+        sweep_times.append((time.time() - t0) / num_inner_iter)
+
+    return sweep_times
+
+
+def dmrg_hvp_jax(mpo_tensors,
+                 init_mps_tensors,
+                 max_mps_rank,
+                 num_iter=1,
+                 sequence='R'):
+
+    if sequence != "R":
+        raise NotImplementedError
+
+    num = len(mpo_tensors)
+    size = mpo_tensors[0].shape[1]
+    mpo_ranks = [mpo_tensors[i].shape[0] for i in range(1, len(mpo_tensors))]
+
+    mps_tensors = copy.deepcopy(init_mps_tensors)
+    mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
+
+    mpo_graph = MpoGraph.create(num, mpo_ranks, size)
+    mps_graph = MpsGraph.create(num, mps_ranks, size)
+
+    intermediates, hvps, vnodes = [], [], []
+    for i in range(num - 1):
+        intermediate, hvp, vnode = DmrgGraph_implicit_shared_exec.get_sub_hvp(
+            i, mpo_graph, mps_graph)
+        intermediates.append(intermediate)
+        hvps.append(hvp)
+        vnodes.append(vnode)
+
+    from source import SourceToSource
+    StS = SourceToSource()
+    StS.forward(intermediates,
+                file=open("examples/jax_dmrg_intermediates.py", "w"),
+                function_name='dmrg_intermediates',
+                backend='jax')
+    StS.forward(hvps,
+                file=open("examples/jax_dmrg_hvp.py", "w"),
+                function_name='dmrg_hvp',
+                backend='jax')
+
+    from examples.jax_dmrg_hvp import dmrg_hvp
+    from examples.jax_dmrg_intermediates import dmrg_intermediates
+
+    inputs_intermediate_func = [
+        init_mps_tensors[1], init_mps_tensors[0], init_mps_tensors[2],
+        init_mps_tensors[3], init_mps_tensors[4], init_mps_tensors[5],
+        init_mps_tensors[6], init_mps_tensors[7], init_mps_tensors[8],
+        init_mps_tensors[9]
+    ]
+    intermediate_vals = dmrg_intermediates(inputs_intermediate_func)
+
+    inputs_hvp_func = [
+        init_mps_tensors[9], init_mps_tensors[8], init_mps_tensors[7],
+        init_mps_tensors[6], init_mps_tensors[5], init_mps_tensors[4],
+        init_mps_tensors[3], init_mps_tensors[2]
+    ]
+    inputs_hvp_func += mpo_tensors
+    inputs_hvp_func += [
+        intermediate_vals[0], init_mps_tensors[0], intermediate_vals[1],
+        init_mps_tensors[1]
+    ]
+    inputs_hvp_func += intermediate_vals[2:]
+
+    dmrg_hvp(inputs_hvp_func)
