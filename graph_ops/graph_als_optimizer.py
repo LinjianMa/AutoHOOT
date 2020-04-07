@@ -21,7 +21,7 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
-def generate_sequential_optiaml_tree(einsum_nodes):
+def generate_sequential_optiaml_tree(einsum_nodes, input_nodes=None):
     """Generates a list of nodes in-order. 
     Args: 
         einsum_node_map: a dict that maps from an output node to a input node.
@@ -49,24 +49,25 @@ def generate_sequential_optiaml_tree(einsum_nodes):
     all_nodes = find_topo_sort(einsum_nodes)
     dedup(*all_nodes)
 
-    # form the input_nodes
-    all_inputs = [node.inputs for node in einsum_nodes]
-    all_inputs_set = set(reduce(add, all_inputs))
-    complement_inputs = [
-        all_inputs_set - set(node.inputs) for node in einsum_nodes
-    ]
+    if input_nodes == None:
+        # form the input_nodes
+        all_inputs = [node.inputs for node in einsum_nodes]
+        all_inputs_set = set(reduce(add, all_inputs))
+        complement_inputs = [
+            all_inputs_set - set(node.inputs) for node in einsum_nodes
+        ]
 
-    input_nodes = []
-    for (i, input_set) in enumerate(complement_inputs):
-        remaining_input_nodes_set = set().union(*complement_inputs[i + 1:])
-        unique_input_set = input_set - remaining_input_nodes_set
+        input_nodes = []
+        for (i, input_set) in enumerate(complement_inputs):
+            remaining_input_nodes_set = set().union(*complement_inputs[i + 1:])
+            unique_input_set = input_set - remaining_input_nodes_set
 
-        input_nodes += list(unique_input_set - set(input_nodes))
-        input_nodes += list(input_set - unique_input_set)
+            input_nodes += list(unique_input_set - set(input_nodes))
+            input_nodes += list(input_set - unique_input_set)
 
-    # ALS sequence will only depend on the variable nodes.
-    input_nodes = list(
-        filter(lambda n: isinstance(n, ad.VariableNode), input_nodes))
+        # ALS sequence will only depend on the variable nodes.
+        input_nodes = list(
+            filter(lambda n: isinstance(n, ad.VariableNode), input_nodes))
 
     dt = dimension_tree(einsum_nodes, input_nodes)
 
