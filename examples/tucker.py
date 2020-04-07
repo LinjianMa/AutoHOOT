@@ -38,18 +38,12 @@ def n_mode_eigendec(node, tensor_val, rank):
 
     contracted_char = list(set(A_subs) - set(out_subs))[0]
 
-    # out_subs_2 = "".join(
-    #     [char if char not in A_subs else contracted_char for char in out_subs])
-    # # used for tensor_val.T @ tensor_val in its matricized form
-    # einstr = out_subs + "," + out_subs_2 + "->" + A_subs
+    out_subs_2 = "".join(
+        [char if char not in A_subs else contracted_char for char in out_subs])
+    # used for tensor_val.T @ tensor_val in its matricized form
+    einstr = out_subs + "," + out_subs_2 + "->" + A_subs
 
-    # Y = T.einsum(einstr, tensor_val, tensor_val)
-
-    A_mode, = [i for (i, char) in enumerate(out_subs) if char in A_subs]
-    Y = T.transpose(tensor_val, [A_mode] + list(range(A_mode)) +
-                    list(range(A_mode + 1, len(out_subs))))
-    Y = T.reshape(Y, (Y.shape[0], -1))
-
+    Y = T.einsum(einstr, tensor_val, tensor_val)
     U, _, _ = T.svd(Y)
     U = U[:, :rank]
 
