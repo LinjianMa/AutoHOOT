@@ -5,6 +5,7 @@ import backend as T
 from numpy.core.einsumfunc import _parse_einsum_input
 from tensors.quimb_tensors import gauge_transform_mps
 from examples.mps import MpsGraph, MpoGraph, DmrgGraph
+from graph_ops.graph_generator import split_einsum
 import scipy.sparse.linalg as spla
 from graph_ops.graph_optimizer import fuse_einsums
 from graph_ops.graph_transformer import simplify
@@ -38,7 +39,7 @@ class DmrgGraph_implicit_shared_exec(object):
         update_variables(self.intermediates, variable_dict)
 
         self.v_nodes = [
-            ad.Variable(name=f"v-{i}", shape=node.shape)
+            ad.Variable(name=f"v{i}", shape=node.shape)
             for (i, node) in enumerate(self.intermediates)
         ]
         variable_dict.update({node.name: node for node in self.v_nodes})
@@ -50,46 +51,54 @@ class DmrgGraph_implicit_shared_exec(object):
         mpo_graph = MpoGraph.create(num, mpo_ranks, size)
         mps_graph = MpsGraph.create(num, mps_ranks, size)
 
-        intermediates, hessians = [], []
+        intermediates, hvps, vnodes = [], [], []
         for i in range(num - 1):
-            intermediate, hes = DmrgGraph.get_sub_hessian(
-                i, mpo_graph, mps_graph)
-            hes = simplify(hes)
-            hessians.append(hes)
+            intermediate, hvp, vnode = cls.get_sub_hvp(i, mpo_graph, mps_graph)
+            hvp = simplify(hvp)
+            # TODO: this is a hacky part considering the symmetry
+            hvp = hvp.inputs[0]
+
             intermediates.append(intermediate)
+            hvps.append(hvp)
+            vnodes.append(vnode)
 
-        hessians = generate_sequential_optiaml_tree(hessians)
-        hes_vecs, v_nodes = [], []
-        for (i, hes) in enumerate(hessians):
-            hes_vec, v_node = cls.build_matvec_graph(hes, i)
-            hes_vecs.append(hes_vec)
-            v_nodes.append(v_node)
-
+        hvps = generate_sequential_optiaml_tree(hvps, mps_graph.inputs)
+        # hacky part to get optimal tree
+        hvps = [generate_optimal_tree_opt_einsum(hvp) for hvp in hvps]
         # from visualizer import print_computation_graph
-        # print_computation_graph(hes_vecs)
-        executor = ad.Executor(hes_vecs)
+        # print_computation_graph(hvps)
+        executor = ad.Executor(hvps)
         executor_intermediates = ad.Executor(intermediates)
 
         return cls(mpo_graph.inputs, mps_graph.inputs, executor,
-                   executor_intermediates, intermediates, hes_vecs, v_nodes)
+                   executor_intermediates, intermediates, hvps, vnodes)
 
     @classmethod
-    def build_matvec_graph(cls, hessian, index):
-        len_shape = len(hessian.shape)
-        eigvec_shape = hessian.shape[:int(len_shape / 2)]
+    def get_sub_hvp(cls, index, mpo_graph, mps_graph):
 
-        v_node = ad.Variable(name=f"v-{index}", shape=eigvec_shape)
+        # rebuild mps graph
+        intermediate_set = {
+            mps_graph.inputs[index], mps_graph.inputs[index + 1]
+        }
+        split_input_nodes = list(set(mps_graph.inputs) - intermediate_set)
+        mps = split_einsum(mps_graph.output, split_input_nodes)
 
-        hes_axis = [len(eigvec_shape) + i for i in range(len(eigvec_shape))]
-        vec_axis = list(range(len(eigvec_shape)))
-        out_node = ad.tensordot(hessian, v_node, axes=[hes_axis, vec_axis])
+        # get the intermediate node
+        intermediate, = [
+            node for node in mps.inputs if isinstance(node, ad.EinsumNode)
+        ]
 
-        # fuse the final step
-        fuse_in_nodes = [v_node] + hessian.inputs
-        fuse_out_node = generate_optimal_tree_opt_einsum(
-            fuse_einsums(out_node, fuse_in_nodes))
+        mps_outer_product = ad.tensordot(mps, mps, axes=[[], []])
 
-        return fuse_out_node, v_node
+        mpo_axes = list(range(len(mpo_graph.output.shape)))
+        objective = ad.tensordot(mps_outer_product,
+                                 mpo_graph.output,
+                                 axes=[mpo_axes, mpo_axes])
+        v_node = ad.Variable(name=f"v{index}", shape=intermediate.shape)
+
+        hvp, = ad.hvp(objective, [intermediate], [v_node])
+
+        return intermediate, hvp, v_node
 
 
 class TNLinearOperator(spla.LinearOperator):
