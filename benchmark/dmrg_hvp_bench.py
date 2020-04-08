@@ -8,16 +8,10 @@ from examples.mps import dmrg, dmrg_shared_exec
 from examples.mps_sparse_solve import dmrg_shared_exec_hvp, dmrg_hvp_jax
 from tensors.quimb_tensors import load_quimb_tensors
 
-BACKEND_TYPES = ['numpy']
-max_mps_rank = 25
-num = 10
-mpo_rank = 25
-size = 25
-num_iter = 1
-num_inner_iter = 10
 
-
-def dmrg_als_benchmark_numpy():
+def dmrg_als_benchmark_numpy(num, mpo_rank, max_mps_rank, size, num_iter,
+                             num_inner_iter):
+    T.set_backend('numpy')
 
     h = qtn.MPO_rand_herm(num, mpo_rank, size)
     dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
@@ -54,4 +48,9 @@ def dmrg_als_benchmark_numpy():
     print(f'Quimb time is: {np.mean(quimb_sweep_times)}')
 
 
-dmrg_als_benchmark_numpy()
+dmrg_als_benchmark_numpy(num=10,
+                         mpo_rank=25,
+                         max_mps_rank=25,
+                         size=25,
+                         num_iter=1,
+                         num_inner_iter=10)

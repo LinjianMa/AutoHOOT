@@ -190,4 +190,3 @@ def test_dmrg_shared_exec_sparse_solve_one_sweep():
     # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
     # eigenvalue unchanged.
     assert (abs(energy - quimb_energy) < 1e-3)
-test_dmrg_shared_exec_sparse_solve_one_sweep()
