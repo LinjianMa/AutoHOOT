@@ -334,7 +334,7 @@ def dmrg_shared_exec_hvp(mpo_tensors,
             feed_dict.update({dg.v_nodes[i]: intermediate})
 
             for j in range(num_inner_iter):
-                if num_inner_iter == 0:
+                if j == 0:
                     if i == 0:
                         reset_graph = True
                         evicted_inputs = []
