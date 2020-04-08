@@ -1,3 +1,5 @@
+import argparse
+
 import autodiff as ad
 import backend as T
 import time
@@ -48,9 +50,19 @@ def dmrg_als_benchmark_numpy(num, mpo_rank, max_mps_rank, size, num_iter,
     print(f'Quimb time is: {np.mean(quimb_sweep_times)}')
 
 
-dmrg_als_benchmark_numpy(num=10,
-                         mpo_rank=25,
-                         max_mps_rank=25,
-                         size=25,
-                         num_iter=1,
-                         num_inner_iter=10)
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--num', type=int, default=3)
+    parser.add_argument('--size', type=int, default=50)
+    parser.add_argument('--rank', type=int, default=50)
+    parser.add_argument('--numiter', type=int, default=3)
+    parser.add_argument('--numinneriter', type=int, default=10)
+    args, _ = parser.parse_known_args()
+    print(args.num, args.size, args.rank, args.numiter, args.numinneriter)
+    dmrg_als_benchmark_numpy(num=args.num,
+                             size=args.size,
+                             mpo_rank=args.rank,
+                             max_mps_rank=args.rank,
+                             num_iter=args.numiter,
+                             num_inner_iter=args.numinneriter)

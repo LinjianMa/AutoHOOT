@@ -1,3 +1,5 @@
+import argparse
+
 import autodiff as ad
 import backend as T
 import tensorly as tl
@@ -72,4 +74,16 @@ def cpd_als_benchmark_numpy(dim, size, rank, num_iter):
     print(f'sktensor time is: {np.mean(sk_sweep_times)}')
 
 
-cpd_als_benchmark_numpy(dim=3, size=200, rank=200, num_iter=3)
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dim', type=int, default=3)
+    parser.add_argument('--size', type=int, default=50)
+    parser.add_argument('--rank', type=int, default=50)
+    parser.add_argument('--numiter', type=int, default=3)
+    args, _ = parser.parse_known_args()
+    print(args.dim, args.size, args.rank, args.numiter)
+    cpd_als_benchmark_numpy(dim=args.dim,
+                            size=args.size,
+                            rank=args.rank,
+                            num_iter=args.numiter)
