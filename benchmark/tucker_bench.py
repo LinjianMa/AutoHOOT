@@ -55,7 +55,7 @@ def tucker_als_benchmark_numpy(dim, size, rank, num_iter):
     _, _, input_tensor_val = init_rand_tucker(dim, size, rank)
 
     _, _, sweep_time_sktensor = sk_tucker(dtensor(input_tensor_val),
-                                          rank=[rank, rank, rank],
+                                          rank=[rank for _ in range(dim)],
                                           maxIter=num_iter,
                                           init='random',
                                           return_time=True)
