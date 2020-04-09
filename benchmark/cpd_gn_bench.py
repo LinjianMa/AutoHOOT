@@ -1,6 +1,7 @@
 import autodiff as ad
 import backend as T
 import numpy as np
+import argparse
 
 from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_nls
@@ -51,4 +52,14 @@ def cpd_gn_benchmark_numpy(size, rank, num_iter):
     print(f'jax time list is: {cg_times_jax}')
 
 
-cpd_gn_benchmark_numpy(size=100, rank=100, num_iter=10)
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--size', type=int, default=50)
+    parser.add_argument('--rank', type=int, default=50)
+    parser.add_argument('--numiter', type=int, default=3)
+    args, _ = parser.parse_known_args()
+    print(args.size, args.rank, args.numiter)
+    cpd_gn_benchmark_numpy(size=args.size,
+                            rank=args.rank,
+                            num_iter=args.numiter)
