@@ -5,7 +5,7 @@ from utils import CharacterGetter
 from tensors.synthetic_tensors import init_rand_tucker
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
-from graph_ops.graph_transformer import simplify
+from graph_ops.graph_transformer import simplify, optimize
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 
 
@@ -166,7 +166,7 @@ def tucker_als_graph(dim, size, rank):
             ad.tensorinv(hes), grad,
             [[i + dim for i in range(dim)], [i for i in range(dim)]])
 
-        executor = ad.Executor([simplify(new_core_A)])
+        executor = ad.Executor([optimize(simplify(new_core_A))])
         executors_update.append(executor)
 
     executor_loss = ad.Executor([simplify(tg.losses[0])])
@@ -250,6 +250,7 @@ def tucker_als(dim,
             feed_dict.update({tg.core: core_val, tg.X: X_val})
 
             new_core_A_val, = executors_update[i].run(feed_dict=feed_dict)
+            del executors_update[i].node_to_val_map
             dt += time.time() - t0
 
             # update core_val and A_val_list[i] using SVD

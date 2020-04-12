@@ -334,7 +334,7 @@ def dmrg_shared_exec_hvp(mpo_tensors,
             feed_dict.update({dg.v_nodes[i]: intermediate})
 
             for j in range(num_inner_iter):
-                if num_inner_iter == 0:
+                if j == 0:
                     if i == 0:
                         reset_graph = True
                         evicted_inputs = []
@@ -344,12 +344,11 @@ def dmrg_shared_exec_hvp(mpo_tensors,
                 else:
                     reset_graph = False
                     evicted_inputs = [dg.v_nodes[i]]
-
                 dg.executor.run(feed_dict=feed_dict,
                                 reset_graph=reset_graph,
                                 evicted_inputs=evicted_inputs,
                                 out_nodes=[dg.hes_vecs[i]])
-
+            print(i)
         sweep_times.append((time.time() - t0) / num_inner_iter)
 
     return sweep_times

@@ -113,5 +113,5 @@ def cpd_gn_benchmark_tf_jax(size, rank, num_iter):
 import tensorflow as tf
 print("Num GPUs Available: ",
       len(tf.config.experimental.list_physical_devices('GPU')))
-cpd_gn_benchmark_tf(size=40, rank=40, num_iter=10)
-cpd_gn_benchmark_tf_jax(size=40, rank=40, num_iter=10)
+cpd_gn_benchmark_tf(size=640, rank=640, num_iter=5)
+cpd_gn_benchmark_tf_jax(size=640, rank=640, num_iter=5)

@@ -94,9 +94,9 @@ def dmrg_als_benchmark_tf(num, mpo_rank, max_mps_rank, size, num_iter,
     print(f'Quimb time is: {np.mean(quimb_sweep_times)}')
 
 
-dmrg_als_benchmark_tf(num=10,
-                      mpo_rank=25,
-                      max_mps_rank=25,
-                      size=25,
-                      num_iter=1,
-                      num_inner_iter=10)
+dmrg_als_benchmark_tf(num=6,
+                      mpo_rank=40,
+                      max_mps_rank=40,
+                      size=40,
+                      num_iter=3,
+                      num_inner_iter=5)

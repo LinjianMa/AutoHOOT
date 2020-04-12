@@ -124,4 +124,4 @@ def tucker_als_benchmark_tf(dim, size, rank, num_iter):
 import tensorflow as tf
 print("Num GPUs Available: ",
       len(tf.config.experimental.list_physical_devices('GPU')))
-tucker_als_benchmark_tf(dim=3, size=200, rank=40, num_iter=3)
+tucker_als_benchmark_tf(dim=3, size=400, rank=200, num_iter=5)

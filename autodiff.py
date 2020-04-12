@@ -1438,6 +1438,8 @@ class Executor:
             if node not in self.node_to_val_map:
                 input_vals = [self.node_to_val_map[val] for val in node.inputs]
                 result = node.compute(input_vals)
+                index = [0 for _ in range(len(result.shape))]
+                print(result[index])
                 self.node_to_val_map[node] = result
         # Collect node values.
         node_val_results = [self.node_to_val_map[node] for node in out_nodes]
