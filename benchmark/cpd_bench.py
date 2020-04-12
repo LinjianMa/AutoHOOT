@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from tensors.synthetic_tensors import init_rand_cp
-from examples.cpd import cpd_als, cpd_als_shared_exec
+from examples.cpd import cpd_als, cpd_als_shared_exec, cpd_als_shared_exec_ctf
 from tensorly.decomposition import parafac
 from sktensor import dtensor
 from sktensor import cp_als as sk_cp_als
@@ -79,13 +79,13 @@ def cpd_als_benchmark_ctf(dim, size, rank, num_iter):
     input_tensor = init_rand_cp(dim, size, rank)
 
     # dt
-    _, sweep_times_dt = cpd_als_shared_exec(dim,
-                                            size,
-                                            rank,
-                                            num_iter,
-                                            input_tensor,
-                                            calculate_loss=False,
-                                            return_time=True)
+    _, sweep_times_dt = cpd_als_shared_exec_ctf(dim,
+                                                size,
+                                                rank,
+                                                num_iter,
+                                                input_tensor,
+                                                calculate_loss=False,
+                                                return_time=True)
     print(f'dt time is: {np.mean(sweep_times_dt)}')
 
     print('full summary')

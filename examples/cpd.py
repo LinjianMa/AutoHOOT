@@ -7,6 +7,7 @@ from graph_ops.graph_transformer import optimize, simplify
 from graph_ops.graph_dedup import dedup
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 import time
+from utils import update_variables
 
 BACKEND_TYPES = ['numpy']
 
@@ -147,6 +148,80 @@ def cpd_als_shared_exec(dim,
 
     executor = ad.Executor(new_A_list)
     executor_loss = ad.Executor([simplify(loss)])
+
+    if input_val == []:
+        A_val_list, input_tensor_val = init_rand_cp(dim, size, rank)
+    else:
+        A_val_list, input_tensor_val = input_val
+
+    sweep_times = []
+
+    for iter in range(num_iter):
+        # als iterations
+        t0 = time.time()
+        for i in range(len(A_list)):
+
+            feed_dict = dict(zip(A_list, A_val_list))
+            feed_dict.update({input_tensor: input_tensor_val})
+
+            if i == 0:
+                A_val_list[0], = executor.run(feed_dict=feed_dict,
+                                              out_nodes=[new_A_list[0]])
+            else:
+                A_val_list[i], = executor.run(feed_dict=feed_dict,
+                                              reset_graph=False,
+                                              evicted_inputs=[A_list[i - 1]],
+                                              out_nodes=[new_A_list[i]])
+        sweep_times.append(time.time() - t0)
+
+        if calculate_loss:
+            feed_dict = dict(zip(A_list, A_val_list))
+            feed_dict.update({input_tensor: input_tensor_val})
+            loss_val, = executor_loss.run(feed_dict=feed_dict)
+            print(f'At iteration {iter} the loss is: {loss_val}')
+
+    if return_time:
+        return A_val_list, sweep_times
+    else:
+        return A_val_list
+
+
+def cpd_als_shared_exec_ctf(dim,
+                            size,
+                            rank,
+                            num_iter,
+                            input_val=[],
+                            calculate_loss=True,
+                            return_time=False):
+
+    size_graph = 30
+    rank_graph = 30
+
+    A_list, input_tensor, loss, residual = cpd_graph(dim, size_graph,
+                                                     rank_graph)
+
+    full_hessian = ad.hessian(loss, A_list)
+    hessians = [full_hessian[i][i] for i in range(len(full_hessian))]
+    grads = ad.gradients(loss, A_list)
+
+    updates = [
+        ad.tensordot(ad.tensorinv(hes), grad, [[2, 3], [0, 1]])
+        for (hes, grad) in zip(hessians, grads)
+    ]
+
+    new_A_list = [simplify(A - update) for (A, update) in zip(A_list, updates)]
+    new_A_list = generate_sequential_optiaml_tree(new_A_list)
+
+    loss = simplify(loss)
+
+    # TODO: hacky part to avoid OOM. Update the graph
+    A_list, input_tensor, _, _ = cpd_graph(dim, size, rank)
+    variable_dict = {node.name: node for node in A_list}
+    variable_dict.update({input_tensor.name: input_tensor})
+    update_variables(new_A_list + [loss], variable_dict)
+
+    executor = ad.Executor(new_A_list)
+    executor_loss = ad.Executor([loss])
 
     if input_val == []:
         A_val_list, input_tensor_val = init_rand_cp(dim, size, rank)
