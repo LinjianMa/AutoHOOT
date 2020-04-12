@@ -217,7 +217,8 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
                                   init_mps_tensors,
                                   max_mps_rank,
                                   num_iter=1,
-                                  sequence='R'):
+                                  sequence='R',
+                                  return_time=False):
     """
     Perform DMRG iterations with shared execution.
 
@@ -245,6 +246,8 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
 
     dt, dt2 = 0, 0
 
+    total_time = []
+    t_init = time.time()
     # sequence is R
     for iter in range(num_iter):
 
@@ -290,8 +293,12 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
             print(f'The smallest eigenvalue is: {eig_val}')
 
         print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
+        total_time.append(time.time() - t_init)
 
-    return mps_tensors, eig_val
+    if return_time:
+        return mps_tensors, eig_val, total_time
+    else:
+        return mps_tensors, eig_val
 
 
 def dmrg_shared_exec_hvp(mpo_tensors,
