@@ -74,6 +74,26 @@ def cpd_als_benchmark_numpy(dim, size, rank, num_iter):
     print(f'sktensor time is: {np.mean(sk_sweep_times)}')
 
 
+def cpd_als_benchmark_ctf(dim, size, rank, num_iter):
+    T.set_backend('ctf')
+    input_tensor = init_rand_cp(dim, size, rank)
+
+    # dt
+    _, sweep_times_dt = cpd_als_shared_exec(dim,
+                                            size,
+                                            rank,
+                                            num_iter,
+                                            input_tensor,
+                                            calculate_loss=False,
+                                            return_time=True)
+    print(f'dt time is: {np.mean(sweep_times_dt)}')
+
+    print('full summary')
+    print(f'dt time is: {sweep_times_dt}')
+    print('summary')
+    print(f'dt time is: {np.mean(sweep_times_dt)}')
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -81,9 +101,16 @@ if __name__ == '__main__':
     parser.add_argument('--size', type=int, default=50)
     parser.add_argument('--rank', type=int, default=50)
     parser.add_argument('--numiter', type=int, default=3)
+    parser.add_argument('--backend', type=str, default='numpy')
     args, _ = parser.parse_known_args()
-    print(args.dim, args.size, args.rank, args.numiter)
-    cpd_als_benchmark_numpy(dim=args.dim,
-                            size=args.size,
-                            rank=args.rank,
-                            num_iter=args.numiter)
+    print(args.backend, args.dim, args.size, args.rank, args.numiter)
+    if args.backend == 'numpy':
+        cpd_als_benchmark_numpy(dim=args.dim,
+                                size=args.size,
+                                rank=args.rank,
+                                num_iter=args.numiter)
+    if args.backend == 'ctf':
+        cpd_als_benchmark_ctf(dim=args.dim,
+                              size=args.size,
+                              rank=args.rank,
+                              num_iter=args.numiter)
