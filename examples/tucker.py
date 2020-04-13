@@ -7,6 +7,7 @@ from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import simplify
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
+from utils import update_variables
 
 
 def n_mode_eigendec(node, tensor_val, rank):
@@ -220,6 +221,46 @@ def tucker_als_graph_shared_exec(dim, size, rank):
     return tg, executor_updates, executor_loss, loss, updates, tg.intermediates
 
 
+def tucker_als_graph_shared_exec_ctf(dim, size, rank):
+    size_graph = 5
+    rank_graph = 3
+
+    tg = TuckerGraph(dim, size_graph, rank_graph)
+
+    updates = []
+    for i in range(dim):
+
+        core_A = tg.intermediates[i]
+        hes = ad.hessian(tg.losses[i], [core_A])
+        hes = hes[0][0]
+        grad, = ad.gradients(tg.losses[i], [core_A])
+
+        new_core_A = core_A - ad.tensordot(
+            ad.tensorinv(hes), grad,
+            [[i + dim for i in range(dim)], [i for i in range(dim)]])
+
+        updates.append(simplify(new_core_A))
+
+    loss = simplify(tg.losses[0])
+    for i in range(1, len(tg.losses)):
+        assert loss.name == simplify(tg.losses[i]).name
+
+    updates = generate_sequential_optiaml_tree(updates)
+
+    # TODO: hacky part to avoid OOM. Update the graph
+    tg2 = TuckerGraph(dim, size, rank)
+    variable_dict = {
+        node.name: node
+        for node in tg2.A_list + [tg2.core] + [tg2.X]
+    }
+    update_variables(updates + [loss], variable_dict)
+
+    executor_updates = ad.Executor(updates)
+    executor_loss = ad.Executor([loss])
+
+    return tg2, executor_updates, executor_loss, loss, updates, tg2.intermediates
+
+
 def tucker_als(dim,
                size,
                rank,
@@ -277,6 +318,62 @@ def tucker_als_shared_exec(dim,
                            return_time=False):
 
     tg, executor_updates, executor_loss, loss, updates, intermediates = tucker_als_graph_shared_exec(
+        dim, size, rank)
+
+    if input_val == []:
+        A_val_list, core_val, X_val = init_rand_tucker(dim, size, rank)
+    else:
+        A_val_list, core_val, X_val = copy.deepcopy(input_val)
+
+    sweep_times = []
+
+    for iter in range(num_iter):
+        # als iterations
+        dt = 0.
+        for i in range(dim):
+
+            t0 = time.time()
+            feed_dict = dict(zip(tg.A_list, A_val_list))
+            feed_dict.update({tg.core: core_val, tg.X: X_val})
+
+            if i == 0:
+                new_core_A_val, = executor_updates.run(feed_dict=feed_dict,
+                                                       out_nodes=[updates[0]])
+            else:
+                new_core_A_val, = executor_updates.run(
+                    feed_dict=feed_dict,
+                    out_nodes=[updates[i]],
+                    reset_graph=False,
+                    evicted_inputs=[tg.A_list[i - 1]])
+            dt += time.time() - t0
+
+            # update core_val and A_val_list[i] using SVD
+            core_val, A_val_list[i] = n_mode_eigendec(intermediates[i],
+                                                      new_core_A_val, rank)
+        sweep_times.append(dt)
+
+        if calculate_loss:
+            feed_dict = dict(zip(tg.A_list, A_val_list))
+            feed_dict.update({tg.core: core_val, tg.X: X_val})
+            loss_val, = executor_loss.run(feed_dict=feed_dict)
+
+            print(f'At iteration {iter} the loss is: {loss_val}')
+
+    if return_time:
+        return A_val_list, core_val, X_val, sweep_times
+    else:
+        return A_val_list, core_val, X_val
+
+
+def tucker_als_shared_exec_ctf(dim,
+                               size,
+                               rank,
+                               num_iter,
+                               input_val=[],
+                               calculate_loss=True,
+                               return_time=False):
+
+    tg, executor_updates, executor_loss, loss, updates, intermediates = tucker_als_graph_shared_exec_ctf(
         dim, size, rank)
 
     if input_val == []:

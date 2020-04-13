@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from tensors.synthetic_tensors import init_rand_tucker
-from examples.tucker import tucker_als, tucker_als_shared_exec
+from examples.tucker import tucker_als, tucker_als_shared_exec, tucker_als_shared_exec_ctf
 from tensorly.decomposition import tucker as tucker_tensorly
 from sktensor import dtensor
 from sktensor.tucker import hooi as sk_tucker
@@ -80,13 +80,13 @@ def tucker_als_benchmark_ctf(dim, size, rank, num_iter):
     input_val = init_rand_tucker(dim, size, rank)
 
     # dt
-    _, _, _, sweep_times_dt = tucker_als_shared_exec(dim,
-                                                     size,
-                                                     rank,
-                                                     num_iter,
-                                                     input_val,
-                                                     calculate_loss=False,
-                                                     return_time=True)
+    _, _, _, sweep_times_dt = tucker_als_shared_exec_ctf(dim,
+                                                         size,
+                                                         rank,
+                                                         num_iter,
+                                                         input_val,
+                                                         calculate_loss=False,
+                                                         return_time=True)
     print(f'dt time is: {np.mean(sweep_times_dt)}')
 
     print('full summary')
