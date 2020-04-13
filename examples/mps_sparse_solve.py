@@ -14,8 +14,6 @@ from utils import update_variables
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 from graph_ops.graph_generator import generate_optimal_tree_opt_einsum
 
-BACKEND_TYPES = ['numpy']
-
 
 @attr.s()
 class DmrgGraph_implicit_shared_exec(object):
@@ -242,7 +240,13 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
     mps_tensors = copy.deepcopy(init_mps_tensors)
     mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
 
-    dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+    # dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+    # TODO: hacky part to avoid OOM. Update the graph
+    mpo_ranks_hack = [3 for _ in range(1, len(mpo_tensors))]
+    mps_ranks_hack = [3 for _ in range(1, len(mps_tensors))]
+    size_hack = 5
+    dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks_hack,
+                                               mps_ranks_hack, size_hack)
 
     dt, dt2 = 0, 0
 
@@ -272,7 +276,7 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
             eig_vals, eigvecs = spla.eigsh(hes_operator,
                                            k=1,
                                            ncv=4,
-                                           tol=1e-3,
+                                           tol=1e-2,
                                            which='SA',
                                            v0=intermediate)
             eig_val = eig_vals[0]
@@ -318,7 +322,15 @@ def dmrg_shared_exec_hvp(mpo_tensors,
     mps_tensors = copy.deepcopy(init_mps_tensors)
     mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
 
-    dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+    # dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+    # dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks, mps_ranks, size)
+    # TODO: hacky part to avoid OOM. Update the graph
+    mpo_ranks_hack = [3 for _ in range(1, len(mpo_tensors))]
+    mps_ranks_hack = [3 for _ in range(1, len(mps_tensors))]
+    size_hack = 5
+    dg = DmrgGraph_implicit_shared_exec.create(num, mpo_ranks_hack,
+                                               mps_ranks_hack, size_hack)
+    dg.update_graph(num, mpo_ranks, mps_ranks, size)
 
     sweep_times = []
     # sequence is R
