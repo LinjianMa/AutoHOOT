@@ -34,7 +34,8 @@ def dmrg_als_benchmark_numpy(num, mpo_rank, max_mps_rank, size, num_iter):
     for _ in range(num_iter):
         dmrg_quimb.sweep_right(canonize=True, verbosity=0, **opts)
         time_quimb.append(time.time() - t0)
-    print(dmrg_quimb.local_energies[-1])
+    print(dmrg_quimb.local_energies)
+    print(dmrg_quimb.total_energies)
 
     print('summary')
     print(f'dt time is: {time_dt}')

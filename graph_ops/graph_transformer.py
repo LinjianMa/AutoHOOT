@@ -13,7 +13,7 @@ from collections import deque
 
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone
-from graph_ops.graph_generator import generate_optimal_tree
+from graph_ops.graph_generator import generate_optimal_tree, generate_optimal_tree_opt_einsum
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
@@ -422,6 +422,20 @@ def optimize_inverse_orghogonal(inv_node):
         if inode.inputs[0].orthogonal:
             return ad.identity(inode.inputs[0].shape[1])
     return inv_node
+
+
+def optimize_w_opt_einsum(output_node):
+    output_pnode = PseudoNode(output_node)
+    all_pnodes = find_topo_sort_p([output_pnode])
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                new_node = generate_optimal_tree_opt_einsum(node)
+                replace_node(pnode, new_node)
+    return output_pnode.node
 
 
 def simplify(output_node):

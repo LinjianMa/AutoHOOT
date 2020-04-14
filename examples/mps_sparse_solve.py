@@ -9,7 +9,7 @@ from examples.mps import MpsGraph, MpoGraph, DmrgGraph
 from graph_ops.graph_generator import split_einsum
 import scipy.sparse.linalg as spla
 from graph_ops.graph_optimizer import fuse_einsums
-from graph_ops.graph_transformer import simplify
+from graph_ops.graph_transformer import simplify, optimize_w_opt_einsum
 from utils import update_variables
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
 from graph_ops.graph_generator import generate_optimal_tree_opt_einsum
@@ -63,7 +63,7 @@ class DmrgGraph_implicit_shared_exec(object):
 
         hvps = generate_sequential_optiaml_tree(hvps, mps_graph.inputs)
         # hacky part to get optimal tree
-        hvps = [generate_optimal_tree_opt_einsum(hvp) for hvp in hvps]
+        hvps = [optimize_w_opt_einsum(hvp) for hvp in hvps]
         # from visualizer import print_computation_graph
         # print_computation_graph(hvps)
         executor = ad.Executor(hvps)
@@ -252,6 +252,8 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
 
     total_time = []
     t_init = time.time()
+    eig_val_list = []
+    num_matvecs = []
     # sequence is R
     for iter in range(num_iter):
 
@@ -259,6 +261,7 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
         mps_ranks = [
             mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
         ]
+        num_matvec = 0
 
         for i in range(num - 1):
 
@@ -267,7 +270,7 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
             feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
             feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
-            intermediate = dg.executor_intermediates.run(
+            intermediate, = dg.executor_intermediates.run(
                 feed_dict=feed_dict, out_nodes=[dg.intermediates[i]])
 
             t0 = time.time()
@@ -276,9 +279,11 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
             eig_vals, eigvecs = spla.eigsh(hes_operator,
                                            k=1,
                                            ncv=4,
-                                           tol=1e-2,
+                                           tol=1e-3,
                                            which='SA',
-                                           v0=intermediate)
+                                           v0=intermediate.ravel())
+            num_matvec += hes_operator.num_call_matvec
+
             eig_val = eig_vals[0]
             eigvec = eigvecs[:, 0]
 
@@ -297,12 +302,14 @@ def dmrg_shared_exec_sparse_solve(mpo_tensors,
             print(f'The smallest eigenvalue is: {eig_val}')
 
         print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
+        eig_val_list.append(eig_val)
         total_time.append(time.time() - t_init)
+        num_matvecs.append(num_matvec)
 
     if return_time:
-        return mps_tensors, eig_val, total_time
+        return mps_tensors, eig_val_list, total_time, num_matvecs
     else:
-        return mps_tensors, eig_val
+        return mps_tensors, eig_val_list[-1]
 
 
 def dmrg_shared_exec_hvp(mpo_tensors,
