@@ -69,144 +69,96 @@ def cpd_gradient_descent(size, rank, learning_rate):
             print(f'At iteration {i} the loss is: {loss_val}')
 
 
-def cpd_als(size, rank, num_iter, input_val=[]):
-    dim = 3
+def cpd_als(dim, size, rank, num_iter, input_val=[]):
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
-    A, B, C = A_list
 
-    hes = ad.hessian(loss, [A, B, C])
-    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+    full_hessian = ad.hessian(loss, A_list)
+    hessians = [full_hessian[i][i] for i in range(len(full_hessian))]
+    grads = ad.gradients(loss, A_list)
 
-    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+    updates = [
+        ad.tensordot(ad.tensorinv(hes), grad, [[2, 3], [0, 1]])
+        for (hes, grad) in zip(hessians, grads)
+    ]
 
-    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
-    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
-    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
+    new_A_list = [simplify(A - update) for (A, update) in zip(A_list, updates)]
 
-    new_A = A - delta_A
-    new_B = B - delta_B
-    new_C = C - delta_C
-
-    executor_A = ad.Executor([simplify(new_A)])
-    executor_B = ad.Executor([simplify(new_B)])
-    executor_C = ad.Executor([simplify(new_C)])
+    executor = ad.Executor(new_A_list)
     executor_loss = ad.Executor([simplify(loss)])
 
     if input_val == []:
-        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
-        A_list, input_tensor_val = input_val
-    A_val, B_val, C_val = A_list
+        A_val_list, input_tensor_val = input_val
 
-    for i in range(num_iter):
+    for iter in range(num_iter):
         # als iterations
-        A_val, = executor_A.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        B_val, = executor_B.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        C_val, = executor_C.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        loss_val, = executor_loss.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        print(f'At iteration {i} the loss is: {loss_val}')
+        for i in range(len(A_list)):
 
-    return A_val, B_val, C_val
+            feed_dict = dict(zip(A_list, A_val_list))
+            feed_dict.update({input_tensor: input_tensor_val})
+            A_val_list[i], = executor.run(feed_dict=feed_dict,
+                                          out_nodes=[new_A_list[i]])
+
+        feed_dict = dict(zip(A_list, A_val_list))
+        feed_dict.update({input_tensor: input_tensor_val})
+        loss_val, = executor_loss.run(feed_dict=feed_dict)
+        print(f'At iteration {iter} the loss is: {loss_val}')
+
+    return A_val_list
 
 
-def cpd_als_shared_exec(size, rank, num_iter, input_val=[]):
-    dim = 3
+def cpd_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
 
     A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
-    A, B, C = A_list
 
-    hes = ad.hessian(loss, [A, B, C])
-    hes_A, hes_B, hes_C = hes[0][0], hes[1][1], hes[2][2]
+    full_hessian = ad.hessian(loss, A_list)
+    hessians = [full_hessian[i][i] for i in range(len(full_hessian))]
+    grads = ad.gradients(loss, A_list)
 
-    grad_A, grad_B, grad_C = ad.gradients(loss, [A, B, C])
+    updates = [
+        ad.tensordot(ad.tensorinv(hes), grad, [[2, 3], [0, 1]])
+        for (hes, grad) in zip(hessians, grads)
+    ]
 
-    delta_A = ad.tensordot(ad.tensorinv(hes_A), grad_A, [[2, 3], [0, 1]])
-    delta_B = ad.tensordot(ad.tensorinv(hes_B), grad_B, [[2, 3], [0, 1]])
-    delta_C = ad.tensordot(ad.tensorinv(hes_C), grad_C, [[2, 3], [0, 1]])
+    new_A_list = [simplify(A - update) for (A, update) in zip(A_list, updates)]
+    new_A_list = generate_sequential_optiaml_tree(dict(zip(new_A_list, A_list)))
 
-    new_A = A - delta_A
-    new_B = B - delta_B
-    new_C = C - delta_C
-
-    new_A = simplify(new_A)
-    new_B = simplify(new_B)
-    new_C = simplify(new_C)
-    loss = simplify(loss)
-
-    new_A, new_B, new_C = generate_sequential_optiaml_tree({
-        new_A: A,
-        new_B: B,
-        new_C: C
-    })
-    executor_update = ad.Executor([new_A, new_B, new_C])
-    executor_loss = ad.Executor([loss])
+    executor = ad.Executor(new_A_list)
+    executor_loss = ad.Executor([simplify(loss)])
 
     if input_val == []:
-        A_list, input_tensor_val = init_rand_cp(dim, size, rank)
+        A_val_list, input_tensor_val = init_rand_cp(dim, size, rank)
     else:
-        A_list, input_tensor_val = input_val
-    A_val, B_val, C_val = A_list
+        A_val_list, input_tensor_val = input_val
 
-    for i in range(num_iter):
+    for iter in range(num_iter):
         t0 = time.time()
         # als iterations
-        A_val, = executor_update.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        },
-                                     out_nodes=[new_A])
-        B_val, = executor_update.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        },
-                                     reset_graph=False,
-                                     out_nodes=[new_B],
-                                     evicted_inputs=[A])
-        C_val, = executor_update.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        },
-                                     reset_graph=False,
-                                     out_nodes=[new_C],
-                                     evicted_inputs=[A, B])
-        loss_val, = executor_loss.run(feed_dict={
-            input_tensor: input_tensor_val,
-            A: A_val,
-            B: B_val,
-            C: C_val
-        })
-        print(f'At iteration {i} the loss is: {loss_val}')
-        t1 = time.time()
-        print(f"[ {i} ] Sweep took {t1 - t0} seconds")
+        for i in range(len(A_list)):
 
-    return A_val, B_val, C_val
+            feed_dict = dict(zip(A_list, A_val_list))
+            feed_dict.update({input_tensor: input_tensor_val})
+
+            if i == 0:
+                A_val_list[0], = executor.run(feed_dict=feed_dict,
+                                              out_nodes=[new_A_list[0]])
+            else:
+                A_val_list[i], = executor.run(feed_dict=feed_dict,
+                                              reset_graph=False,
+                                              evicted_inputs=[A_list[i - 1]],
+                                              out_nodes=[new_A_list[i]])
+
+        feed_dict = dict(zip(A_list, A_val_list))
+        feed_dict.update({input_tensor: input_tensor_val})
+        loss_val, = executor_loss.run(feed_dict=feed_dict)
+
+        print(f'At iteration {iter} the loss is: {loss_val}')
+        t1 = time.time()
+        print(f"[ {iter} ] Sweep took {t1 - t0} seconds")
+
+    return A_val_list
 
 
 def cpd_nls(size, rank, regularization=1e-7, mode='ad'):
