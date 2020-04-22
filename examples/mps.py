@@ -7,6 +7,7 @@ from utils import CharacterGetter
 from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, gauge_transform_mps
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
+from utils import update_variables
 
 BACKEND_TYPES = ['numpy']
 
@@ -36,15 +37,7 @@ class MpsGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPS
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
-        """
+    def build_inputs_list(cls, num, ranks, size):
 
         assert len(ranks) == num - 1
 
@@ -73,8 +66,20 @@ class MpsGraph(object):
         A_right.subscripts = f"{prev_char}{cg.getchar()}"
         untracted_subs_list.append(A_right.subscripts[1])
 
-        # produce output
-        A_list = [A_left] + A_middle_list + [A_right]
+        return [A_left] + A_middle_list + [A_right], untracted_subs_list
+
+    @classmethod
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPS
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
+        A_list, untracted_subs_list = cls.build_inputs_list(num, ranks, size)
+
         out_subs = "".join(untracted_subs_list)
         input_subs = ','.join([node.subscripts for node in A_list])
         einsum_subscripts = input_subs + '->' + out_subs
@@ -111,16 +116,8 @@ class MpoGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPO
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
+    def build_inputs_list(cls, num, ranks, size):
 
-        """
         assert len(ranks) == num - 1
 
         H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
@@ -152,8 +149,22 @@ class MpoGraph(object):
         up_subs_list.append(H_right.subscripts[1])
         down_subs_list.append(H_right.subscripts[2])
 
-        # produce output
-        H_list = [H_left] + H_middle_list + [H_right]
+        return [H_left] + H_middle_list + [H_right
+                                           ], up_subs_list, down_subs_list
+
+    @classmethod
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPO
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
+        H_list, up_subs_list, down_subs_list = cls.build_inputs_list(
+            num, ranks, size)
+
         up_subs = "".join(up_subs_list)
         down_subs = "".join(down_subs_list)
         input_subs = ','.join([node.subscripts for node in H_list])
@@ -189,23 +200,34 @@ class DmrgGraph(object):
     executors: an array of executors to calculate hessians
 
     """
-    mpo_graph = attr.ib()
-    mps_graph = attr.ib()
+    mpo_inputs = attr.ib()
+    mps_inputs = attr.ib()
     intermediates = attr.ib(default=[])
+    hessians = attr.ib(default=[])
     executors = attr.ib(default=[])
+
+    def update_graph(self, num, mpo_ranks, mps_ranks, size):
+        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
+        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
+        self.mpo_inputs = H_list
+        self.mps_inputs = A_list
+        update_variables(self.intermediates + self.hessians, A_list + H_list)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
         mpo_graph = MpoGraph.create(num, mpo_ranks, size)
         mps_graph = MpsGraph.create(num, mps_ranks, size)
 
-        intermediates, executors = [], []
+        intermediates, executors, hessians = [], [], []
         for i in range(num - 1):
             intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
+            hessians.append(hes)
             executor = ad.Executor([hes])
             intermediates.append(intermediate)
             executors.append(executor)
-        return cls(mpo_graph, mps_graph, intermediates, executors)
+
+        return cls(mpo_graph.inputs, mps_graph.inputs, intermediates, hessians,
+                   executors)
 
     @classmethod
     def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
@@ -348,6 +370,9 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
     mpo_ranks = [mpo_tensors[i].shape[0] for i in range(1, len(mpo_tensors))]
 
     mps_tensors = copy.deepcopy(init_mps_tensors)
+    mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
+
+    dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
 
     # sequence is R
     for iter in range(num_iter):
@@ -359,13 +384,10 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
 
         for i in range(num - 1):
 
-            # TODO: we rebuild the graph every time we update the mps sites.
-            # The reason is that every update can change the shape of the
-            # mps tensor. Can optimize this step later.
-            dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
+            dg.update_graph(num, mpo_ranks, mps_ranks, size)
 
-            feed_dict = dict(zip(dg.mpo_graph.inputs, mpo_tensors))
-            feed_dict.update(dict(zip(dg.mps_graph.inputs, mps_tensors)))
+            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
             hes_val, = dg.executors[i].run(feed_dict=feed_dict)
 
