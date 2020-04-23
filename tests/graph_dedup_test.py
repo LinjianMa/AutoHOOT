@@ -72,8 +72,8 @@ def test_declone_long():
 
 def test_get_transpose_indices():
     a = ad.Variable(name="a", shape=[2, 2, 2])
-    c = ad.Variable(name="a", shape=[2, 2, 2, 2])
     b = ad.Variable(name="b", shape=[2, 2])
+    c = ad.Variable(name="c", shape=[2, 2, 2, 2])
 
     # not transposable
     assert get_transpose_indices(a, b) == None

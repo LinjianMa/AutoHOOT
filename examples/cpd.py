@@ -100,10 +100,10 @@ def cpd_als(dim,
         A_val_list, input_tensor_val = input_val
 
     sweep_times = []
-
     for iter in range(num_iter):
         # als iterations
         t0 = time.time()
+
         for i in range(len(A_list)):
 
             feed_dict = dict(zip(A_list, A_val_list))
@@ -233,6 +233,7 @@ def cpd_als_shared_exec_ctf(dim,
     for iter in range(num_iter):
         # als iterations
         t0 = time.time()
+
         for i in range(len(A_list)):
 
             feed_dict = dict(zip(A_list, A_val_list))
