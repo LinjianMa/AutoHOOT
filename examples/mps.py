@@ -196,11 +196,10 @@ class DmrgGraph(object):
     executors = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
-        A_list = MpsGraph.create(num, mps_ranks, size).inputs
-        H_list = MpoGraph.create(num, mpo_ranks, size).inputs
-        self.mpo_inputs = H_list
-        self.mps_inputs = A_list
-        update_variables(self.intermediates + self.hessians, A_list + H_list)
+        self.mpo_inputs = MpoGraph.create(num, mpo_ranks, size).inputs
+        self.mps_inputs = MpsGraph.create(num, mps_ranks, size).inputs
+        update_variables(self.intermediates + self.hessians,
+                         self.mpo_inputs + self.mps_inputs)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
