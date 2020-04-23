@@ -111,3 +111,48 @@ def get_common_ancestor(root, leaves, in_node):
                 list(filter(lambda n: n is in_node, subtree_leaves)))
             if num_in_nodes == num_in_nodes_subtree:
                 return node
+
+
+def generate_optimal_tree_w_constraint(einsum_node, contract_order):
+    """Generates the optimal path with constraint.
+
+    Args:
+        einsum_node: The einsum node we are generating the path wrt.
+        contract_order: A list containing the contraction order constraint.
+    Returns:
+        einsum_node: The newly generated node.
+    """
+    assert set(contract_order).issubset(set(einsum_node.inputs))
+
+    for i in range(len(contract_order)):
+
+        uncontracted_nodes = contract_order[i + 1:]
+
+        if uncontracted_nodes == []:
+            splitted_einsum = einsum_node
+        else:
+            splitted_einsum, = [
+                node for node in split_einsum(einsum_node,
+                                              uncontracted_nodes).inputs
+                if isinstance(node, ad.EinsumNode)
+            ]
+
+        opt_contract_tree = get_common_ancestor(
+            generate_optimal_tree(splitted_einsum), splitted_einsum.inputs,
+            contract_order[i])
+        opt_contract_tree_leaves = get_all_inputs(opt_contract_tree)
+
+        # Get part of the inputs of splitted_einsum,
+        # whose common_ancestor is opt_contract_tree (along the optimal contraction path)
+        first_contract_inputs = [
+            node for node in splitted_einsum.inputs
+            if set(get_all_inputs(node)).issubset(opt_contract_tree_leaves)
+        ]
+
+        split_out_inputs = [
+            node for node in einsum_node.inputs
+            if node not in first_contract_inputs
+        ]
+        einsum_node = split_einsum(einsum_node, split_out_inputs)
+
+    return einsum_node
