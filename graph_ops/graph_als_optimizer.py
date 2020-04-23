@@ -45,8 +45,10 @@ def generate_sequential_optiaml_tree(einsum_node_map={},
     """
     dt = dimension_tree(list(einsum_node_map.keys()),
                         list(einsum_node_map.values()), first_contract_node)
-    remove_transposes(find_topo_sort(dt))
+    # The order of dedup and remove_transposes matters.
+    # Remove transposes happen only when the inputs are same nodes.
     dedup(*dt)
+    remove_transposes(find_topo_sort(dt))
     return dt
 
 
