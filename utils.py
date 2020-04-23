@@ -297,6 +297,28 @@ def replace_node(prev, new):
             [tmp if tmp.name != prev_node.name else new for tmp in n_o.inputs])
 
 
+def update_variables(out_nodes, variables):
+    """
+    Inplace update the variable nodes for out_nodes.
+    Args:
+        out_nodes: A list of nodes whose input variable nodes will be updated.
+        variables: A list of new variables
+    """
+    variable_dict = {node.name: node for node in variables}
+    pnodes = [PseudoNode(node) for node in out_nodes]
+    all_pnodes = find_topo_sort_p(pnodes)
+
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node,
+                          ad.VariableNode) and node.name in variable_dict:
+                new_node = variable_dict[node.name]
+                replace_node(pnode, new_node)
+
+
 def find_topo_sort(node_list, input_node_list=[]):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
     The input_node_list are used to stop. If ever met a input node, stop probing the graph.

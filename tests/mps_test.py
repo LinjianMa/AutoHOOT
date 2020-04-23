@@ -96,7 +96,10 @@ def test_dmrg_one_sweep():
                                    max_mps_rank=max_mps_rank)
 
         # dmrg based on quimb
-        quimb_energy = dmrg_quimb.sweep_right(canonize=True)
+        opts = {'max_bond': max_mps_rank}
+        quimb_energy = dmrg_quimb.sweep_right(canonize=True,
+                                              verbosity=0,
+                                              **opts)
 
         # We only test on energy (lowest eigenvalue of h), rather than the output
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
