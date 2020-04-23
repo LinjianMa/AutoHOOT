@@ -37,7 +37,15 @@ class MpsGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def build_inputs_list(cls, num, ranks, size):
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPS
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
 
         assert len(ranks) == num - 1
 
@@ -66,20 +74,8 @@ class MpsGraph(object):
         A_right.subscripts = f"{prev_char}{cg.getchar()}"
         untracted_subs_list.append(A_right.subscripts[1])
 
-        return [A_left] + A_middle_list + [A_right], untracted_subs_list
-
-    @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPS
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
-        """
-        A_list, untracted_subs_list = cls.build_inputs_list(num, ranks, size)
-
+        # produce output
+        A_list = [A_left] + A_middle_list + [A_right]
         out_subs = "".join(untracted_subs_list)
         input_subs = ','.join([node.subscripts for node in A_list])
         einsum_subscripts = input_subs + '->' + out_subs
@@ -116,8 +112,15 @@ class MpoGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def build_inputs_list(cls, num, ranks, size):
-
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPO
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
         assert len(ranks) == num - 1
 
         H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
@@ -149,22 +152,8 @@ class MpoGraph(object):
         up_subs_list.append(H_right.subscripts[1])
         down_subs_list.append(H_right.subscripts[2])
 
-        return [H_left] + H_middle_list + [H_right
-                                           ], up_subs_list, down_subs_list
-
-    @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPO
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
-        """
-        H_list, up_subs_list, down_subs_list = cls.build_inputs_list(
-            num, ranks, size)
-
+        # produce output
+        H_list = [H_left] + H_middle_list + [H_right]
         up_subs = "".join(up_subs_list)
         down_subs = "".join(down_subs_list)
         input_subs = ','.join([node.subscripts for node in H_list])
@@ -207,8 +196,8 @@ class DmrgGraph(object):
     executors = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
-        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
-        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
+        A_list = MpsGraph.create(num, mps_ranks, size).inputs
+        H_list = MpoGraph.create(num, mpo_ranks, size).inputs
         self.mpo_inputs = H_list
         self.mps_inputs = A_list
         update_variables(self.intermediates + self.hessians, A_list + H_list)
