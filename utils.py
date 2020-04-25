@@ -383,7 +383,10 @@ def inner_product(vector_list, gradient_list):
     assert len(vector_list) == len(gradient_list)
     assert len(vector_list) >= 1
     inner_product_nodes = [
-        ad.sum(v * g) for v, g in zip(vector_list, gradient_list)
+        ad.tensordot(v, g,
+                     [list(range(len(v.shape))),
+                      list(range(len(v.shape)))])
+        for v, g in zip(vector_list, gradient_list)
     ]
     sum_node = sum_node_list(inner_product_nodes)
     return sum_node
