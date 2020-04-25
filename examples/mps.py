@@ -8,8 +8,8 @@ from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, ga
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import simplify
-from utils import update_variables
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
+from utils import update_variables
 
 BACKEND_TYPES = ['numpy']
 
@@ -39,7 +39,16 @@ class MpsGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def build_inputs_list(cls, num, ranks, size):
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPS
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+        """
+
         assert len(ranks) == num - 1
 
         A_left = ad.Variable(name='A0', shape=[ranks[0], size])
@@ -68,20 +77,7 @@ class MpsGraph(object):
         untracted_subs_list.append(A_right.subscripts[1])
 
         # produce output
-        return [A_left] + A_middle_list + [A_right], untracted_subs_list
-
-    @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPS
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
-        """
-        A_list, untracted_subs_list = cls.build_inputs_list(num, ranks, size)
-
+        A_list = [A_left] + A_middle_list + [A_right]
         out_subs = "".join(untracted_subs_list)
         input_subs = ','.join([node.subscripts for node in A_list])
         einsum_subscripts = input_subs + '->' + out_subs
@@ -118,7 +114,16 @@ class MpoGraph(object):
     inputs = attr.ib(default=[])
 
     @classmethod
-    def build_inputs_list(cls, num, ranks, size):
+    def create(cls, num, ranks, size=2):
+        """
+        Parameters
+        ----------
+        num: Number of sites in the MPO
+        size: the size of uncontracted dimensions
+        ranks: a list of the size of contracted dimensions.
+            The length of the list should be num-1.
+
+        """
         assert len(ranks) == num - 1
 
         H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
@@ -151,23 +156,7 @@ class MpoGraph(object):
         down_subs_list.append(H_right.subscripts[2])
 
         # produce output
-        return [H_left] + H_middle_list + [H_right
-                                           ], up_subs_list, down_subs_list
-
-    @classmethod
-    def create(cls, num, ranks, size=2):
-        """
-        Parameters
-        ----------
-        num: Number of sites in the MPO
-        size: the size of uncontracted dimensions
-        ranks: a list of the size of contracted dimensions.
-            The length of the list should be num-1.
-
-        """
-        H_list, up_subs_list, down_subs_list = cls.build_inputs_list(
-            num, ranks, size)
-
+        H_list = [H_left] + H_middle_list + [H_right]
         up_subs = "".join(up_subs_list)
         down_subs = "".join(down_subs_list)
         input_subs = ','.join([node.subscripts for node in H_list])
@@ -210,15 +199,10 @@ class DmrgGraph(object):
     executors = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
-        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
-        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
-        self.mpo_inputs = H_list
-        self.mps_inputs = A_list
-
-        variable_dict = {node.name: node for node in A_list}
-        variable_dict.update({node.name: node for node in H_list})
-
-        update_variables(self.intermediates + self.hessians, variable_dict)
+        self.mpo_inputs = MpoGraph.create(num, mpo_ranks, size).inputs
+        self.mps_inputs = MpsGraph.create(num, mps_ranks, size).inputs
+        update_variables(self.intermediates + self.hessians,
+                         self.mpo_inputs + self.mps_inputs)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
@@ -229,10 +213,12 @@ class DmrgGraph(object):
         for i in range(num - 1):
             intermediate, hes = cls.get_sub_hessian(i, mpo_graph, mps_graph)
             hes = simplify(hes)
+
             hessians.append(hes)
             executor = ad.Executor([hes])
             intermediates.append(intermediate)
             executors.append(executor)
+
         return cls(mpo_graph.inputs, mps_graph.inputs, intermediates, hessians,
                    executors)
 
@@ -285,15 +271,10 @@ class DmrgGraph_shared_exec(object):
     hessians = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
-        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
-        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
-        self.mpo_inputs = H_list
-        self.mps_inputs = A_list
-
-        variable_dict = {node.name: node for node in A_list}
-        variable_dict.update({node.name: node for node in H_list})
-
-        update_variables(self.intermediates + self.hessians, variable_dict)
+        self.mpo_inputs = MpoGraph.create(num, mpo_ranks, size).inputs
+        self.mps_inputs = MpsGraph.create(num, mps_ranks, size).inputs
+        update_variables(self.intermediates + self.hessians,
+                         self.mpo_inputs + self.mps_inputs)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):

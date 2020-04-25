@@ -27,23 +27,17 @@ class DmrgGraph_implicit_shared_exec(object):
     v_nodes = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
-        A_list, _ = MpsGraph.build_inputs_list(num, mps_ranks, size)
-        H_list, _, _ = MpoGraph.build_inputs_list(num, mpo_ranks, size)
-        self.mpo_inputs = H_list
-        self.mps_inputs = A_list
+        self.mpo_inputs = MpoGraph.create(num, mpo_ranks, size).inputs
+        self.mps_inputs = MpsGraph.create(num, mps_ranks, size).inputs
 
-        variable_dict = {node.name: node for node in A_list}
-        variable_dict.update({node.name: node for node in H_list})
-
-        update_variables(self.intermediates, variable_dict)
+        update_variables(self.intermediates, self.mpo_inputs + self.mps_inputs)
 
         self.v_nodes = [
             ad.Variable(name=f"v{i}", shape=node.shape)
             for (i, node) in enumerate(self.intermediates)
         ]
-        variable_dict.update({node.name: node for node in self.v_nodes})
-
-        update_variables(self.hes_vecs, variable_dict)
+        update_variables(self.hes_vecs,
+                         self.mpo_inputs + self.mps_inputs + self.v_nodes)
 
     @classmethod
     def create(cls, num, mpo_ranks, mps_ranks, size):
