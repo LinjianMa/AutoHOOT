@@ -101,12 +101,12 @@ def get_common_ancestor(root, leaves, in_node):
     assert in_node in leaves
 
     num_in_nodes = len(list(filter(lambda n: n is in_node, leaves)))
-    topo_order_list = find_topo_sort([root])
+    topo_order_list = find_topo_sort([root], leaves)
 
     for node in topo_order_list:
         # We want to get the smallest subtree whose inputs contain all the in_node(s).
         if isinstance(node, ad.EinsumNode):
-            subtree_leaves = [n for n in get_all_inputs(node) if n in leaves]
+            subtree_leaves = [n for n in get_all_inputs(node, leaves)]
             num_in_nodes_subtree = len(
                 list(filter(lambda n: n is in_node, subtree_leaves)))
             if num_in_nodes == num_in_nodes_subtree:
