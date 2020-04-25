@@ -66,3 +66,20 @@ def test_s2s_jtjvp():
 
         assert isinstance(jtjvp_x, ad.Node)
         assert T.array_equal(jtjvp_x_val_s2s, expected_jtjvp_x_val)
+
+
+def test_s2s_w_constants():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+        A = ad.Variable(name="A", shape=[2, 2])
+        I = ad.identity(2)
+        B = A @ I
+
+        A_val = T.tensor([[1., 2.], [3., 4.]])
+
+        StS = SourceToSource()
+        StS.forward([B], file=open("example_fwd.py", "w"), function_name='fwd')
+
+        import example_fwd
+        out, = example_fwd.fwd([A_val])
+        assert T.array_equal(A_val, out)
