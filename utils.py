@@ -60,22 +60,27 @@ def indices_to_subscripts(in_indices, out_index, dim_size):
 ##############################
 
 
-def get_all_inputs(root, leaves=[]):
-    """
-    Get all the input nodes of a tree(defined by root and leaves).
-    Note that the leaves list can include other nodes not in the tree
-    """
-    if leaves == []:
-        topo_order_list = find_topo_sort([root])
-        leaves = [node for node in topo_order_list if len(node.inputs) == 0]
-
+def get_all_inputs(out):
     all_inputs = []
-    if root in leaves:
-        all_inputs.append(root)
+    if len(out.inputs) == 0:
+        all_inputs.append(out)
+    else:
+        for i in out.inputs:
+            all_inputs += get_all_inputs(i)
+    return all_inputs
+
+
+def get_tree(root):
+    """
+    Get all the nodes in the tree defined by root node.
+    """
+    out_nodes = [root]
+    if len(root.inputs) == 0:
+        return out_nodes
     else:
         for i in root.inputs:
-            all_inputs += get_all_inputs(i, leaves)
-    return all_inputs
+            out_nodes += get_tree(i)
+    return out_nodes
 
 
 def sympy_simplify(out, inputs):

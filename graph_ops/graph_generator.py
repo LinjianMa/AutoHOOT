@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_all_inputs
+from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_tree
 
 import autodiff as ad
 import copy
@@ -106,7 +106,7 @@ def get_common_ancestor(root, leaves, in_node):
     for node in topo_order_list:
         # We want to get the smallest subtree whose inputs contain all the in_node(s).
         if isinstance(node, ad.EinsumNode):
-            subtree_leaves = [n for n in get_all_inputs(node, leaves)]
+            subtree_leaves = [n for n in get_tree(node) if n in leaves]
             num_in_nodes_subtree = len(
                 list(filter(lambda n: n is in_node, subtree_leaves)))
             if num_in_nodes == num_in_nodes_subtree:
