@@ -70,6 +70,19 @@ def get_all_inputs(out):
     return all_inputs
 
 
+def get_tree(root):
+    """
+    Get all the nodes in the tree defined by root node.
+    """
+    out_nodes = [root]
+    if len(root.inputs) == 0:
+        return out_nodes
+    else:
+        for i in root.inputs:
+            out_nodes += get_tree(i)
+    return out_nodes
+
+
 def sympy_simplify(out, inputs):
     """
     Parameters

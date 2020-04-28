@@ -139,6 +139,17 @@ def test_get_common_ancestor_w_inv():
                       [A, X], key=lambda node: node.name)
 
 
+def test_get_common_ancester_intermediate_leaves():
+
+    a = ad.Variable(name="a", shape=[2, 2])
+    b = ad.Variable(name="b", shape=[2, 2])
+    c = ad.einsum("ab,bc->ac", a, b)
+    d = ad.einsum("ab,ab->ab", c, c)
+
+    ancester = get_common_ancestor(d, d.inputs, c)
+    assert ancester == d
+
+
 def test_split_einsum_dup():
     for datatype in BACKEND_TYPES:
 
