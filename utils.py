@@ -70,6 +70,19 @@ def get_all_inputs(out):
     return all_inputs
 
 
+def get_tree(root):
+    """
+    Get all the nodes in the tree defined by root node.
+    """
+    out_nodes = [root]
+    if len(root.inputs) == 0:
+        return out_nodes
+    else:
+        for i in root.inputs:
+            out_nodes += get_tree(i)
+    return out_nodes
+
+
 def sympy_simplify(out, inputs):
     """
     Parameters
@@ -383,7 +396,10 @@ def inner_product(vector_list, gradient_list):
     assert len(vector_list) == len(gradient_list)
     assert len(vector_list) >= 1
     inner_product_nodes = [
-        ad.sum(v * g) for v, g in zip(vector_list, gradient_list)
+        ad.tensordot(v, g,
+                     [list(range(len(v.shape))),
+                      list(range(len(v.shape)))])
+        for v, g in zip(vector_list, gradient_list)
     ]
     sum_node = sum_node_list(inner_product_nodes)
     return sum_node
