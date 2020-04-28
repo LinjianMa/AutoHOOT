@@ -119,40 +119,44 @@ def generate_optimal_tree_w_constraint(einsum_node, contract_order):
     Args:
         einsum_node: The einsum node we are generating the path wrt.
         contract_order: A list containing the contraction order constraint.
+                        Nodes in contract_order will be contracted based on the order
+                        from list start to the end.
     Returns:
-        einsum_node: The newly generated node.
+        out_node: The newly generated node.
     """
     assert set(contract_order).issubset(set(einsum_node.inputs))
+    # TODO: currently doesn't support the case where every input is in the contract_order
+    assert len(set(einsum_node.inputs)) - len(set(contract_order)) > 0
+
+    out_node = einsum_node
 
     for i in range(len(contract_order)):
 
         uncontracted_nodes = contract_order[i + 1:]
 
         if uncontracted_nodes == []:
-            splitted_einsum = einsum_node
+            splitted_einsum = out_node
         else:
             splitted_einsum, = [
-                node for node in split_einsum(einsum_node,
-                                              uncontracted_nodes).inputs
+                node
+                for node in split_einsum(out_node, uncontracted_nodes).inputs
                 if isinstance(node, ad.EinsumNode)
             ]
 
-        opt_contract_tree = get_common_ancestor(
-            generate_optimal_tree(splitted_einsum), splitted_einsum.inputs,
-            contract_order[i])
-        opt_contract_tree_leaves = get_all_inputs(opt_contract_tree)
+        splitted_einsum_opt_path = generate_optimal_tree(splitted_einsum)
+        opt_contract_tree = get_common_ancestor(splitted_einsum_opt_path,
+                                                splitted_einsum.inputs,
+                                                contract_order[i])
 
-        # Get part of the inputs of splitted_einsum,
-        # whose common_ancestor is opt_contract_tree (along the optimal contraction path)
         first_contract_inputs = [
-            node for node in splitted_einsum.inputs
-            if set(get_all_inputs(node)).issubset(opt_contract_tree_leaves)
+            n for n in get_tree(opt_contract_tree)
+            if n in splitted_einsum.inputs
         ]
 
         split_out_inputs = [
-            node for node in einsum_node.inputs
+            node for node in out_node.inputs
             if node not in first_contract_inputs
         ]
-        einsum_node = split_einsum(einsum_node, split_out_inputs)
+        out_node = split_einsum(out_node, split_out_inputs)
 
-    return einsum_node
+    return out_node
