@@ -74,13 +74,7 @@ def get_tree(root):
     """
     Get all the nodes in the tree defined by root node.
     """
-    out_nodes = [root]
-    if len(root.inputs) == 0:
-        return out_nodes
-    else:
-        for i in root.inputs:
-            out_nodes += get_tree(i)
-    return out_nodes
+    return [pnode.node for pnode in find_topo_sort_p([PseudoNode(root)])]
 
 
 def sympy_simplify(out, inputs):
@@ -375,10 +369,10 @@ def find_topo_sort_p(pnode_list, input_node_list=[]):
 
 def topo_sort_dfs_p(pnode, visited, topo_order, input_node_list):
     """Post-order DFS"""
-    node = pnode.node
-    if node in visited:
+    if pnode in visited:
         return
-    visited.add(node)
+    visited.add(pnode)
+    node = pnode.node
     if node not in input_node_list:
         for n in node.inputs:
             topo_sort_dfs_p(PseudoNode(n), visited, topo_order,
