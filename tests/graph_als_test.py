@@ -73,6 +73,7 @@ def test_dimension_tree_w_identity():
 
     assert tree_eq(dt[0], einsum_node_A, [A, C, X])
     assert tree_eq(dt[1], einsum_node_B, [A, C, X])
+    assert tree_eq(dt[2], einsum_node_C, [A, B, X])
 
 
 def test_simple_dmrg_tree():

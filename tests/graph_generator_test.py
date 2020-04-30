@@ -1,7 +1,7 @@
 import autodiff as ad
 import backend as T
 from utils import get_all_inputs
-from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor
+from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
@@ -139,6 +139,17 @@ def test_get_common_ancestor_w_inv():
                       [A, X], key=lambda node: node.name)
 
 
+def test_get_common_ancester_intermediate_leaves():
+
+    a = ad.Variable(name="a", shape=[2, 2])
+    b = ad.Variable(name="b", shape=[2, 2])
+    c = ad.einsum("ab,bc->ac", a, b)
+    d = ad.einsum("ab,ab->ab", c, c)
+
+    ancester = get_common_ancestor(d, d.inputs, c)
+    assert ancester == d
+
+
 def test_split_einsum_dup():
     for datatype in BACKEND_TYPES:
 
@@ -151,3 +162,20 @@ def test_split_einsum_dup():
 
         assert len(new_einsum.inputs) == 2  # A, einsum(B, B)
         assert tree_eq(new_einsum, einsum_node, [A, B])
+
+
+def test_optimal_tree_w_constraint():
+    for datatype in BACKEND_TYPES:
+
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.Variable(name="B", shape=[2, 2])
+        C = ad.Variable(name="C", shape=[2, 2])
+
+        einsum_node = ad.einsum("ab,bc,cd->ad", A, B, C)
+        new_einsum = generate_optimal_tree_w_constraint(einsum_node, [B, C])
+
+        assert C in new_einsum.inputs
+        einsum_intermediate, = [
+            n for n in new_einsum.inputs if isinstance(n, ad.EinsumNode)
+        ]
+        assert B in einsum_intermediate.inputs

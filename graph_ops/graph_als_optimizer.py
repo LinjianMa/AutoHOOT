@@ -25,8 +25,6 @@ def generate_sequential_optiaml_tree(einsum_nodes, input_nodes=None):
     """Generates a list of nodes in-order. 
     Args: 
         einsum_node_map: a dict that maps from an output node to a input node.
-        first_contract_node: a node that will be contracted before all value nodes
-            in einsum_node_map.
      
     Returns:
         einsum_nodes: a list of newly generated einsum nodes.
@@ -89,7 +87,6 @@ def generate_sequential_optiaml_tree(einsum_nodes, input_nodes=None):
 def dimension_tree(einsum_nodes, input_nodes):
     """
     Calculating einsum expressions based on the dimension tree.
-
     Parameters
     ----------
     einsum_nodes : list
@@ -97,12 +94,12 @@ def dimension_tree(einsum_nodes, input_nodes):
     input_nodes : list
         List of input nodes whose contraction in the einsum_nodes obeys
         the sequence from the list end to the list start.
-    first_contract_node: a node that will be contracted before all the input nodes.
 
     Returns
     -------
         List of einsum nodes whose results are the same as einsum_nodes,
         while obeys the dimension tree calculation sequence.
+
     Examples
     --------
     >>> einsum_node_A = ad.einsum("abcd,bm,cm,dm->am", X, B, C, D)
