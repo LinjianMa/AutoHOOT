@@ -18,7 +18,7 @@ from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP
-from utils import replace_node, sympy_simplify
+from utils import replace_node, sympy_simplify, get_all_nodes
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -380,7 +380,7 @@ def optimize(node):
     node = distribute_tree(node)
     linearize(node)
 
-    all_nodes = find_topo_sort([node])
+    all_nodes = get_all_nodes([node])
     ret_node = PseudoNode(node)
     with OutputInjectedMode(all_nodes):
         trees = find_sub_einsumtree(ret_node)
@@ -392,12 +392,12 @@ def optimize(node):
             replace_node(out_node_p, new_z)
 
     node = declone(ret_node.node)
-    all_nodes = find_topo_sort([node])
+    all_nodes = get_all_nodes([node])
     for node in all_nodes:
         if isinstance(node, ad.EinsumNode):
             rewrite_einsum_expr(node)
 
-    for node in find_topo_sort([node]):
+    for node in get_all_nodes([node]):
         if node.inputs != []:
             node.set_inputs(node.inputs)
 
@@ -480,7 +480,7 @@ def simplify(output_node):
     #sympy_simplify the distributed nodes
     if isinstance(output_node, ad.DistributiveNode):
         sympy_inputs = []
-        all_nodes = find_topo_sort([output_node])
+        all_nodes = get_all_nodes([output_node])
         for node in all_nodes:
             if isinstance(node, ad.EinsumNode):
                 # To make sure the same einsum nodes have the same name,

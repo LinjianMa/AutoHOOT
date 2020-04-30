@@ -4,7 +4,7 @@ from graph_ops.graph_transformer import optimize, linearize, simplify
 from graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
-from utils import find_topo_sort
+from utils import get_all_nodes
 
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 size, rank = 10, 5
@@ -210,7 +210,7 @@ def test_cpd_hessian_optimize_diag():
             num_operations = len(
                 list(
                     filter(lambda x: isinstance(x, ad.OpNode),
-                           find_topo_sort([node]))))
+                           get_all_nodes([node]))))
             """
             Use this assertion to test the optimize function.
             5 operations:
@@ -262,7 +262,7 @@ def test_cpd_hessian_optimize_offdiag():
             num_operations = len(
                 list(
                     filter(lambda x: isinstance(x, ad.OpNode),
-                           find_topo_sort([node]))))
+                           get_all_nodes([node]))))
             # This is currently non-deterministic.
             # assert num_operations == 14
 

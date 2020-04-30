@@ -1,6 +1,6 @@
 import autodiff as ad
 from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
-from utils import find_topo_sort
+from utils import get_all_nodes
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
@@ -25,7 +25,7 @@ def test_dimension_tree_4d():
     })
 
     # 5 inputs, 4 outputs, 5 intermedaites
-    assert len(find_topo_sort(dt)) == 14
+    assert len(get_all_nodes(dt)) == 14
 
     assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
     assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
@@ -96,7 +96,7 @@ def test_simple_dmrg_tree():
     # all other X nodes should be contracted later.
     einsum_inputs = list(
         filter(lambda node: isinstance(node, ad.EinsumNode),
-               find_topo_sort(dt)))
+               get_all_nodes(dt)))
     assert sorted(einsum_inputs[0].inputs,
                   key=lambda node: node.name) == sorted(
                       [A3, A3, X3], key=lambda node: node.name)

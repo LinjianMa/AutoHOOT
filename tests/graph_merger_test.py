@@ -2,7 +2,7 @@ import autodiff as ad
 import backend as T
 from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
 from graph_ops.graph_transformer import linearize
-from utils import find_topo_sort, find_topo_sort_p
+from utils import get_all_nodes, find_topo_sort_p
 from utils import replace_node, OutputInjectedModeP, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
@@ -207,7 +207,7 @@ def test_einsum_multiuse_auto_copy():
         output = ad.einsum('ik,ij->kj', a, c)
 
         linearize(output)
-        all_nodes = find_topo_sort([output])
+        all_nodes = get_all_nodes([output])
         cloned_nodes = [
             tmp for tmp in all_nodes if isinstance(tmp, ad.CloneNode)
         ]

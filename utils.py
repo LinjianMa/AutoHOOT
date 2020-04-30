@@ -70,11 +70,19 @@ def get_all_inputs(out):
     return all_inputs
 
 
-def get_tree(root):
+def get_all_nodes(sinks, sources=[]):
     """
     Get all the nodes in the tree defined by root node.
+
+    Args:
+        sinks: A list of nodes defines the sink.
+        sources: Stop expanding at provided sources.
     """
-    return [pnode.node for pnode in find_topo_sort_p([PseudoNode(root)])]
+    return [
+        pnode.node
+        for pnode in find_topo_sort_p([PseudoNode(sink)
+                                       for sink in sinks], sources)
+    ]
 
 
 def sympy_simplify(out, inputs):
@@ -98,7 +106,7 @@ def sympy_simplify(out, inputs):
     ss = symbols(ss_name)
     formula = out.name
     # Visit the inputs in reverse topological order.
-    all_nodes = reversed(find_topo_sort([out]))
+    all_nodes = reversed(get_all_nodes([out]))
     for i in all_nodes:
         if i in inputs:
             formula = formula.replace(i.name, input_to_chars[i])
@@ -333,6 +341,8 @@ def find_topo_sort(node_list, input_node_list=[]):
     going backwards based on input edges. Since a node is added to the ordering
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
+
+    For reverse mode AD exeuction, we must use this instead of find_topo_sort_p.
     """
     visited = set()
     topo_order = []

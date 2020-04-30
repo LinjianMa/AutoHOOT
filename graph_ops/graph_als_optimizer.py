@@ -4,7 +4,7 @@
 """
 import logging
 import autodiff as ad
-from utils import get_all_inputs, find_topo_sort
+from utils import get_all_inputs, get_all_nodes
 
 from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree, generate_optimal_tree_w_constraint
 from graph_ops.graph_dedup import dedup, remove_transposes
@@ -45,7 +45,7 @@ def generate_sequential_optiaml_tree(einsum_node_map={}):
     # The order of dedup and remove_transposes matters.
     # Remove transposes happen only when the inputs are same nodes.
     dedup(*dt)
-    remove_transposes(find_topo_sort(dt))
+    remove_transposes(get_all_nodes(dt))
     return dt
 
 

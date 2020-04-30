@@ -1,7 +1,7 @@
 import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes
 from tests.test_utils import tree_eq, gen_dict
-from utils import find_topo_sort
+from utils import get_all_nodes
 from visualizer import print_computation_graph
 
 
@@ -97,7 +97,9 @@ def test_get_transpose_indices():
     assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == [0, 2, 1]
     assert get_transpose_indices(ad.einsum('acje,ie->iacj', c, b),
-                                 ad.einsum('jace,ie->iacj', c, b)) == [0, 2, 3, 1]
+                                 ad.einsum('jace,ie->iacj', c,
+                                           b)) == [0, 2, 3, 1]
+
 
 def test_remove_transposes():
     a = ad.Variable(name="a", shape=[2, 2, 2, 2])
@@ -114,7 +116,7 @@ def test_remove_transposes():
     abcd1 = ad.einsum("abe,be->ae", abc1, d)
     abcd2 = ad.einsum("eba,be->ae", abc2, d)
 
-    remove_transposes(find_topo_sort([abcd1, abcd2]))
+    remove_transposes(get_all_nodes([abcd1, abcd2]))
 
     assert abcd1.name == abcd2.name
 
@@ -128,6 +130,6 @@ def test_remove_transposes_multiple_trans():
     ret1 = ad.einsum("dcba->badc", intermediate1)
     ret2 = ad.einsum("abdc->badc", intermediate2)
 
-    remove_transposes(find_topo_sort([ret1, ret2]))
+    remove_transposes(get_all_nodes([ret1, ret2]))
 
     assert ret1.name == ret2.name

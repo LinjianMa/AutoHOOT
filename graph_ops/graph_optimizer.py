@@ -5,7 +5,7 @@ import copy
 
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode
+from utils import get_all_nodes, IntGetter, CharacterGetter, PseudoNode
 from utils import get_leaves, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -130,7 +130,7 @@ def fuse_einsums(output_node, input_nodes):
 
     # # Get all the einsum nodes except the input nodes in the computation graph.
     # # Note that the order doesn't matter!
-    all_nodes = find_topo_sort([output_node], input_nodes)
+    all_nodes = get_all_nodes([output_node], input_nodes)
 
     pseudo_input_nodes = []
     pseudo_output_node = None
