@@ -40,13 +40,16 @@ class SourceToSource():
         self.grad_to_forward_map = {}
         self.forward_to_hvp_map = {}
         self.hvp_to_forward_map = {}
-        self.file = None
+        self.file_string = ''
 
     def _print_to_file(self, input):
-        print(input, file=self.file)
+        self.file_string += input
+        self.file_string += '\n'
 
     def _print_to_file_w_indent(self, input):
-        print(f'{INDENT}{input}', file=self.file)
+        self.file_string += INDENT
+        self.file_string += input
+        self.file_string += '\n'
 
     def _assign_next_midname(self):
         if self.mid_name[-1] < 'z':
@@ -156,7 +159,6 @@ class SourceToSource():
 
     def forward(self,
                 output_node_list,
-                file=None,
                 function_name='forward',
                 backend='backend'):
         """Forward pass source code generation.
@@ -165,7 +167,6 @@ class SourceToSource():
         """
         self.mid_name = '_a'
         self.input_index = 0
-        self.file = file
 
         if backend == 'backend':
             self._forward_head_print()
@@ -179,13 +180,12 @@ class SourceToSource():
         # return expression
         returned_names = ",".join([node.name for node in output_node_list])
         self._print_to_file_w_indent(f'return [{returned_names}]')
-        self.file.flush()
 
-    def gradients(self, output_node, node_list, file=None):
+    def gradients(self, output_node, node_list):
         """Gradients source code generation."""
+        self.file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
-        self.file = file
         self._print_to_file(f'import backend as T\n')
         self._print_to_file(f'def gradients(inputs):')
         self._sub_gradients(output_node, node_list)
@@ -193,13 +193,12 @@ class SourceToSource():
         returned_grad_names = ",".join(
             [self.forward_to_grad_map[node].name for node in node_list])
         self._print_to_file_w_indent(f'return [{returned_grad_names}]')
-        self.file.flush()
 
-    def hvp(self, output_node, node_list, vector_list, file=None):
+    def hvp(self, output_node, node_list, vector_list):
         """Hvp source code generation."""
+        self.file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
-        self.file = file
         self._print_to_file(f'import backend as T\n')
         self._print_to_file(f'def hvp(inputs):')
         self._sub_gradients(output_node, node_list)
@@ -209,4 +208,6 @@ class SourceToSource():
         returned_hvp_names = ",".join(
             [self.forward_to_hvp_map[node].name for node in node_list])
         self._print_to_file_w_indent(f'return [{returned_hvp_names}]')
-        self.file.flush()
+
+    def __str__(self):
+        return self.file_string

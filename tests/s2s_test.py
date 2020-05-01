@@ -5,6 +5,30 @@ from source import SourceToSource
 BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
 
+def import_code(code, name="ephermal"):
+    """
+    Import dynamically generated code as a module. code is the
+    object containing the code (a string, a file handle or an
+    actual compiled code object, same types as accepted by an
+    exec statement). The name is the name to give to the module.
+
+    import foo
+
+    is equivalent to
+
+    foofile = open("/path/to/foo.py")
+    foo = importCode(foofile,"foo",1)
+
+    Returns a newly generated module.
+    """
+
+    import importlib.util
+    spec = importlib.util.spec_from_loader(name, loader=None)
+    m = importlib.util.module_from_spec(spec)
+    exec(str(code), m.__dict__)
+    return m
+
+
 def test_s2s_hvp():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
@@ -25,14 +49,15 @@ def test_s2s_hvp():
         expected_hv_val = T.tensor([4., 8., 12.])
 
         StS = SourceToSource()
-        StS.forward([y], file=open("example_forward.py", "w"))
-        StS.gradients(y, [x], file=open("example_grad.py", "w"))
-        StS.hvp(y, [x], [v], file=open("example_hvp.py", "w"))
-
-        import example_forward, example_grad, example_hvp
-        y_val_s2s, = example_forward.forward([x_val, H_val])
-        grad_x_val_s2s, = example_grad.gradients([x_val, H_val])
-        Hv_val_s2s, = example_hvp.hvp([x_val, H_val, v_val])
+        StS.forward([y])
+        m = import_code(str(StS))
+        y_val_s2s, = m.forward([x_val, H_val])
+        StS.gradients(y, [x])
+        m = import_code(str(StS))
+        grad_x_val_s2s, = m.gradients([x_val, H_val])
+        StS.hvp(y, [x], [v])
+        m = import_code(str(StS))
+        Hv_val_s2s, = m.hvp([x_val, H_val, v_val])
 
         assert isinstance(y, ad.Node)
         assert T.array_equal(y_val_s2s, expected_yval)
@@ -57,12 +82,9 @@ def test_s2s_jtjvp():
         expected_jtjvp_x_val = T.einsum("ba,bc,c->a", A_val, A_val, v_val)
 
         StS = SourceToSource()
-        StS.forward([jtjvp_x],
-                    file=open("example_jtjvp.py", "w"),
-                    function_name='jtjvp')
-
-        import example_jtjvp
-        jtjvp_x_val_s2s, = example_jtjvp.jtjvp([A_val, v_val])
+        StS.forward([jtjvp_x], function_name='jtjvp')
+        m = import_code(str(StS))
+        jtjvp_x_val_s2s, = m.jtjvp([A_val, v_val])
 
         assert isinstance(jtjvp_x, ad.Node)
         assert T.array_equal(jtjvp_x_val_s2s, expected_jtjvp_x_val)
@@ -78,8 +100,8 @@ def test_s2s_w_constants():
         A_val = T.tensor([[1., 2.], [3., 4.]])
 
         StS = SourceToSource()
-        StS.forward([B], file=open("example_fwd.py", "w"), function_name='fwd')
+        StS.forward([B], function_name='fwd')
+        m = import_code(str(StS))
+        out, = m.fwd([A_val])
 
-        import example_fwd
-        out, = example_fwd.fwd([A_val])
         assert T.array_equal(A_val, out)
