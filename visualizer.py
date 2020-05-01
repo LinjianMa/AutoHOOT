@@ -1,6 +1,6 @@
 from graphviz import Digraph
 import autodiff as ad
-from utils import find_topo_sort
+from utils import get_all_nodes
 from utils import OutputInjectedMode
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -56,7 +56,7 @@ def print_computation_graph(output_node_list, input_nodes=[]):
     """
     assert len(output_node_list) > 0
 
-    topo_order = find_topo_sort(output_node_list, input_nodes)
+    topo_order = get_all_nodes(output_node_list, input_nodes)
 
     inputs = list(filter(lambda x: isinstance(x, ad.VariableNode), topo_order))
     with OutputInjectedMode(topo_order):

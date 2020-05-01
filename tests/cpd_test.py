@@ -208,7 +208,7 @@ def test_cpd_hessian_optimize_diag():
             node = optimize(node)
             assert isinstance(node, ad.AddNode)
             num_operations = len(
-                list(
+                set(
                     filter(lambda x: isinstance(x, ad.OpNode),
                            get_all_nodes([node]))))
             """

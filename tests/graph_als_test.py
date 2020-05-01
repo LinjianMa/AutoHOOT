@@ -25,7 +25,7 @@ def test_dimension_tree_4d():
     })
 
     # 5 inputs, 4 outputs, 5 intermedaites
-    assert len(get_all_nodes(dt)) == 14
+    assert len(set(get_all_nodes(dt))) == 14
 
     assert tree_eq(dt[0], einsum_node_A, [A, B, C, D, X])
     assert tree_eq(dt[1], einsum_node_B, [A, B, C, D, X])
