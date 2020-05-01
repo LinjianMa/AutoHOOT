@@ -41,12 +41,18 @@ class SourceToSource():
         self.forward_to_hvp_map = {}
         self.hvp_to_forward_map = {}
         self.file = None
+        self.file_string = ''
 
     def _print_to_file(self, input):
         print(input, file=self.file)
+        self.file_string += input
+        self.file_string += '\n'
 
     def _print_to_file_w_indent(self, input):
         print(f'{INDENT}{input}', file=self.file)
+        self.file_string += INDENT
+        self.file_string += input
+        self.file_string += '\n'
 
     def _assign_next_midname(self):
         if self.mid_name[-1] < 'z':
@@ -183,6 +189,7 @@ class SourceToSource():
 
     def gradients(self, output_node, node_list, file=None):
         """Gradients source code generation."""
+        self.file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
@@ -197,6 +204,7 @@ class SourceToSource():
 
     def hvp(self, output_node, node_list, vector_list, file=None):
         """Hvp source code generation."""
+        self.file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
         self.file = file
@@ -210,3 +218,6 @@ class SourceToSource():
             [self.forward_to_hvp_map[node].name for node in node_list])
         self._print_to_file_w_indent(f'return [{returned_hvp_names}]')
         self.file.flush()
+
+    def __str__(self):
+        return self.file_string
