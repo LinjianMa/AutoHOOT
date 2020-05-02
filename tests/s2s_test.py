@@ -49,14 +49,14 @@ def test_s2s_hvp():
         expected_hv_val = T.tensor([4., 8., 12.])
 
         StS = SourceToSource()
-        StS.forward([y])
-        m = import_code(str(StS))
+        forward_str = StS.forward([y])
+        m = import_code(forward_str)
         y_val_s2s, = m.forward([x_val, H_val])
-        StS.gradients(y, [x])
-        m = import_code(str(StS))
+        grad_str = StS.gradients(y, [x])
+        m = import_code(grad_str)
         grad_x_val_s2s, = m.gradients([x_val, H_val])
-        StS.hvp(y, [x], [v])
-        m = import_code(str(StS))
+        hvp_str = StS.hvp(y, [x], [v])
+        m = import_code(hvp_str)
         Hv_val_s2s, = m.hvp([x_val, H_val, v_val])
 
         assert isinstance(y, ad.Node)
@@ -82,8 +82,8 @@ def test_s2s_jtjvp():
         expected_jtjvp_x_val = T.einsum("ba,bc,c->a", A_val, A_val, v_val)
 
         StS = SourceToSource()
-        StS.forward([jtjvp_x], function_name='jtjvp')
-        m = import_code(str(StS))
+        forward_str = StS.forward([jtjvp_x], function_name='jtjvp')
+        m = import_code(forward_str)
         jtjvp_x_val_s2s, = m.jtjvp([A_val, v_val])
 
         assert isinstance(jtjvp_x, ad.Node)
@@ -100,8 +100,8 @@ def test_s2s_w_constants():
         A_val = T.tensor([[1., 2.], [3., 4.]])
 
         StS = SourceToSource()
-        StS.forward([B], function_name='fwd')
-        m = import_code(str(StS))
+        fwd_str = StS.forward([B], function_name='fwd')
+        m = import_code(fwd_str)
         out, = m.fwd([A_val])
 
         assert T.array_equal(A_val, out)
