@@ -236,32 +236,6 @@ def get_root(nodes):
             return n
 
 
-def get_leaves(nodes):
-    """
-        Returns all the inputs of the nodes formed as a tree. The returned node
-        must not be in the tree.
-        Args:
-            Nodes is a list of graph nodes.
-        Returns:
-            a set of nodes.
-        
-        For further illustration:
-            A
-           / \
-          B  I3
-         / \
-        I1  I2
-        
-        I1, I2, I3 are the returned nodes. inputs is {A,B} 
-    """
-    all_inputs = set()
-    for n in nodes:
-        for n_i in n.inputs:
-            if n_i not in nodes:
-                all_inputs.add(n_i)
-    return all_inputs
-
-
 def get_all_einsum_descendants(node):
     """Returns all the einsum descendants including himself.
     Args:

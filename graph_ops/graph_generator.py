@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descendants, get_leaves, find_topo_sort, get_tree
+from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_tree
 
 import autodiff as ad
 import copy
@@ -15,7 +15,7 @@ def generate_optimal_tree(node, path=None):
         final_node: The newly generated node.
     """
     assert isinstance(node, ad.EinsumNode)
-    leaves = get_leaves(get_all_einsum_descendants(node))
+    leaves = get_all_inputs(node)
     for leaf in leaves:
         assert (not isinstance(leaf, ad.EinsumNode))
 

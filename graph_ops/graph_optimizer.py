@@ -6,7 +6,7 @@ import copy
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode
-from utils import get_leaves, get_all_einsum_descendants
+from utils import get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -175,6 +175,32 @@ def fuse_einsums(output_node, input_nodes):
                             *[node.node for node in pseudo_input_nodes])
 
     return output_node
+
+
+def get_leaves(nodes):
+    """
+        Returns all the inputs of the nodes formed as a tree. The returned node
+        must not be in the tree.
+        Args:
+            Nodes is a list of graph nodes.
+        Returns:
+            a set of nodes.
+        
+        For further illustration:
+            A
+           / \
+          B  I3
+         / \
+        I1  I2
+        
+        I1, I2, I3 are the returned nodes. inputs is {A,B} 
+    """
+    all_inputs = set()
+    for n in nodes:
+        for n_i in n.inputs:
+            if n_i not in nodes:
+                all_inputs.add(n_i)
+    return all_inputs
 
 
 def find_sub_einsumtree(output_node_p):
