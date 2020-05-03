@@ -151,7 +151,8 @@ def fuse_einsums(output_node, input_nodes):
     intermediate_nodes = list(set(pseudo_nodes) - set(pseudo_input_nodes))
 
     einsum_pseudo_nodes = list(
-        filter(lambda x: isinstance(x.node, ad.EinsumNode), pseudo_nodes))
+        filter(lambda x: isinstance(x.node, ad.EinsumNode),
+               intermediate_nodes))
 
     literal_names = sum([node.literals for node in pseudo_nodes], [])
 

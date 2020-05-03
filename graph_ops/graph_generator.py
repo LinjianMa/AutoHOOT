@@ -3,11 +3,59 @@ from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, ge
 import autodiff as ad
 import copy
 import numpy as np
+from opt_einsum import contract_path
 
 
 def generate_optimal_tree(node, path=None):
     """Generates the descendants of the optimal path.
     
+    Args:
+        node: The einsum node we are interested about.
+        path: If specified, will be used to generate tree.
+    Returns:
+        final_node: The newly generated node.
+    """
+    from graph_ops.graph_optimizer import fuse_einsums
+
+    assert isinstance(node, ad.EinsumNode)
+    leaves = get_all_inputs(node)
+    for leaf in leaves:
+        assert (not isinstance(leaf, ad.EinsumNode))
+
+    if path is None:
+        _, contract_list = contract_path(node.einsum_subscripts,
+                                         *node.inputs,
+                                         einsum_call=True)
+    else:
+        assert len(path) > 0
+        _, contract_list = contract_path(node.einsum_subscripts,
+                                         *node.inputs,
+                                         optimize=path,
+                                         einsum_call=True)
+
+    original_inputs = [i for i in node.inputs]
+    final_node = None
+    for contract in contract_list:
+        indices, _, subscript, _, _ = contract
+        input_nodes = [original_inputs[i] for i in indices]
+        new_node = ad.einsum(subscript, *input_nodes)
+        original_inputs.append(new_node)
+        for i_node in input_nodes:
+            original_inputs.remove(i_node)
+        final_node = new_node
+
+    # opt_einsum sometimes generate the path where the last node
+    # is just transposing the indices. If this happens, then just merge
+    # this node with its input node.
+    if len(final_node.inputs) == 1:
+        in_node = final_node.inputs[0]
+        final_node = fuse_einsums(final_node, in_node.inputs)
+    return final_node
+
+
+def generate_optimal_tree_numpy(node, path=None):
+    """Generates the descendants of the optimal path.
+
     Args:
         node: The einsum node we are interested about.
         path: If specified, will be used to generate tree.
@@ -78,8 +126,7 @@ def split_einsum(einsum_node, split_input_nodes):
     ]
 
     merge = tuple(range(len(einsum_node.inputs) - len(indices) + 1))
-    return generate_optimal_tree(einsum_node,
-                                 path=['einsum_path', indices, merge])
+    return generate_optimal_tree(einsum_node, path=[indices, merge])
 
 
 def get_common_ancestor(root, leaves, in_node):
@@ -106,7 +153,9 @@ def get_common_ancestor(root, leaves, in_node):
     for node in topo_order_list:
         # We want to get the smallest subtree whose inputs contain all the in_node(s).
         if isinstance(node, ad.EinsumNode):
-            subtree_leaves = [n for n in get_tree(node) if n in leaves]
+            subtree_leaves = [
+                n for n in get_tree([node], leaves) if n in leaves
+            ]
             num_in_nodes_subtree = len(
                 list(filter(lambda n: n is in_node, subtree_leaves)))
             if num_in_nodes == num_in_nodes_subtree:
@@ -149,7 +198,7 @@ def generate_optimal_tree_w_constraint(einsum_node, contract_order):
                                                 contract_order[i])
 
         first_contract_inputs = [
-            n for n in get_tree(opt_contract_tree)
+            n for n in get_tree([opt_contract_tree])
             if n in splitted_einsum.inputs
         ]
 
