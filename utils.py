@@ -70,11 +70,18 @@ def get_all_inputs(out):
     return all_inputs
 
 
-def get_tree(root):
+def get_all_nodes(sinks, sources=[]):
     """
     Get all the nodes in the tree defined by root node.
+    Args:
+        sinks: A list of nodes defines the sink.
+        sources: Stop expanding at provided sources.
     """
-    return [pnode.node for pnode in find_topo_sort_p([PseudoNode(root)])]
+    return [
+        pnode.node
+        for pnode in find_topo_sort_p([PseudoNode(sink)
+                                       for sink in sinks], sources)
+    ]
 
 
 def sympy_simplify(out, inputs):
