@@ -210,6 +210,10 @@ def prune_single_inv_node(einsum_node, inv_node):
         einsum_node,
         list(set(einsum_node.inputs) - set(inv_node_input.inputs)))
 
+    if set(split_einsum_node.inputs) == set(einsum_node.inputs):
+        # einsum_node is not splittable, directly return.
+        return einsum_node
+
     # Assign pseudo nodes and chars
     in_subs, out_subs, _ = _parse_einsum_input(
         (split_einsum_node.einsum_subscripts, *split_einsum_node.inputs))
@@ -293,8 +297,7 @@ def prune_inv_node(einsum_node):
                einsum_node.inputs))
 
     if len(inv_inputs_list) == 0:
-        logger.info(
-            f"No inv nodes in the inputs, can't prune inv")
+        logger.info(f"No inv nodes in the inputs, can't prune inv")
         return einsum_node
 
     for inv_node in inv_inputs_list:

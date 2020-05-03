@@ -189,6 +189,16 @@ def test_prune_inv_nonmatmul_no_pruning():
     assert new_output is output
 
 
+def test_prune_inv_not_splittable_no_pruning():
+    A = ad.Variable(name="A", shape=[2, 2])
+
+    inv_input = ad.einsum('ab,bc->ac', A, A)
+    output = ad.einsum('ab,bc->ac', ad.tensorinv(inv_input, ind=1), A)
+    new_output = prune_inv_node(output)
+
+    assert new_output is output
+
+
 def test_prune_inv_no_inv():
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
