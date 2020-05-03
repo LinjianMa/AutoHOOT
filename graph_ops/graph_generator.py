@@ -1,4 +1,4 @@
-from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_tree
+from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_all_nodes
 
 import autodiff as ad
 import copy
@@ -154,7 +154,7 @@ def get_common_ancestor(root, leaves, in_node):
         # We want to get the smallest subtree whose inputs contain all the in_node(s).
         if isinstance(node, ad.EinsumNode):
             subtree_leaves = [
-                n for n in get_tree([node], leaves) if n in leaves
+                n for n in get_all_nodes([node], leaves) if n in leaves
             ]
             num_in_nodes_subtree = len(
                 list(filter(lambda n: n is in_node, subtree_leaves)))
@@ -198,7 +198,8 @@ def generate_optimal_tree_w_constraint(einsum_node, contract_order):
                                                 contract_order[i])
 
         first_contract_inputs = [
-            n for n in get_tree([opt_contract_tree])
+            n
+            for n in get_all_nodes([opt_contract_tree], splitted_einsum.inputs)
             if n in splitted_einsum.inputs
         ]
 

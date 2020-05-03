@@ -301,3 +301,20 @@ def test_einsum_subtree_clone():
         new_out_val, = executor.run(feed_dict=generated_feed_dict)
 
         assert float_eq(out_val, new_out_val)
+
+
+def test_fuse_subgraph():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        a = ad.Variable(name="a", shape=[2, 2])
+        b = ad.Variable(name="b", shape=[2, 2])
+        c = ad.Variable(name="c", shape=[2, 2])
+        d = ad.Variable(name="d", shape=[2, 2])
+
+        ab = ad.einsum("ab,bc->ac", a, b)
+        abc = ad.einsum("ab,bc->ac", ab, c)
+        abcd = ad.einsum("ab,bc->ac", abc, d)
+
+        out_new = fuse_einsums(abcd, [ab, c, d])
+        assert tree_eq(abcd, out_new, [a, b, c, d])

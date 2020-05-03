@@ -70,7 +70,7 @@ def get_all_inputs(out):
     return all_inputs
 
 
-def get_tree(sinks, sources=[]):
+def get_all_nodes(sinks, sources=[]):
     """
     Get all the nodes in the tree defined by root node.
     Args:

@@ -166,6 +166,14 @@ def test_get_common_ancester_intermediate_leaves():
     assert ancester == d
 
 
+def test_get_common_ancester_dup():
+    a = ad.Variable(name="a", shape=[2, 2])
+    aa = ad.einsum("ab,bc->ac", a, a)
+    out = ad.einsum("ab,bc->ac", aa, a)
+    ancester = get_common_ancestor(out, [aa, a], a)
+    assert ancester == out
+
+
 def test_split_einsum_dup():
     for datatype in BACKEND_TYPES:
 
