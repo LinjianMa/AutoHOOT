@@ -189,7 +189,7 @@ def test_prune_inv_nonmatmul_no_pruning():
     assert new_output is output
 
 
-def test_prune_inv_not_splittable_no_pruning():
+def test_prune_inv_different_num_inputs_no_pruning():
     A = ad.Variable(name="A", shape=[2, 2])
 
     inv_input = ad.einsum('ab,bc->ac', A, A)
