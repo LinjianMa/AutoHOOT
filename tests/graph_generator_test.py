@@ -22,6 +22,8 @@ def test_einsum_gen():
 
 def test_einsum_gen_corner_case():
     """
+    Note: Numpy contraction path cannot find the opt path for this expression.
+        It will output the same expression as the input.
     --------    E    --------
     |       |       |       |
     a       b       c       d

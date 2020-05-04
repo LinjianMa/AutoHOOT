@@ -206,12 +206,18 @@ def prune_single_inv_node(einsum_node, inv_node):
             f"inv inputs is not subset of einsum node inputs, can't prune inv")
         return einsum_node
 
+    einsum_inputs_in_inv = [
+        n for n in einsum_node.inputs if n in inv_node_input.inputs
+    ]
+    if len(einsum_inputs_in_inv) < len(inv_node_input.inputs):
+        logger.info(
+            f"number of inv inputs is more than corresponding einsum inputs, can't prune inv"
+        )
+        return einsum_node
+
     split_einsum_node = split_einsum(
         einsum_node,
         list(set(einsum_node.inputs) - set(inv_node_input.inputs)))
-
-    if len(split_einsum_node.inputs) == len(einsum_node.inputs):
-        return einsum_node
 
     # Assign pseudo nodes and chars
     in_subs, out_subs, _ = _parse_einsum_input(
