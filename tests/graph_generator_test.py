@@ -200,6 +200,9 @@ def test_optimal_tree_w_constraint():
         einsum_node = ad.einsum("ab,bc,cd->ad", A, B, C)
         new_einsum = generate_optimal_tree_w_constraint(einsum_node, [B, C])
 
+        # makes sure that the opt_einsum output is not a pure transpose
+        assert len(new_einsum.inputs) == 2
+
         assert C in new_einsum.inputs
         einsum_intermediate, = [
             n for n in new_einsum.inputs if isinstance(n, ad.EinsumNode)
