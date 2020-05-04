@@ -1,8 +1,14 @@
 from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_all_nodes
-
+import logging
 import autodiff as ad
 import copy
 import numpy as np
+
+FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
+
+logger = logging.getLogger('optimizer')
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
 
 
 def generate_optimal_tree(node, path=None):
@@ -78,8 +84,12 @@ def split_einsum(einsum_node, split_input_nodes):
     ]
 
     merge = tuple(range(len(einsum_node.inputs) - len(indices) + 1))
-    return generate_optimal_tree(einsum_node,
-                                 path=['einsum_path', indices, merge])
+    outnode = generate_optimal_tree(einsum_node,
+                                    path=['einsum_path', indices, merge])
+
+    if set(outnode.inputs) == set(einsum_node.inputs):
+        logger.info(f"Einsum node not splitted")
+    return outnode
 
 
 def get_common_ancestor(root, leaves, in_node):
