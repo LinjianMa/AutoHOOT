@@ -2,7 +2,7 @@ from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, ge
 import logging
 import autodiff as ad
 import copy
-import numpy as np
+from opt_einsum import contract_path
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -20,26 +20,23 @@ def generate_optimal_tree(node, path=None):
     Returns:
         final_node: The newly generated node.
     """
+    from graph_ops.graph_optimizer import fuse_einsums
+
     assert isinstance(node, ad.EinsumNode)
     leaves = get_all_inputs(node)
     for leaf in leaves:
         assert (not isinstance(leaf, ad.EinsumNode))
 
-    # Need to call with numpy array with same shape.
-    # This is a numpy specific tweak because this function relies on numpy
-    # implementation of parse_einsum_input.
-    np_inputs = [np.zeros(i_node.shape) for i_node in node.inputs]
-
     if path is None:
-        _, contract_list = np.einsum_path(node.einsum_subscripts,
-                                          *np_inputs,
-                                          einsum_call=True)
+        _, contract_list = contract_path(node.einsum_subscripts,
+                                         *node.inputs,
+                                         einsum_call=True)
     else:
         assert len(path) > 0
-        _, contract_list = np.einsum_path(node.einsum_subscripts,
-                                          *np_inputs,
-                                          optimize=path,
-                                          einsum_call=True)
+        _, contract_list = contract_path(node.einsum_subscripts,
+                                         *node.inputs,
+                                         optimize=path,
+                                         einsum_call=True)
 
     original_inputs = [i for i in node.inputs]
     final_node = None
@@ -51,6 +48,13 @@ def generate_optimal_tree(node, path=None):
         for i_node in input_nodes:
             original_inputs.remove(i_node)
         final_node = new_node
+
+    # opt_einsum sometimes generate the path where the last node
+    # is just transposing the indices. If this happens, then just merge
+    # this node with its input node.
+    if len(final_node.inputs) == 1:
+        in_node = final_node.inputs[0]
+        final_node = fuse_einsums(final_node, in_node.inputs)
     return final_node
 
 
@@ -84,8 +88,7 @@ def split_einsum(einsum_node, split_input_nodes):
     ]
 
     merge = tuple(range(len(einsum_node.inputs) - len(indices) + 1))
-    outnode = generate_optimal_tree(einsum_node,
-                                    path=['einsum_path', indices, merge])
+    outnode = generate_optimal_tree(einsum_node, path=[indices, merge])
 
     if set(outnode.inputs) == set(einsum_node.inputs):
         logger.info(f"Einsum node not splitted")

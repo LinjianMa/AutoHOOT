@@ -1,6 +1,6 @@
 import autodiff as ad
 import backend as T
-from utils import get_all_inputs
+from utils import get_all_inputs, find_topo_sort
 from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
@@ -20,6 +20,34 @@ def test_einsum_gen():
         assert len(new_output.inputs) == 2
 
 
+def test_einsum_gen_corner_case():
+    """
+    Note: Numpy contraction path cannot find the opt path for this expression.
+        It will output the same expression as the input.
+    --------    E    --------
+    |       |       |       |
+    a       b       c       d
+    |       |       |       |
+    A - e - B - f - C - g - D
+    |       |       |       |
+    h       i       j       k
+    |       |       |       |
+    """
+    size = 5
+    A = ad.Variable(name="A", shape=[size, size, size])
+    B = ad.Variable(name="B", shape=[size, size, size, size])
+    C = ad.Variable(name="C", shape=[size, size, size, size])
+    D = ad.Variable(name="D", shape=[size, size, size])
+    E = ad.Variable(name="E", shape=[size, size, size, size])
+
+    output = ad.einsum('aeh,bfie,cgjf,dgk,abcd->hijk', A, B, C, D, E)
+    new_output = generate_optimal_tree(output)
+
+    for node in find_topo_sort([new_output]):
+        if not isinstance(node, ad.VariableNode):
+            assert (len(node.inputs) == 2)
+
+
 def test_einsum_gen_custom():
     for datatype in BACKEND_TYPES:
         a = ad.Variable(name="a", shape=[2, 2])
@@ -27,12 +55,7 @@ def test_einsum_gen_custom():
         c = ad.Variable(name="c", shape=[5, 2])
 
         output = ad.einsum('ij,jk,kl->il', a, b, c)
-        new_output = generate_optimal_tree(output,
-                                           path=[
-                                               'einsum_path',
-                                               (1, 2),
-                                               (0, 1),
-                                           ])
+        new_output = generate_optimal_tree(output, path=[(1, 2), (0, 1)])
         assert tree_eq(output, new_output, [a, b, c])
 
 
@@ -44,12 +67,7 @@ def test_einsum_gen_custom_3operands():
         d = ad.Variable(name="d", shape=[2, 2])
 
         output = ad.einsum('ij,jk,kl,lm->im', a, b, c, d)
-        new_output = generate_optimal_tree(output,
-                                           path=[
-                                               'einsum_path',
-                                               (1, 2),
-                                               (0, 1, 2),
-                                           ])
+        new_output = generate_optimal_tree(output, path=[(1, 2), (0, 1, 2)])
         assert tree_eq(output, new_output, [a, b, c, d])
 
 
@@ -126,10 +144,10 @@ def test_get_common_ancestor():
 
 def test_get_common_ancestor_w_inv():
 
-    A = ad.Variable(name="A", shape=[3, 2])
+    A = ad.Variable(name="A", shape=[3, 3])
     X = ad.Variable(name="X", shape=[3, 3, 3])
     inv = ad.tensorinv(ad.einsum("ab,ac->bc", A, A), ind=1)
-    einsum_node = ad.einsum('abc,ad,de->bce', X, A, inv)
+    einsum_node = ad.einsum('abc,ad,ce->bce', X, A, inv)
     opt_einsum = generate_optimal_tree(einsum_node)
     sub_einsum = get_common_ancestor(opt_einsum, einsum_node.inputs, A)
 
@@ -181,6 +199,9 @@ def test_optimal_tree_w_constraint():
 
         einsum_node = ad.einsum("ab,bc,cd->ad", A, B, C)
         new_einsum = generate_optimal_tree_w_constraint(einsum_node, [B, C])
+
+        # makes sure that the opt_einsum output is not a pure transpose
+        assert len(new_einsum.inputs) == 2
 
         assert C in new_einsum.inputs
         einsum_intermediate, = [
