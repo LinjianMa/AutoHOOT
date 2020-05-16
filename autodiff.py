@@ -265,11 +265,23 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape):
+    def __init__(self, name, shape, symmetry=[]):
+        """
+        Parameters
+        ----------
+        name: name of the variable.
+        shape: shape of the variable.
+        symmetry: a list containing the symmetry constraints in the input tensor.
+            Each element in the list is a list denoting a specific constraint.
+            e.g.: a = variable("a", [2,2,2,2], symmetry=[[0,2], [1,3]]),
+            then the 0th, 2rd indices are symmetric, 1st, 3rd indices are symmetric:
+                a = einsum("abcd->cbad", a) = einsum("abcd->adcb", a) = einsum("abcd->cdab", a)
+        """
         super().__init__()
         self.name = name
         self.shape = shape
         assert shape is not None
+        self.symmetry = symmetry
 
     def __deepcopy__(self, memo):
         return self.clone()
