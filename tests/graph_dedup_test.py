@@ -135,7 +135,7 @@ def test_remove_transposes_multiple_trans():
     assert ret1.name == ret2.name
 
 
-def test_collase_symmetric_expr():
+def test_collapse_symmetric_expr():
     h = ad.Variable(name="h", shape=[2, 2, 2, 2], symmetry=[[0, 1], [2, 3]])
     a = ad.Variable(name="a", shape=[2, 2])
 
@@ -147,7 +147,7 @@ def test_collase_symmetric_expr():
     assert out1.name == out2.name
 
 
-def test_collase_symmetric_expr_complex():
+def test_collapse_symmetric_expr_complex():
     """
     out1:
     A1 - a - A2 - b - A3
@@ -181,7 +181,7 @@ def test_collase_symmetric_expr_complex():
     assert out1.name == out2.name
 
 
-def test_cannot_collase_symmetric_expr():
+def test_cannot_collapse_symmetric_expr():
     h = ad.Variable(name="h", shape=[2, 2, 2, 2], symmetry=[[0, 1], [2, 3]])
     a = ad.Variable(name="a", shape=[2, 2])
 
@@ -202,7 +202,7 @@ def test_cannot_collase_symmetric_expr():
     assert out1.name != out2.name
 
 
-def test_cannot_collase_expr():
+def test_cannot_collapse_expr():
     h = ad.Variable(name="h", shape=[2, 2, 2, 2])
     a = ad.Variable(name="a", shape=[2, 2])
 
