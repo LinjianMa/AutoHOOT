@@ -97,7 +97,9 @@ def test_get_transpose_indices():
     assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == [0, 2, 1]
     assert get_transpose_indices(ad.einsum('acje,ie->iacj', c, b),
-                                 ad.einsum('jace,ie->iacj', c, b)) == [0, 2, 3, 1]
+                                 ad.einsum('jace,ie->iacj', c,
+                                           b)) == [0, 2, 3, 1]
+
 
 def test_remove_transposes():
     a = ad.Variable(name="a", shape=[2, 2, 2, 2])
