@@ -64,21 +64,17 @@ def get_disjoint_set(node):
     Get the disjoint set information of the input einsum node.
 
     The returned set element has the following [key]:[value] structure:
-    ["|".join(connected_dims)]:[output index].
+    [connected_dims]:[output index].
 
-    connected_dims: list of input node dims connected by one char.
-    Each element in the connected_dims is a string,
-        formatted as f'{nodename}-{node order in einsum}-{dim number}'.
+    connected_dims: tuple of input node dims info connected by one char.
+        Each element in the tuple is a DimInfo object.
 
     When the list of dims is connected by a contraction char, the output index will be -1.
-
-    Examples
-    --------
-    >>> node_A = ad.einsum('bec,ca->abe',input_tensor,C)
-    >>> get_disjoint_set(node_A)
-    {'C-1-1': 0, 'input_tensor-0-0': 1, 'input_tensor-0-1': 2, 'C-1-0|input_tensor-0-2': -1}
     """
     from graph_ops.graph_transformer import generate_einsum_info
+
+    def sort_hash(dim_info):
+        return dim_info.name
 
     node_copy = copy.deepcopy(node)
     # this is used to normalize the output node name
@@ -91,23 +87,22 @@ def get_disjoint_set(node):
     dset_ret = {}
 
     for connected_dims in dset:
-        if not any(temp_out_name in name for name in connected_dims):
+        if not any(temp_out_name == dim_info.node_name
+                   for dim_info in connected_dims):
             # contracted char
-            connect_dims_str = "|".join(sorted(list(connected_dims)))
-            dset_ret[connect_dims_str] = -1
+            dset_ret[tuple(sorted(connected_dims, key=sort_hash))] = -1
         else:
+            output_dim_info, = filter(
+                lambda dim_info: dim_info.node_name == temp_out_name,
+                connected_dims)
             # uncontracted char
-            for name in connected_dims:
-                if temp_out_name in name:
-                    connect_dims_str = "|".join(
-                        sorted(
-                            list(
-                                filter(lambda dim: dim != name,
-                                       connected_dims))))
-                    # get the output dim
-                    dset_ret[connect_dims_str] = int(
-                        name.replace(f'{temp_out_name}-', ''))
-                    break
+            connected_dims_ret = tuple(
+                sorted(list(
+                    filter(
+                        lambda dim_info: dim_info.node_name != temp_out_name,
+                        connected_dims)),
+                       key=sort_hash))
+            dset_ret[connected_dims_ret] = output_dim_info.dim_index
 
     # Note: the value list of dset_ret will have an order of 0, ..., len(node.shape), -1.
     # It is determined because of the routine in generate_einsum_info.
@@ -138,32 +133,20 @@ def collapse_symmetric_expr(A, B):
     dset_A = get_disjoint_set(A)
     dset_B = get_disjoint_set(B)
 
-    for (key_A, key_B) in zip(dset_A.keys(), dset_B.keys()):
-        connected_dims_str_A = key_A.split("|")
-        connected_dims_str_B = key_B.split("|")
+    for (connected_dims_A, connected_dims_B) in zip(dset_A.keys(),
+                                                    dset_B.keys()):
 
-        connected_dims_A = []
-        for dim_A_str in connected_dims_str_A:
-            dim_A_info = dim_A_str.split("-")
-            inode, dim = A.inputs[int(dim_A_info[1])], int(dim_A_info[2])
-            connected_dims_A.append((inode, dim))
-
-        connected_dims_B = []
-        for dim_B_str in connected_dims_str_B:
-            dim_B_info = dim_B_str.split("-")
-            inode, dim = B.inputs[int(dim_B_info[1])], int(dim_B_info[2])
-            connected_dims_B.append((inode, dim))
-
-        for (inode, dim) in connected_dims_A:
+        for dim_A_info in connected_dims_A:
+            inode, dim = dim_A_info.node, dim_A_info.dim_index
             symmetric_dims = [dim]
             for s in inode.symmetry:
                 if dim in s:
                     symmetric_dims = s
-            if any((inode, d) in connected_dims_B for d in symmetric_dims):
+            if any((inode == dim_B_info.node and d == dim_B_info.dim_index)
+                   for d in symmetric_dims for dim_B_info in connected_dims_B):
                 continue
-            else:
-                logger.info(f"Cannot collapse {A} and {B}")
-                return
+            logger.info(f"Cannot collapse {A} and {B}")
+            return
 
     A.einsum_subscripts = B.einsum_subscripts
     A.set_inputs(B.inputs)
@@ -204,6 +187,9 @@ def get_transpose_indices(A, B):
 
     dset_A = get_disjoint_set(A)
     dset_B = get_disjoint_set(B)
+    # change the keys to string format for later equality check
+    dset_A = {"|".join(map(str, key)): value for key, value in dset_A.items()}
+    dset_B = {"|".join(map(str, key)): value for key, value in dset_B.items()}
 
     if dset_A.keys() != dset_B.keys():
         return None

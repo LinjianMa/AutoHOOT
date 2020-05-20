@@ -216,12 +216,34 @@ class StandardEinsumExprMode:
 @attr.s(eq=False)
 class PseudoNode(object):
     node = attr.ib()
-    literals = attr.ib(default=[])
+    dims_info = attr.ib(default=[])
     subscript = attr.ib(default='')
 
     def generate_subscript(self, uf):
         self.subscript = "".join(
-            [uf.rootval(literal_name) for literal_name in self.literals])
+            [uf.rootval(dim_info) for dim_info in self.dims_info])
+
+
+class DimInfo(object):
+    """The einsum node dimension information"""
+    def __init__(self, node, dim_index, node_index=None, temp_node_name=None):
+        """
+        dim_index: the index of the dimension in the node.
+        node_index: the index of the node in a specific node list (can be None if not specified).
+        temp_node_name: the temporary name used to override the node name (can be None if not specified).
+        """
+        self.node = node
+        self.dim_index = dim_index
+        self.node_index = node_index
+        if temp_node_name != None:
+            self.node_name = temp_node_name
+        else:
+            self.node_name = node.name
+
+        self.name = f"{self.node_name}-{self.node_index}-{self.dim_index}"
+
+    def __str__(self):
+        return self.name
 
 
 def get_root(nodes):
