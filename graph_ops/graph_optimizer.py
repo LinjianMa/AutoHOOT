@@ -5,7 +5,7 @@ import copy
 
 from graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode
+from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode, DimInfo
 from utils import get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -17,8 +17,8 @@ logger.setLevel(logging.DEBUG)
 
 ### Assign each UF group a character val.
 class UF(UFBase):
-    def __init__(self, literal_names):
-        super().__init__(literal_names)
+    def __init__(self, dims_info):
+        super().__init__(dims_info)
         self.cg = CharacterGetter()
 
     def assign(self):
@@ -38,8 +38,10 @@ class UF(UFBase):
         # The hash is dependent on the output dim index and connection index.
         def sort_hash(pair):
             k, dset = pair
-            # val[0] is the name, val[1] is the shape index.
-            hash_strings = [f'{val[0]}-{val[1]}' for val in dset]
+            hash_strings = [
+                f'{dim_info.node_name}-{dim_info.dim_index}'
+                for dim_info in dset
+            ]
             return '+'.join(sorted(hash_strings))
 
         for k, v in sorted(list(dsets.items()), key=sort_hash):
@@ -64,14 +66,14 @@ class UFNodes(UFBase):
                 self.roots[rootnode] = self.ig.getint()
 
 
-def cross_einsum_connect(uf, output_node, literal_names):
+def cross_einsum_connect(uf, output_node, dims_info):
     """
         Link the literal relationship for an einsum op.
         
         Args: 
             uf: union find data structure.
             output_node: An einsum node.
-            literals: A list of all the literals including the output_node.
+            dims_info: A list of all the dimensions information including the output_node.
         
         Inputs of the einsum node can have duplicates.
     """
@@ -86,7 +88,7 @@ def cross_einsum_connect(uf, output_node, literal_names):
 
     record = {}
 
-    for pos, pair in enumerate(zip(whole_str, literal_names)):
+    for pos, pair in enumerate(zip(whole_str, dims_info)):
         char, litername = pair
         if char in record:
             # encode
@@ -95,15 +97,15 @@ def cross_einsum_connect(uf, output_node, literal_names):
             record[char] = litername
 
 
-def node_literals(einsum_node):
+def node_dims_info(einsum_node):
     """
-        Get node literals.
+        Get node dimensions information.
 
         Args:
             einsum_node: A Pseudo Node.
     """
-    return einsum_node.literals + sum(
-        [x.literals for x in einsum_node.node.inputs], [])
+    return einsum_node.dims_info + sum(
+        [x.dims_info for x in einsum_node.node.inputs], [])
 
 
 def fuse_einsums(output_node, input_nodes):
@@ -135,13 +137,14 @@ def fuse_einsums(output_node, input_nodes):
     pseudo_input_nodes = []
     pseudo_output_node = None
 
-    # We first treat each literal as a different character, and then union.
+    # We first represennt each dim as a different character, and then union.
     # Create a map
     for k, node in enumerate(all_nodes):
-        node.literals = [
-            f"{node.name}-{k}-{i}" for i in range(len(node.shape))
+        node.dims_info = [
+            DimInfo(node=node, dim_index=i, node_index=k)
+            for i in range(len(node.shape))
         ]
-        pnode = PseudoNode(node=node, literals=node.literals)
+        pnode = PseudoNode(node=node, dims_info=node.dims_info)
         pseudo_nodes.append(pnode)
         if node in input_nodes:
             pseudo_input_nodes.append(pnode)
@@ -154,13 +157,13 @@ def fuse_einsums(output_node, input_nodes):
         filter(lambda x: isinstance(x.node, ad.EinsumNode),
                intermediate_nodes))
 
-    literal_names = sum([node.literals for node in pseudo_nodes], [])
+    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
 
-    # For any literal that are the same, get their pos and connect.
-    uf = UF(literal_names)
+    # For any two dims with the same literal, get their pos and connect.
+    uf = UF(all_dims_info)
     for node in einsum_pseudo_nodes:
-        all_literals = node_literals(node)
-        cross_einsum_connect(uf, node.node, all_literals)
+        all_dims_info = node_dims_info(node)
+        cross_einsum_connect(uf, node.node, all_dims_info)
 
     uf.assign()
     # Assign literals

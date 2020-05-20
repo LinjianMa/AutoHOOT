@@ -17,7 +17,7 @@ from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP
+from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
 from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -184,26 +184,28 @@ def generate_einsum_info(einsum_node):
     assert (isinstance(einsum_node, ad.EinsumNode))
 
     pseudo_nodes = []
-    einsum_node_literals = [
-        f'{einsum_node.name}-{i}' for i in range(len(einsum_node.shape))
+    einsum_node_dims_info = [
+        DimInfo(node=einsum_node, dim_index=i)
+        for i in range(len(einsum_node.shape))
     ]
-    p_outnode = PseudoNode(node=einsum_node, literals=einsum_node_literals)
+    p_outnode = PseudoNode(node=einsum_node, dims_info=einsum_node_dims_info)
     pseudo_nodes.append(p_outnode)
 
     p_innodes = []
     for k, node in enumerate(einsum_node.inputs):
-        literals = [f'{node.name}-{k}-{i}' for i in range(len(node.shape))]
-        p_innode = PseudoNode(node=node, literals=literals)
+        dims_info = [
+            DimInfo(node=node, dim_index=i, node_index=k)
+            for i in range(len(node.shape))
+        ]
+        p_innode = PseudoNode(node=node, dims_info=dims_info)
         pseudo_nodes.append(p_innode)
         p_innodes.append(p_innode)
 
-    node_literals = []
+    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
 
-    all_literals = sum([node.literals for node in pseudo_nodes], [])
-
-    # For any literal that are the same, get their pos and connect.
-    uf = UF(all_literals)
-    cross_einsum_connect(uf, einsum_node, all_literals)
+    # For any two dims with the same literal, get their pos and connect.
+    uf = UF(all_dims_info)
+    cross_einsum_connect(uf, einsum_node, all_dims_info)
 
     uf.assign()
     # Assign literals
@@ -235,22 +237,25 @@ def rewrite_einsum_expr(einsum_node):
     pseudo_nodes = []
     # Here einsum node has a temporary name so that the character assignment
     # order is consistent.
-    einsum_node_literals = [(f'_temp_einsum', i)
-                            for i in range(len(einsum_node.shape))]
+    einsum_node_dims_info = [
+        DimInfo(node=einsum_node, dim_index=i, temp_node_name='_temp_einsum')
+        for i in range(len(einsum_node.shape))
+    ]
     pseudo_nodes.append(
-        PseudoNode(node=einsum_node, literals=einsum_node_literals))
+        PseudoNode(node=einsum_node, dims_info=einsum_node_dims_info))
 
     for k, node in enumerate(einsum_node.inputs):
-        literals = [(f'{node.name}', i, k) for i in range(len(node.shape))]
-        pseudo_nodes.append(PseudoNode(node=node, literals=literals))
+        dims_info = [
+            DimInfo(node=node, dim_index=i, node_index=k)
+            for i in range(len(node.shape))
+        ]
+        pseudo_nodes.append(PseudoNode(node=node, dims_info=dims_info))
 
-    node_literals = []
+    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
 
-    all_literals = sum([node.literals for node in pseudo_nodes], [])
-
-    # For any literal that are the same, get their pos and connect.
-    uf = UF(all_literals)
-    cross_einsum_connect(uf, einsum_node, all_literals)
+    # For any two dims with the same literal, get their pos and connect.
+    uf = UF(all_dims_info)
+    cross_einsum_connect(uf, einsum_node, all_dims_info)
 
     uf.assign()
     # Assign literals

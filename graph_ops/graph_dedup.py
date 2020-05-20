@@ -100,6 +100,9 @@ def get_transpose_indices(A, B):
         For the example above, the dset_ret for node_A will be:
         {'C-1-1': 0, 'input_tensor-0-0': 1, 'input_tensor-0-1': 2, 'C-1-0input_tensor-0-2': -1}
         """
+        def sort_hash(dim_info):
+            return dim_info.name
+
         node_copy = copy.deepcopy(node)
         # this is used to normalize the output node name
         temp_out_name = "_temp_einsum"
@@ -111,27 +114,29 @@ def get_transpose_indices(A, B):
         dset_ret = {}
 
         for connected_dims in dset:
-            if not any(temp_out_name in name for name in connected_dims):
+            if not any(temp_out_name == dim_info.node_name
+                       for dim_info in connected_dims):
                 # contracted char
-                connect_dims_str = "|".join(sorted(list(connected_dims)))
-                dset_ret[connect_dims_str] = -1
+                dset_ret[tuple(sorted(connected_dims, key=sort_hash))] = -1
             else:
+                output_dim_info, = filter(
+                    lambda dim_info: dim_info.node_name == temp_out_name,
+                    connected_dims)
                 # uncontracted char
-                for name in connected_dims:
-                    if temp_out_name in name:
-                        connect_dims_str = "|".join(
-                            sorted(
-                                list(
-                                    filter(lambda dim: dim != name,
-                                           connected_dims))))
-                        # get the output dim
-                        dset_ret[connect_dims_str] = int(
-                            name.replace(f'{temp_out_name}-', ''))
-                        break
+                connected_dims_ret = tuple(
+                    sorted(list(
+                        filter(
+                            lambda dim_info: dim_info.node_name !=
+                            temp_out_name, connected_dims)),
+                           key=sort_hash))
+                dset_ret[connected_dims_ret] = output_dim_info.dim_index
         return dset_ret
 
     dset_A = get_disjoint_set(A)
     dset_B = get_disjoint_set(B)
+    # change the keys to string format for later equality check
+    dset_A = {"|".join(map(str, key)): value for key, value in dset_A.items()}
+    dset_B = {"|".join(map(str, key)): value for key, value in dset_B.items()}
 
     if dset_A.keys() != dset_B.keys():
         return None
