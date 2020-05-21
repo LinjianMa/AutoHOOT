@@ -135,15 +135,18 @@ def collapse_symmetric_expr(A, B):
 
     for (connected_dims_A, connected_dims_B) in zip(dset_A.keys(),
                                                     dset_B.keys()):
-
         for dim_A_info in connected_dims_A:
             inode, dim = dim_A_info.node, dim_A_info.dim_index
             symmetric_dims = [dim]
             for s in inode.symmetry:
                 if dim in s:
                     symmetric_dims = s
-            if any((inode == dim_B_info.node and d == dim_B_info.dim_index)
-                   for d in symmetric_dims for dim_B_info in connected_dims_B):
+                    break
+
+            search_list = [(dim_B_info, d) for dim_B_info in connected_dims_B
+                           for d in symmetric_dims]
+            if any((inode == dim_B_info.node and dim_B_info.dim_index == d)
+                   for (dim_B_info, d) in search_list):
                 continue
             logger.info(f"Cannot collapse {A} and {B}")
             return
