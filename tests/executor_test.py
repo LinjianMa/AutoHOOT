@@ -50,3 +50,16 @@ def test_executor_dependent():
         B_val, = executor.run(feed_dict=data2, out_nodes=[out_B])
         # This is checking A's val is not reused in B_val computationA.
         assert A_val != B_val
+
+
+def test_executor_debug_symmetry():
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        A = ad.Variable(name="A", shape=[3, 3], symmetry=[[0, 1]])
+        out = A @ A
+        A_val = T.random((3, 3))
+        A_val += T.transpose(A_val)
+
+        executor = ad.Executor([out])
+        executor.run(feed_dict={A: A_val}, debug=True)

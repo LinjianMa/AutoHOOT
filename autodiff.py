@@ -265,14 +265,35 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape):
+    def __init__(self, name, shape, symmetry=[]):
+        """
+        Parameters
+        ----------
+        name: name of the variable.
+        shape: shape of the variable.
+        symmetry: a list containing the symmetry constraints in the input tensor.
+            Each element in the list is a list denoting a specific constraint.
+            e.g.: a = variable("a", [2,2,2,2], symmetry=[[0,2], [1,3]]),
+            then the 0th, 2rd indices are symmetric, 1st, 3rd indices are symmetric:
+                a = einsum("abcd->cbad", a) = einsum("abcd->adcb", a) = einsum("abcd->cdab", a)
+        """
         super().__init__()
         self.name = name
         self.shape = shape
         assert shape is not None
+        self.symmetry = symmetry
 
     def __deepcopy__(self, memo):
         return self.clone()
+
+    def check_symmetry(self, input_val):
+        assert self.shape == list(input_val.shape)
+        for s in self.symmetry:
+            transpose_axes = [i for i in range(len(self.shape))]
+            transpose_axes[s[0]] = s[1]
+            transpose_axes[s[1]] = s[0]
+            assert T.norm(input_val -
+                          T.transpose(input_val, transpose_axes)) < 1e-8
 
 
 # This is a straight through node.
@@ -1385,8 +1406,12 @@ class Executor:
         self.eval_node_list = eval_node_list
         self.node_to_val_map = {}
 
-    def run(self, feed_dict, reset_graph=True, out_nodes=[],
-            evicted_inputs=[]):
+    def run(self,
+            feed_dict,
+            reset_graph=True,
+            out_nodes=[],
+            evicted_inputs=[],
+            debug=False):
         """Computes values of nodes in eval_node_list given computation graph.
         All computations are saved by default.
         Parameters
@@ -1400,6 +1425,9 @@ class Executor:
         -------
         A list of values for nodes in eval_node_list.
         """
+        if debug:
+            for node, val in feed_dict.items():
+                node.check_symmetry(val)
 
         if len(out_nodes) == 0:
             out_nodes = self.eval_node_list

@@ -1,5 +1,5 @@
 import autodiff as ad
-from graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes
+from graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes, collapse_symmetric_expr
 from tests.test_utils import tree_eq, gen_dict
 from utils import find_topo_sort
 from visualizer import print_computation_graph
@@ -133,3 +133,82 @@ def test_remove_transposes_multiple_trans():
     remove_transposes(find_topo_sort([ret1, ret2]))
 
     assert ret1.name == ret2.name
+
+
+def test_collapse_symmetric_expr():
+    h = ad.Variable(name="h", shape=[2, 2, 2, 2], symmetry=[[0, 1], [2, 3]])
+    a = ad.Variable(name="a", shape=[2, 2])
+
+    out1 = ad.einsum("ijkl,ik->jl", h, a)
+    out2 = ad.einsum("ijkl,jl->ik", h, a)
+
+    collapse_symmetric_expr(out1, out2)
+
+    assert out1.name == out2.name
+
+
+def test_collapse_symmetric_expr_complex():
+    """
+    out1:
+    A1 - a - A2 - b - A3
+    |         |        |
+    c         d        e
+    |         |        |
+    H1 - f - H2 - g - H3
+    |         |        |
+    h         i        j
+    out2:
+    a         b        c
+    |         |        |
+    H1 - d - H2 - e - H3
+    |         |        |
+    f         g        h
+    A1 - i - A2 - j - A3
+    """
+    H1 = ad.Variable(name="H1", shape=[2, 2, 2], symmetry=[[0, 2]])
+    H2 = ad.Variable(name="H2", shape=[2, 2, 2, 2], symmetry=[[0, 2]])
+    H3 = ad.Variable(name="H3", shape=[2, 2, 2], symmetry=[[0, 1]])
+
+    A1 = ad.Variable(name="H1", shape=[2, 2])
+    A2 = ad.Variable(name="H2", shape=[2, 2, 2])
+    A3 = ad.Variable(name="H3", shape=[2, 2])
+
+    out1 = ad.einsum("ca,dab,eb,cfh,dgif,ejg->hij", A1, A2, A3, H1, H2, H3)
+    out2 = ad.einsum("fi,gij,hj,adf,begd,che->abc", A1, A2, A3, H1, H2, H3)
+
+    collapse_symmetric_expr(out1, out2)
+
+    assert out1.name == out2.name
+
+
+def test_cannot_collapse_symmetric_expr():
+    h = ad.Variable(name="h", shape=[2, 2, 2, 2], symmetry=[[0, 1], [2, 3]])
+    a = ad.Variable(name="a", shape=[2, 2])
+
+    # non-einsum node
+    collapse_symmetric_expr(h, a)
+    assert h.name != a.name
+
+    # different inputs
+    out1 = ad.einsum("ijkl,ik->jl", h, a)
+    out2 = ad.einsum("jl,ijkl->ik", a, h)
+    collapse_symmetric_expr(out1, out2)
+    assert out1.name != out2.name
+
+    # different output shape
+    out1 = ad.einsum("ijkl,ik->jl", h, a)
+    out2 = ad.einsum("ijkl,ik->jkl", h, a)
+    collapse_symmetric_expr(out1, out2)
+    assert out1.name != out2.name
+
+
+def test_cannot_collapse_expr():
+    h = ad.Variable(name="h", shape=[2, 2, 2, 2])
+    a = ad.Variable(name="a", shape=[2, 2])
+
+    out1 = ad.einsum("ijkl,ik->jl", h, a)
+    out2 = ad.einsum("ijkl,jl->ik", h, a)
+
+    collapse_symmetric_expr(out1, out2)
+
+    assert out1.name != out2.name
