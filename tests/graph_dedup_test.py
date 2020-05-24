@@ -212,3 +212,28 @@ def test_cannot_collapse_expr():
     collapse_symmetric_expr(out1, out2)
 
     assert out1.name != out2.name
+
+
+def test_collapse_expr_w_identity():
+    a = ad.Variable(name="a", shape=[2, 2])
+    I = ad.identity(2)
+
+    out1 = ad.einsum("ab,bc->ac", a, I)
+    out2 = ad.einsum("ab,cb->ac", a, I)
+
+    collapse_symmetric_expr(out1, out2)
+
+    assert out1.name == out2.name
+
+
+def test_collapse_symmetry_w_multiple_contraction_ind():
+
+    H = ad.Variable(name="H", shape=[2, 2], symmetry=[[0, 1]])
+    x1 = ad.Variable(name="x1", shape=[2])
+    x2 = ad.Variable(name="x2", shape=[2])
+
+    inner1 = ad.einsum("ab,a,b->", H, x1, x2)
+    inner2 = ad.einsum("ab,b,a->", H, x1, x2)
+
+    collapse_symmetric_expr(inner1, inner2)
+    assert inner1.name == inner2.name

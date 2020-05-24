@@ -588,6 +588,21 @@ def test_simplify_optimize_w_tail_einsum():
         assert newout_simplify == A
 
 
+def test_simplify_symmetric_einsum_expr():
+
+    H = ad.Variable(name="H", shape=[2, 2], symmetry=[[0, 1]])
+    x1 = ad.Variable(name="x1", shape=[2])
+    x2 = ad.Variable(name="x2", shape=[2])
+
+    inner1 = ad.einsum("ab,a,b->", H, x1, x2)
+    inner2 = ad.einsum("ab,b,a->", H, x1, x2)
+    out = 0.5 * inner1 + 0.5 * inner2
+    newout_simplify = simplify(out)
+
+    # ad.einsum("ab,a,b->", H, x1, x2) or ad.einsum("ab,b,a->", H, x1, x2)
+    assert isinstance(newout_simplify, ad.EinsumNode)
+
+
 def test_prune_scalar_nodes():
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
