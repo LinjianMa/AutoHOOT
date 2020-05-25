@@ -12,7 +12,7 @@ import numpy as np
 from collections import deque
 
 import autodiff as ad
-from graph_ops.graph_dedup import dedup, declone
+from graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
@@ -481,6 +481,12 @@ def simplify(output_node):
                 prune_identity_nodes(node)
                 new_node = prune_scalar_nodes(node)
                 replace_node(pnode, new_node)
+
+    # collapse symmetric expressions
+    all_pnodes = find_topo_sort_p([output_pnode])
+    for i in range(len(all_pnodes)):
+        for j in range(i):
+            collapse_symmetric_expr(all_pnodes[i].node, all_pnodes[j].node)
 
     #sympy_simplify the distributed nodes
     if isinstance(output_node, ad.DistributiveNode):

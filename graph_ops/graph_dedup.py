@@ -1,10 +1,12 @@
 import autodiff as ad
+import copy, logging
+import numpy as np
+import itertools
+
 from utils import find_topo_sort, OutputInjectedModeP, replace_node, PseudoNode
 from utils import find_topo_sort_p
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
-import copy, logging
-import numpy as np
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -120,6 +122,35 @@ def collapse_symmetric_expr(A, B):
     ----------
     A, B : einsum nodes.
     """
+    def equivalent_dims(dims_A, dims_B):
+        """
+        Check if the two dimension info tuples are equivalent under the symmetry constraint.
+        Return True if equivalent and return False otherwise.
+        """
+        for dim_A_info in dims_A:
+            inode, dim = dim_A_info.node, dim_A_info.dim_index
+            symmetric_dims = [dim]
+            for s in inode.symmetry:
+                if dim in s:
+                    symmetric_dims = s
+                    break
+
+            search_list = [(dim_B_info, d) for dim_B_info in dims_B
+                           for d in symmetric_dims]
+            if not any((inode == dim_B_info.node and dim_B_info.dim_index == d)
+                       for (dim_B_info, d) in search_list):
+                return False
+        return True
+
+    def equivalent_list_dims(list_dims_A, list_dims_B):
+        """
+        Check if all the elements in the two lists are equivalent.
+        """
+        for (dims_A, dims_B) in zip(list_dims_A, list_dims_B):
+            if not equivalent_dims(dims_A, dims_B):
+                return False
+        return True
+
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
         logger.info(f"Cannot collapse {A} and {B}")
         return
@@ -130,29 +161,36 @@ def collapse_symmetric_expr(A, B):
         logger.info(f"Cannot collapse {A} and {B}")
         return
 
-    dset_A = get_disjoint_set(A)
-    dset_B = get_disjoint_set(B)
+    dims_dict_A = get_disjoint_set(A)
+    dims_dict_B = get_disjoint_set(B)
 
-    for (connected_dims_A, connected_dims_B) in zip(dset_A.keys(),
-                                                    dset_B.keys()):
-        for dim_A_info in connected_dims_A:
-            inode, dim = dim_A_info.node, dim_A_info.dim_index
-            symmetric_dims = [dim]
-            for s in inode.symmetry:
-                if dim in s:
-                    symmetric_dims = s
-                    break
+    uncontracted_list_A = [
+        key for key, value in dims_dict_A.items() if value != -1
+    ]
+    uncontracted_list_B = [
+        key for key, value in dims_dict_B.items() if value != -1
+    ]
 
-            search_list = [(dim_B_info, d) for dim_B_info in connected_dims_B
-                           for d in symmetric_dims]
-            if any((inode == dim_B_info.node and dim_B_info.dim_index == d)
-                   for (dim_B_info, d) in search_list):
-                continue
-            logger.info(f"Cannot collapse {A} and {B}")
+    contracted_set_A = set(dims_dict_A) - set(uncontracted_list_A)
+    contracted_set_B = set(dims_dict_B) - set(uncontracted_list_B)
+
+    if not equivalent_list_dims(uncontracted_list_A, uncontracted_list_B):
+        logger.info(f"Cannot collapse {A} and {B}")
+        return
+
+    # The connected_dims for the contracted dimensions are unordered.
+    # A and B are equivalent if one of the permutations are equivalent.
+    for contracted_set_B_permute in set(
+            itertools.permutations(contracted_set_B)):
+
+        if equivalent_list_dims(contracted_set_A, contracted_set_B_permute):
+            # One of the permutations is equivalent
+            A.einsum_subscripts = B.einsum_subscripts
+            A.set_inputs(B.inputs)
             return
 
-    A.einsum_subscripts = B.einsum_subscripts
-    A.set_inputs(B.inputs)
+    logger.info(f"Cannot collapse {A} and {B}")
+    return
 
 
 def get_transpose_indices(A, B):

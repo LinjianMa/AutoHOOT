@@ -223,6 +223,7 @@ class IdentityNode(ConstantNode):
 
     def __init__(self, size):
         name = f"T.identity({size})"
+        self.symmetry = [[0, 1]]
         super().__init__(name, [size, size])
 
     def compute(self):
