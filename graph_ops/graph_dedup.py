@@ -122,7 +122,7 @@ def collapse_symmetric_expr(A, B):
     ----------
     A, B : einsum nodes.
     """
-    def equivalent_connected_dims(dims_A, dims_B):
+    def equivalent_dims(dims_A, dims_B):
         """
         Check if the two dimension info tuples are equivalent under the symmetry constraint.
         Return True if equivalent and return False otherwise.
@@ -137,10 +137,18 @@ def collapse_symmetric_expr(A, B):
 
             search_list = [(dim_B_info, d) for dim_B_info in dims_B
                            for d in symmetric_dims]
-            if any((inode == dim_B_info.node and dim_B_info.dim_index == d)
-                   for (dim_B_info, d) in search_list):
-                continue
-            return False
+            if not any((inode == dim_B_info.node and dim_B_info.dim_index == d)
+                       for (dim_B_info, d) in search_list):
+                return False
+        return True
+
+    def equivalent_list_dims(list_dims_A, list_dims_B):
+        """
+        Check if all the elements in the two lists are equivalent.
+        """
+        for (dims_A, dims_B) in zip(list_dims_A, list_dims_B):
+            if not equivalent_dims(dims_A, dims_B):
+                return False
         return True
 
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
@@ -166,38 +174,23 @@ def collapse_symmetric_expr(A, B):
     contracted_set_A = set(dims_dict_A) - set(uncontracted_list_A)
     contracted_set_B = set(dims_dict_B) - set(uncontracted_list_B)
 
-    is_equivalent = False
-
-    for (connected_dims_A, connected_dims_B) in zip(uncontracted_list_A,
-                                                    uncontracted_list_B):
-        is_equivalent = equivalent_connected_dims(connected_dims_A,
-                                                  connected_dims_B)
-        if not is_equivalent:
-            logger.info(f"Cannot collapse {A} and {B}")
-            return
+    if not equivalent_list_dims(uncontracted_list_A, uncontracted_list_B):
+        logger.info(f"Cannot collapse {A} and {B}")
+        return
 
     # The connected_dims for the contracted dimensions are unordered.
     # A and B are equivalent if one of the permutations are equivalent.
     for contracted_set_B_permute in set(
             itertools.permutations(contracted_set_B)):
-        is_equivalent = True
-        for (connected_dims_A,
-             connected_dims_B) in zip(contracted_set_A,
-                                      contracted_set_B_permute):
-            is_equivalent = equivalent_connected_dims(connected_dims_A,
-                                                      connected_dims_B)
-            if not is_equivalent:
-                break
-        # One of the permutations is equivalent
-        if is_equivalent is True:
-            break
 
-    if not is_equivalent:
-        logger.info(f"Cannot collapse {A} and {B}")
-        return
+        if equivalent_list_dims(contracted_set_A, contracted_set_B_permute):
+            # One of the permutations is equivalent
+            A.einsum_subscripts = B.einsum_subscripts
+            A.set_inputs(B.inputs)
+            return
 
-    A.einsum_subscripts = B.einsum_subscripts
-    A.set_inputs(B.inputs)
+    logger.info(f"Cannot collapse {A} and {B}")
+    return
 
 
 def get_transpose_indices(A, B):
