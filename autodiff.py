@@ -566,12 +566,13 @@ class MulNode(OpNode):
         assert len(inputs) == 2
         return "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
-    def _jacobian_tensor_scalar(self, input_scalar, input_tensor):
+    @staticmethod
+    def jacobian_tensor_scalar(shape, input_scalar, input_tensor):
         # Computes the Jacobian for scalar * tensor w.r.t tensor
         #   For the case C["ijkl"] = A["ijkl"]*S or S*A["ijkl"],
         #   Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*S.
-        order = len(self.shape)
-        identity_nodes = [identity(self.shape[i]) for i in range(order)]
+        order = len(shape)
+        identity_nodes = [identity(shape[i]) for i in range(order)]
         input_indices = [[i, i + order] for i in range(order)]
         out_index = [i for i in range(2 * order)]
         subscripts = indices_to_subscripts(input_indices, out_index, 2 * order)
@@ -585,6 +586,9 @@ class MulNode(OpNode):
         left_op = self.inputs[1]
         right_op = self.inputs[0]
 
+        if self.scalar_A is True and self.scalar_B is True:
+            left_op.set_in_indices_length(0)
+            right_op.set_in_indices_length(0)
         if self.scalar_A is False and self.scalar_B is True:
             """
             Example:
@@ -594,7 +598,8 @@ class MulNode(OpNode):
             """
             input_scalar = self.inputs[1]
             input_tensor = self.inputs[0]
-            left_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+            left_op = MulNode.jacobian_tensor_scalar(self.shape, input_scalar,
+                                                     input_tensor)
         if self.scalar_A is True and self.scalar_B is False:
             """
             Example:
@@ -604,7 +609,8 @@ class MulNode(OpNode):
             """
             input_scalar = self.inputs[0]
             input_tensor = self.inputs[1]
-            right_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
+            right_op = MulNode.jacobian_tensor_scalar(self.shape, input_scalar,
+                                                      input_tensor)
         if self.scalar_A is False and self.scalar_B is False:
             """
             Example:
@@ -622,12 +628,10 @@ class MulNode(OpNode):
             input_nodes_A = identity_nodes + [self.inputs[1]]
             input_nodes_B = identity_nodes + [self.inputs[0]]
 
-            jacobian_A = einsum(subscripts, *input_nodes_A)
-            jacobian_B = einsum(subscripts, *input_nodes_B)
-            jacobian_A.set_in_indices_length(order)
-            jacobian_B.set_in_indices_length(order)
-            left_op = chainjacobian(output_jacobian, jacobian_A)
-            right_op = chainjacobian(output_jacobian, jacobian_B)
+            left_op = einsum(subscripts, *input_nodes_A)
+            right_op = einsum(subscripts, *input_nodes_B)
+            left_op.set_in_indices_length(order)
+            right_op.set_in_indices_length(order)
 
         return [
             chainjacobian(output_jacobian, left_op),
@@ -652,6 +656,10 @@ class MulByConstNode(DistributiveNode):
         self.inputs = [node_A]
         self.name = "(%s*%s)" % (node_A.name, str(float(const_val)))
         self.shape = node_A.shape
+        if node_A.shape == [] or node_A.shape == [1]:
+            self.scalar = True
+        else:
+            self.scalar = False
 
     def set_inputs(self, inputs):
         assert len(inputs) == 1
@@ -665,6 +673,16 @@ class MulByConstNode(DistributiveNode):
 
     def transposed_vjp(self, output_grad):
         return [output_grad * self.const_attr]
+
+    def jacobian(self, output_jacobian):
+        if not self.scalar:
+            jac = MulNode.jacobian_tensor_scalar(self.shape,
+                                                 ScalarNode(self.const_attr),
+                                                 self.inputs[0])
+        else:
+            jac = ScalarNode(self.const_attr)
+            jac.set_in_indices_length(0)
+        return [chainjacobian(output_jacobian, jac)]
 
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
