@@ -1519,10 +1519,9 @@ def reverse_mode_map(output_node, input_tensor, mode):
             raise NotImplementedError
 
         # cannot take derivative over constant nodes
-        differentiable_inputs = [
-            n for n in node.inputs if not isinstance(n, ConstantNode)
-        ]
-        for index, input in enumerate(differentiable_inputs):
+        differentiable_inputs = [(i, n) for (i, n) in enumerate(node.inputs)
+                                 if not isinstance(n, ConstantNode)]
+        for index, input in differentiable_inputs:
             if input not in node_to_reverse_node_list:
                 node_to_reverse_node_list[input] = [
                     output_reverse_nodes[index]

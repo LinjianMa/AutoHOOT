@@ -3,13 +3,13 @@ import attr
 import numpy as np
 import autodiff as ad
 import backend as T
+
 from utils import CharacterGetter
 from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, gauge_transform_mps
 from graph_ops.graph_generator import split_einsum
+from graph_ops.graph_transformer import simplify
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import update_variables
-
-BACKEND_TYPES = ['numpy']
 
 
 @attr.s()
@@ -123,13 +123,18 @@ class MpoGraph(object):
         """
         assert len(ranks) == num - 1
 
-        H_left = ad.Variable(name='H0', shape=[ranks[0], size, size])
-        H_right = ad.Variable(name=f'H{num-1}', shape=[ranks[-1], size, size])
+        H_left = ad.Variable(name='H0',
+                             shape=[ranks[0], size, size],
+                             symmetry=[[1, 2]])
+        H_right = ad.Variable(name=f'H{num-1}',
+                              shape=[ranks[-1], size, size],
+                              symmetry=[[1, 2]])
 
         H_middle_list = []
         for i in range(1, num - 1):
             node = ad.Variable(name=f'H{i}',
-                               shape=[ranks[i - 1], ranks[i], size, size])
+                               shape=[ranks[i - 1], ranks[i], size, size],
+                               symmetry=[[2, 3]])
             H_middle_list.append(node)
 
         up_subs_list = []
@@ -183,17 +188,18 @@ class DmrgGraph(object):
 
     Variables
     ---------
-    mpo_graph: the class represents the MpoGraph
-    mps_graph: the class represents the MpsGraph
+    mpo_inputs: inputs of the MpoGraph
+    mps_inputs: inputs the MpsGraph
+    executor: an executor to calculate hessians
     intermediates: an array of einsum nodes taking hessian w.r.t.
-    executors: an array of executors to calculate hessians
+    hessians: a list of graphs for hessians
 
     """
     mpo_inputs = attr.ib()
     mps_inputs = attr.ib()
+    executor = attr.ib()
     intermediates = attr.ib(default=[])
     hessians = attr.ib(default=[])
-    executors = attr.ib(default=[])
 
     def update_graph(self, num, mpo_ranks, mps_ranks, size):
         self.mpo_inputs = MpoGraph.create(num, mpo_ranks, size).inputs
@@ -206,16 +212,33 @@ class DmrgGraph(object):
         mpo_graph = MpoGraph.create(num, mpo_ranks, size)
         mps_graph = MpsGraph.create(num, mps_ranks, size)
 
-        intermediates, executors, hessians = [], [], []
+        intermediates, hessians = [], []
         for i in range(num - 1):
             intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
             hessians.append(hes)
-            executor = ad.Executor([hes])
             intermediates.append(intermediate)
-            executors.append(executor)
+        executor = ad.Executor(hessians)
 
-        return cls(mpo_graph.inputs, mps_graph.inputs, intermediates, hessians,
-                   executors)
+        return cls(mpo_graph.inputs, mps_graph.inputs, executor, intermediates,
+                   hessians)
+
+    @classmethod
+    def create_w_shared_exec(cls, num, mpo_ranks, mps_ranks, size):
+        mpo_graph = MpoGraph.create(num, mpo_ranks, size)
+        mps_graph = MpsGraph.create(num, mps_ranks, size)
+
+        intermediates, hessians = [], []
+        for i in range(num - 1):
+            intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
+            hes = simplify(hes)
+            assert isinstance(hes, ad.EinsumNode)
+            hessians.append(hes)
+            intermediates.append(intermediate)
+        # TODO: generate optimal tree
+        executor = ad.Executor(hessians)
+
+        return cls(mpo_graph.inputs, mps_graph.inputs, executor, intermediates,
+                   hessians)
 
     @classmethod
     def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
@@ -231,14 +254,12 @@ class DmrgGraph(object):
         intermediate, = [
             node for node in mps.inputs if isinstance(node, ad.EinsumNode)
         ]
-
         mps_outer_product = ad.tensordot(mps, mps, axes=[[], []])
-
         mpo_axes = list(range(len(mpo_graph.output.shape)))
-        objective = ad.tensordot(mps_outer_product,
-                                 mpo_graph.output,
-                                 axes=[mpo_axes, mpo_axes])
 
+        # The 0.5 factor makes sure that the Hessian can be written as an einsum
+        objective = 0.5 * ad.tensordot(
+            mps_outer_product, mpo_graph.output, axes=[mpo_axes, mpo_axes])
         hes = ad.hessian(objective, [intermediate])
 
         return intermediate, hes[0][0]
@@ -328,14 +349,16 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
 
     vvT = T.tensordot(outprod, outprod, axes=[[], []])
     vvT_indices = list(range(len(vvT.shape)))
-    # Here we divide the eigval by 2 because we were take hessian of vTHv.
-    eig_val = T.tensordot(hes_val, vvT, [vvT_indices, vvT_indices]) / 2
+    eig_val = T.tensordot(hes_val, vvT, [vvT_indices, vvT_indices])
     eig_val /= vTv
 
     return left, right, eig_val
 
 
-def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
+def dmrg(mpo_tensors,
+         init_mps_tensors,
+         max_mps_rank,
+         num_iter=1,
          sequence='R'):
     """
     Perform DMRG iterations.
@@ -377,8 +400,58 @@ def dmrg(mpo_tensors, init_mps_tensors, max_mps_rank, num_iter=1,
             feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
             feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
-            hes_val, = dg.executors[i].run(feed_dict=feed_dict)
+            hes_val, = dg.executor.run(feed_dict=feed_dict,
+                                       out_nodes=[dg.hessians[i]])
 
+            # Update the two sites of mps
+            mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
+                dg.intermediates[i], hes_val, max_mps_rank)
+
+            # update the rank
+            mps_ranks[i] = mps_tensors[i + 1].shape[0]
+
+        print(f'At iteration {iter} the smallest eigenvalue is: {eig_val}')
+
+    return mps_tensors, eig_val
+
+
+def dmrg_shared_exec(mpo_tensors,
+                     init_mps_tensors,
+                     max_mps_rank,
+                     num_iter=1,
+                     sequence='R'):
+    """
+    Perform DMRG iterations with shared executions.
+    """
+    if sequence != "R":
+        raise NotImplementedError
+
+    num = len(mpo_tensors)
+    size = mpo_tensors[0].shape[1]
+    mpo_ranks = [mpo_tensors[i].shape[0] for i in range(1, len(mpo_tensors))]
+
+    mps_tensors = copy.deepcopy(init_mps_tensors)
+    mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
+
+    dg = DmrgGraph.create_w_shared_exec(num, mpo_ranks, mps_ranks, size)
+
+    # sequence is R
+    for iter in range(num_iter):
+
+        mps_tensors = gauge_transform_mps(mps_tensors, right=True)
+        mps_ranks = [
+            mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))
+        ]
+
+        for i in range(num - 1):
+
+            dg.update_graph(num, mpo_ranks, mps_ranks, size)
+
+            feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
+            feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
+
+            hes_val, = dg.executor.run(feed_dict=feed_dict,
+                                       out_nodes=[dg.hessians[i]])
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
                 dg.intermediates[i], hes_val, max_mps_rank)
