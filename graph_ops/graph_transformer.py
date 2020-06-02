@@ -501,9 +501,9 @@ def simplify(output_node):
                 node.set_inputs(node.inputs)
             if isinstance(node, ad.DistributiveNode):
                 for in_node in node.inputs:
-                    if not isinstance(in_node, ad.DistributiveNode):
+                    if not isinstance(in_node,
+                                      (ad.DistributiveNode, ad.ScalarNode)):
                         sympy_inputs.append(in_node)
-
         output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node

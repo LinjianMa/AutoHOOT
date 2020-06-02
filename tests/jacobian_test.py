@@ -248,6 +248,68 @@ def test_mul_jacobian():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
+def test_three_mul_jacobian():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[2, 2])
+        x2 = ad.Variable(name="x2", shape=[2, 2])
+        x3 = ad.Variable(name="x3", shape=[2, 2])
+        y = x1 * x2 * x3
+
+        jacobian_x1, = ad.jacobians(y, [x1])
+        executor = ad.Executor([y, jacobian_x1])
+
+        x1_val = T.tensor([[1., 2.], [3., 4.]])
+        x2_val = T.tensor([[5., 6.], [7., 8.]])
+        x3_val = T.tensor([[9., 10.], [11., 12.]])
+
+        y_val, jacobian_x1_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val,
+            x3: x3_val
+        })
+
+        I = T.identity(2)
+        expected_jacobian_x1_val = T.einsum("ai,bj,ij,ij->abij", I, I, x2_val,
+                                            x3_val)
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, x1_val * x2_val * x3_val)
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+
+
+def test_three_mul_jacobian_scalars():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x1", shape=[])
+        x2 = ad.Variable(name="x2", shape=[])
+        x3 = ad.Variable(name="x3", shape=[])
+        y = x1 * x2 * x3
+
+        jacobian_x1, = ad.jacobians(y, [x1])
+        executor = ad.Executor([y, jacobian_x1])
+
+        x1_val = T.tensor(1.)
+        x2_val = T.tensor(2.)
+        x3_val = T.tensor(3.)
+
+        y_val, jacobian_x1_val = executor.run(feed_dict={
+            x1: x1_val,
+            x2: x2_val,
+            x3: x3_val
+        })
+
+        expected_jacobian_x1_val = x2_val * x3_val
+
+        assert isinstance(y, ad.Node)
+        assert T.array_equal(y_val, x1_val * x2_val * x3_val)
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
+
+
 def test_mul_jacobian_scalars():
 
     for datatype in BACKEND_TYPES:
@@ -306,6 +368,21 @@ def test_mul_jacobian_one_scalar():
             assert T.array_equal(y_val, x1_val * x2_val)
             assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
             assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
+
+
+def test_mul_const_jacobian():
+
+    for datatype in BACKEND_TYPES:
+        T.set_backend(datatype)
+
+        x1 = ad.Variable(name="x2", shape=[2, 2])
+        jacobian_x1, = ad.jacobians(2 * x1, [x1])
+        executor = ad.Executor([jacobian_x1])
+        x1_val = T.tensor([[5., 6.], [7., 8.]])
+        jacobian_x1_val, = executor.run(feed_dict={x1: x1_val})
+        I = T.identity(2)
+        expected_jacobian_x1_val = 2 * T.einsum("ai,bj->abij", I, I)
+        assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
 
 
 def test_jacobian_einsum():
