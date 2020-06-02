@@ -120,7 +120,7 @@ def test_mul_by_const():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val) * 5)
 
 
-def test_mul_by_const():
+def test_mul_by_const_2():
 
     for datatype in BACKEND_TYPES:
         T.set_backend(datatype)
