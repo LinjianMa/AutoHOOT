@@ -190,14 +190,12 @@ class DmrgGraph(object):
     ---------
     mpo_inputs: inputs of the MpoGraph
     mps_inputs: inputs the MpsGraph
-    executor: an executor to calculate hessians
     intermediates: an array of einsum nodes taking hessian w.r.t.
     hessians: a list of graphs for hessians
 
     """
     mpo_inputs = attr.ib()
     mps_inputs = attr.ib()
-    executor = attr.ib()
     intermediates = attr.ib(default=[])
     hessians = attr.ib(default=[])
 
@@ -217,28 +215,8 @@ class DmrgGraph(object):
             intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
             hessians.append(hes)
             intermediates.append(intermediate)
-        executor = ad.Executor(hessians)
 
-        return cls(mpo_graph.inputs, mps_graph.inputs, executor, intermediates,
-                   hessians)
-
-    @classmethod
-    def create_w_shared_exec(cls, num, mpo_ranks, mps_ranks, size):
-        mpo_graph = MpoGraph.create(num, mpo_ranks, size)
-        mps_graph = MpsGraph.create(num, mps_ranks, size)
-
-        intermediates, hessians = [], []
-        for i in range(num - 1):
-            intermediate, hes = cls._get_sub_hessian(i, mpo_graph, mps_graph)
-            hes = simplify(hes)
-            assert isinstance(hes, ad.EinsumNode)
-            hessians.append(hes)
-            intermediates.append(intermediate)
-        # TODO: generate optimal tree
-        executor = ad.Executor(hessians)
-
-        return cls(mpo_graph.inputs, mps_graph.inputs, executor, intermediates,
-                   hessians)
+        return cls(mpo_graph.inputs, mps_graph.inputs, intermediates, hessians)
 
     @classmethod
     def _get_sub_hessian(cls, index, mpo_graph, mps_graph):
@@ -384,6 +362,7 @@ def dmrg(mpo_tensors,
     mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
 
     dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
+    executor = ad.Executor(dg.hessians)
 
     # sequence is R
     for iter in range(num_iter):
@@ -400,8 +379,8 @@ def dmrg(mpo_tensors,
             feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
             feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
-            hes_val, = dg.executor.run(feed_dict=feed_dict,
-                                       out_nodes=[dg.hessians[i]])
+            hes_val, = executor.run(feed_dict=feed_dict,
+                                    out_nodes=[dg.hessians[i]])
 
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
@@ -433,7 +412,12 @@ def dmrg_shared_exec(mpo_tensors,
     mps_tensors = copy.deepcopy(init_mps_tensors)
     mps_ranks = [mps_tensors[i].shape[0] for i in range(1, len(mps_tensors))]
 
-    dg = DmrgGraph.create_w_shared_exec(num, mpo_ranks, mps_ranks, size)
+    dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
+    for i, hes in enumerate(dg.hessians):
+        dg.hessians[i] = simplify(hes)
+        assert isinstance(hes, ad.EinsumNode)
+    # TODO: generate optimal tree
+    executor = ad.Executor(dg.hessians)
 
     # sequence is R
     for iter in range(num_iter):
@@ -450,8 +434,8 @@ def dmrg_shared_exec(mpo_tensors,
             feed_dict = dict(zip(dg.mpo_inputs, mpo_tensors))
             feed_dict.update(dict(zip(dg.mps_inputs, mps_tensors)))
 
-            hes_val, = dg.executor.run(feed_dict=feed_dict,
-                                       out_nodes=[dg.hessians[i]])
+            hes_val, = executor.run(feed_dict=feed_dict,
+                                    out_nodes=[dg.hessians[i]])
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
                 dg.intermediates[i], hes_val, max_mps_rank)
