@@ -18,7 +18,7 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
-def generate_sequential_optiaml_tree(einsum_node_map={}):
+def generate_sequential_optimal_tree(einsum_node_map={}):
     """Generates a list of nodes in-order. 
     Args: 
         einsum_node_map: a dict that maps from an output node to a input node.
@@ -34,7 +34,7 @@ def generate_sequential_optiaml_tree(einsum_node_map={}):
     >>> einsum_node_A = ad.einsum("bm,cm,dm->am", B, C, D)
     >>> einsum_node_B = ad.einsum("am,cm,dm->bm", A, C, D)
     >>> einsum_node_C = ad.einsum("am,bm,dm->cm", A, B, D)
-    >>> dt = generate_sequential_optiaml_tree({einsum_node_A:A, 
+    >>> dt = generate_sequential_optimal_tree({einsum_node_A:A, 
     >>>                                        einsum_node_B:B, 
     >>>                                        einsum_node_C:C})    
     

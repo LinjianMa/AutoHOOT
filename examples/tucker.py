@@ -6,7 +6,7 @@ from tensors.synthetic_tensors import init_rand_tucker
 from graph_ops.graph_generator import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 from graph_ops.graph_transformer import simplify
-from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
+from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 
 
 def n_mode_eigendec(node, tensor_val, rank):
@@ -211,7 +211,7 @@ def tucker_als_graph_shared_exec(dim, size, rank):
     for i in range(1, len(tg.losses)):
         assert loss.name == simplify(tg.losses[i]).name
 
-    updates = generate_sequential_optiaml_tree(dict(zip(updates, tg.A_list)))
+    updates = generate_sequential_optimal_tree(dict(zip(updates, tg.A_list)))
     executor_updates = ad.Executor(updates)
     executor_loss = ad.Executor([loss])
 

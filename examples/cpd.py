@@ -5,7 +5,7 @@ from tensors.synthetic_tensors import init_rand_cp
 from utils import conjugate_gradient, cp_nls_optimizer, CharacterGetter
 from graph_ops.graph_transformer import optimize, simplify
 from graph_ops.graph_dedup import dedup
-from graph_ops.graph_als_optimizer import generate_sequential_optiaml_tree
+from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 import time
 
 BACKEND_TYPES = ['numpy']
@@ -123,7 +123,7 @@ def cpd_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
     ]
 
     new_A_list = [simplify(A - update) for (A, update) in zip(A_list, updates)]
-    new_A_list = generate_sequential_optiaml_tree(dict(zip(new_A_list, A_list)))
+    new_A_list = generate_sequential_optimal_tree(dict(zip(new_A_list, A_list)))
 
     executor = ad.Executor(new_A_list)
     executor_loss = ad.Executor([simplify(loss)])
