@@ -123,7 +123,7 @@ def cpd_als_shared_exec(dim, size, rank, num_iter, input_val=[]):
     ]
 
     new_A_list = [simplify(A - update) for (A, update) in zip(A_list, updates)]
-    new_A_list = generate_sequential_optimal_tree(dict(zip(new_A_list, A_list)))
+    new_A_list = generate_sequential_optimal_tree(new_A_list, A_list)
 
     executor = ad.Executor(new_A_list)
     executor_loss = ad.Executor([simplify(loss)])

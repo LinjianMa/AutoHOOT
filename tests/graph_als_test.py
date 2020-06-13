@@ -17,12 +17,9 @@ def test_dimension_tree_4d():
     einsum_node_C = ad.einsum("abcd,am,bm,dm->cm", X, A, B, D)
     einsum_node_D = ad.einsum("abcd,am,bm,cm->dm", X, A, B, C)
 
-    dt = generate_sequential_optimal_tree({
-        einsum_node_A: A,
-        einsum_node_B: B,
-        einsum_node_C: C,
-        einsum_node_D: D
-    })
+    dt = generate_sequential_optimal_tree(
+        [einsum_node_A, einsum_node_B, einsum_node_C, einsum_node_D],
+        [A, B, C, D])
 
     # 5 inputs, 4 outputs, 5 intermedaites
     assert len(find_topo_sort(dt)) == 14
@@ -43,11 +40,8 @@ def test_dimension_tree_w_identity():
     einsum_node_B = ad.einsum("abc,am,cm->bm", X, A, C)
     einsum_node_C = ad.einsum("abc,am,bm->cm", X, A, B)
 
-    dt = generate_sequential_optimal_tree({
-        einsum_node_A: A,
-        einsum_node_B: B,
-        einsum_node_C: C
-    })
+    dt = generate_sequential_optimal_tree(
+        [einsum_node_A, einsum_node_B, einsum_node_C], [A, B, C])
 
     assert tree_eq(dt[0], einsum_node_A, [A, C, X])
     assert tree_eq(dt[1], einsum_node_B, [A, C, X])
@@ -83,11 +77,8 @@ def test_simple_dmrg_tree():
     einsum_node_A3 = ad.einsum("ach,abdi,bej,fc,kh,fgd,kli->gelj", X1, X2, X3,
                                A1, A1, A2, A2)
 
-    dt = generate_sequential_optimal_tree({
-        einsum_node_A1: A1,
-        einsum_node_A2: A2,
-        einsum_node_A3: A3
-    })
+    dt = generate_sequential_optimal_tree(
+        [einsum_node_A1, einsum_node_A2, einsum_node_A3], [A1, A2, A3])
 
     assert tree_eq(dt[0], einsum_node_A1, [X1, X2, X3, A1, A1, A2, A2, A3, A3])
     assert tree_eq(dt[1], einsum_node_A2, [X1, X2, X3, A1, A1, A2, A2, A3, A3])

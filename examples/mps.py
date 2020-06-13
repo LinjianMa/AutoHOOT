@@ -8,6 +8,7 @@ from utils import CharacterGetter
 from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, gauge_transform_mps
 from graph_ops.graph_generator import split_einsum
 from graph_ops.graph_transformer import simplify
+from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import update_variables
 
@@ -416,7 +417,8 @@ def dmrg_shared_exec(mpo_tensors,
     for i, hes in enumerate(dg.hessians):
         dg.hessians[i] = simplify(hes)
         assert isinstance(hes, ad.EinsumNode)
-    # TODO: generate optimal tree
+    # TODO: check number of operations in the dimension tree
+    dg.hessians = generate_sequential_optimal_tree(dg.hessians, dg.mps_inputs)
     executor = ad.Executor(dg.hessians)
 
     # sequence is R
