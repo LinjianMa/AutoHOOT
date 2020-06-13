@@ -2,12 +2,9 @@ import autodiff as ad
 import backend as T
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow', 'jax']
+def test_identity(backendopt):
 
-
-def test_identity():
-
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -25,9 +22,9 @@ def test_identity():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val))
 
 
-def test_add_by_const():
+def test_add_by_const(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -44,9 +41,9 @@ def test_add_by_const():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val))
 
 
-def test_sub_by_const():
+def test_sub_by_const(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -63,9 +60,9 @@ def test_sub_by_const():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val))
 
 
-def test_sub_by_const_2():
+def test_sub_by_const_2(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -82,9 +79,9 @@ def test_sub_by_const_2():
         assert T.array_equal(grad_x2_val, -T.ones_like(x2_val))
 
 
-def test_negative():
+def test_negative(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -101,9 +98,9 @@ def test_negative():
         assert T.array_equal(grad_x2_val, -T.ones_like(x2_val))
 
 
-def test_mul_by_const():
+def test_mul_by_const(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -120,9 +117,9 @@ def test_mul_by_const():
         assert T.array_equal(grad_x2_val, T.ones_like(x2_val) * 5)
 
 
-def test_mul_by_const_float():
+def test_mul_by_const_float(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3])
@@ -133,9 +130,9 @@ def test_mul_by_const_float():
         assert tree_eq(y1, y2, [x])
 
 
-def test_power():
+def test_power(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -152,9 +149,9 @@ def test_power():
         assert T.array_equal(grad_x2_val, 3 * (x2_val**2))
 
 
-def test_add_two_vars():
+def test_add_two_vars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -177,9 +174,9 @@ def test_add_two_vars():
         assert T.array_equal(grad_x3_val, T.ones_like(x3_val))
 
 
-def test_sub_two_vars():
+def test_sub_two_vars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -202,9 +199,9 @@ def test_sub_two_vars():
         assert T.array_equal(grad_x3_val, -T.ones_like(x3_val))
 
 
-def test_mul_two_vars():
+def test_mul_two_vars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -227,9 +224,9 @@ def test_mul_two_vars():
         assert T.array_equal(grad_x3_val, x2_val)
 
 
-def test_add_mul_mix_1():
+def test_add_mul_mix_1(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[3])
@@ -257,9 +254,9 @@ def test_add_mul_mix_1():
         assert T.array_equal(grad_x3_val, x2_val * x1_val)
 
 
-def test_add_mul_mix_2():
+def test_add_mul_mix_2(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[3])
@@ -290,9 +287,9 @@ def test_add_mul_mix_2():
         assert T.array_equal(grad_x4_val, x2_val * x3_val)
 
 
-def test_add_mul_mix_3():
+def test_add_mul_mix_3(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -321,9 +318,9 @@ def test_add_mul_mix_3():
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
 
 
-def test_matmul_two_vars():
+def test_matmul_two_vars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3, 2])
@@ -352,9 +349,9 @@ def test_matmul_two_vars():
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
 
 
-def test_einsum():
+def test_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3, 2])
@@ -384,9 +381,9 @@ def test_einsum():
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
 
 
-def test_einsum_3op():
+def test_einsum_3op(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3, 2])
@@ -424,9 +421,9 @@ def test_einsum_3op():
         assert T.array_equal(grad_x4_val, expected_grad_x4_val)
 
 
-def test_norm():
+def test_norm(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3, 2])
@@ -448,9 +445,9 @@ def test_norm():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_sum():
+def test_sum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3, 2])
@@ -471,9 +468,9 @@ def test_sum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_transpose():
+def test_transpose(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3, 2])
@@ -494,9 +491,9 @@ def test_transpose():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_transpose_einsum():
+def test_transpose_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3, 2])
@@ -517,9 +514,9 @@ def test_transpose_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_tensor_transpose_einsum():
+def test_tensor_transpose_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[2, 2, 2])
@@ -542,8 +539,8 @@ def test_tensor_transpose_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_inner_product():
-    for datatype in BACKEND_TYPES:
+def test_inner_product(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[1, 3])
         x_inner = ad.sum(x @ ad.transpose(x))
@@ -563,8 +560,8 @@ def test_inner_product():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_inner_product_einsum():
-    for datatype in BACKEND_TYPES:
+def test_inner_product_einsum(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3])
         x_inner = ad.einsum('i,i->', x, x)
@@ -584,8 +581,8 @@ def test_inner_product_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_summation_einsum():
-    for datatype in BACKEND_TYPES:
+def test_summation_einsum(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         x_sum = ad.einsum('ij->', x)
@@ -604,8 +601,8 @@ def test_summation_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_summation_einsum_2():
-    for datatype in BACKEND_TYPES:
+def test_summation_einsum_2(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         y = ad.Variable(name="y", shape=[2, 2])
@@ -625,8 +622,8 @@ def test_summation_einsum_2():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_trace_einsum():
-    for datatype in BACKEND_TYPES:
+def test_trace_einsum(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         trace = ad.einsum('ii->', x)
@@ -645,8 +642,8 @@ def test_trace_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_vjps():
-    for datatype in BACKEND_TYPES:
+def test_vjps(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
@@ -675,8 +672,8 @@ def test_vjps():
                              expected_transposed_vjp_x_val)
 
 
-def test_jvps():
-    for datatype in BACKEND_TYPES:
+def test_jvps(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x1 = ad.Variable(name="x1", shape=[2])
         A1 = ad.Variable(name="A1", shape=[3, 2])
@@ -717,8 +714,8 @@ def test_jvps():
                              expected_transposed_vjp_x_val)
 
 
-def test_jtjvps():
-    for datatype in BACKEND_TYPES:
+def test_jtjvps(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
@@ -749,8 +746,8 @@ def test_jtjvps():
         assert T.array_equal(jtjvp_x_val, expected_jtjvp_x_val)
 
 
-def test_inner_product_hvp():
-    for datatype in BACKEND_TYPES:
+def test_inner_product_hvp(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 1])
         v = ad.Variable(name="v", shape=[3, 1])
@@ -777,8 +774,8 @@ def test_inner_product_hvp():
         assert T.array_equal(Hv_val, expected_hv_val)
 
 
-def test_hvp1():
-    for datatype in BACKEND_TYPES:
+def test_hvp1(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 1])
         H = ad.Variable(name="H", shape=[3, 3])
@@ -808,8 +805,8 @@ def test_hvp1():
         assert T.array_equal(Hv_val, expected_hv_val)
 
 
-def test_hvp2():
-    for datatype in BACKEND_TYPES:
+def test_hvp2(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 1])
         H = ad.Variable(name="H", shape=[3, 3])
@@ -838,8 +835,8 @@ def test_hvp2():
         assert T.array_equal(Hv_val, expected_hv_val)
 
 
-def test_tensorinv_matrix():
-    for datatype in BACKEND_TYPES:
+def test_tensorinv_matrix(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 3])
         inv_x = ad.tensorinv(x)
@@ -850,8 +847,8 @@ def test_tensorinv_matrix():
         assert T.array_equal(inv_x_val, T.inv(x_val))
 
 
-def test_tensorinv_tensor():
-    for datatype in BACKEND_TYPES:
+def test_tensorinv_tensor(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 2, 3, 2])
         inv_x = ad.tensorinv(x)
@@ -862,8 +859,8 @@ def test_tensorinv_tensor():
         assert T.array_equal(inv_x_val, T.tensorinv(x_val))
 
 
-def test_tensorinv_odd_dim():
-    for datatype in BACKEND_TYPES:
+def test_tensorinv_odd_dim(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[24, 8, 3])
@@ -878,8 +875,8 @@ def test_tensorinv_odd_dim():
         assert T.array_equal(inv_x_val, T.tensorinv(x_val, ind=1))
 
 
-def test_tensordot():
-    for datatype in BACKEND_TYPES:
+def test_tensordot(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 3, 3, 3])

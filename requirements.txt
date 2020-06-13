@@ -3,7 +3,7 @@ jax
 jaxlib
 graphviz
 numpy
-pytest
+pytest==5.4.3
 pytest-benchmark
 quimb==1.2.0
 tensorflow==2.1.0

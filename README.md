@@ -8,6 +8,12 @@ python -m pytest tests/*.py
 # You can specify the python file as well.
 ```
 
+```bash
+# Run with specific backends
+pytest tests/autodiff_test.py --backendopt numpy jax
+```
+
+
 ## Notations
 This repo involves a lot of tensor contraction operations. We use the following notations in our documentation:
 
