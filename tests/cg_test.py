@@ -1,11 +1,8 @@
 import backend as T
 from utils import conjugate_gradient
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
-
-
-def test_HinverseG():
-    for datatype in BACKEND_TYPES:
+def test_HinverseG(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         N = 10

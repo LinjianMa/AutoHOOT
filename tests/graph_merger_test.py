@@ -6,8 +6,6 @@ from utils import find_topo_sort, find_topo_sort_p
 from utils import replace_node, OutputInjectedModeP, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
-
 
 ###############################################################################
 # Helper functions for the tests
@@ -48,12 +46,12 @@ def test_find_all_einsum_descendants():
     assert len(all_einsum_nodes) == 3
 
 
-def test_einsum_simple_rewrite():
+def test_einsum_simple_rewrite(backendopt):
     """
         Rewrite the einsum expression.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a1 = ad.Variable(name="a1", shape=[3, 2])
@@ -63,9 +61,9 @@ def test_einsum_simple_rewrite():
         assert tree_eq(x, x_new, [a1, a2])
 
 
-def test_einsum():
+def test_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_nodes, z = get_tree()
@@ -73,7 +71,7 @@ def test_einsum():
         assert tree_eq(z, z_new, input_nodes)
 
 
-def test_einsum_fuse_graph():
+def test_einsum_fuse_graph(backendopt):
     """
         [Fuse einsum used twice]
         This case is rather subtle.
@@ -89,7 +87,7 @@ def test_einsum_fuse_graph():
         Here es is einsum.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
         a = ad.Variable(name="a", shape=[3, 3])
         b = ad.Variable(name="b", shape=[3, 2])
@@ -109,7 +107,7 @@ def test_einsum_fuse_graph():
         assert tree_eq(out.node, new_z, [a, b, c])
 
 
-def test_einsum_fuse_w_identity():
+def test_einsum_fuse_w_identity(backendopt):
     """
         [Fuse einsum with multiple identities]
         We want to fuse
@@ -126,7 +124,7 @@ def test_einsum_fuse_w_identity():
         Here es is einsum.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 3])
@@ -139,9 +137,9 @@ def test_einsum_fuse_w_identity():
         assert tree_eq(out.node, new_out, [a])
 
 
-def test_einsum_fuse_only_identity():
+def test_einsum_fuse_only_identity(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         es_identity = ad.einsum('ik,kj->ij', ad.identity(3), ad.identity(3))
@@ -153,7 +151,7 @@ def test_einsum_fuse_only_identity():
         assert tree_eq(out.node, new_out, [])
 
 
-def test_einsum_multiuse():
+def test_einsum_multiuse(backendopt):
     """
         Test manual fuse.
         A    B   inputs 
@@ -168,7 +166,7 @@ def test_einsum_multiuse():
         Note that here we assume A is split into 2 vars by some other operations.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a1", shape=[3, 2])
@@ -182,7 +180,7 @@ def test_einsum_multiuse():
         assert tree_eq(output, out_new, [a, a_copy, b])
 
 
-def test_einsum_multiuse_auto_copy():
+def test_einsum_multiuse_auto_copy(backendopt):
     """
         Test autolinearization and auto fuse.
         A    B   inputs 
@@ -197,7 +195,7 @@ def test_einsum_multiuse_auto_copy():
         Next: we would need to autoprune.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a1", shape=[3, 2])
@@ -219,9 +217,9 @@ def test_einsum_multiuse_auto_copy():
         assert tree_eq(output, out_new, [*cloned_nodes, b])
 
 
-def test_einsum_multitier():
+def test_einsum_multitier(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_nodes1, zs1 = get_tree("set1")
@@ -252,7 +250,7 @@ def test_einsum_multitier():
         assert float_eq(z_val, z_new_val)
 
 
-def test_einsum_subtree_clone():
+def test_einsum_subtree_clone(backendopt):
     """
         [Subtree clone]
         This case is rather subtle.
@@ -269,7 +267,7 @@ def test_einsum_subtree_clone():
         Here es is einsum.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
         a = ad.Variable(name="a", shape=[3, 3])
         b = ad.Variable(name="b", shape=[3, 2])
@@ -303,8 +301,8 @@ def test_einsum_subtree_clone():
         assert float_eq(out_val, new_out_val)
 
 
-def test_fuse_subgraph():
-    for datatype in BACKEND_TYPES:
+def test_fuse_subgraph(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[2, 2])

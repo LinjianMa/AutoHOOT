@@ -1,12 +1,10 @@
 import autodiff as ad
 import backend as T
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
+def test_add_jacobian(backendopt):
 
-def test_add_jacobian():
-
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -33,9 +31,9 @@ def test_add_jacobian():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_add_jacobian_scalar():
+def test_add_jacobian_scalar(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[])
@@ -61,9 +59,9 @@ def test_add_jacobian_scalar():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_chainjacobian():
+def test_chainjacobian(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2, 2])
@@ -85,9 +83,9 @@ def test_chainjacobian():
         assert T.array_equal(y_val, expected_y_val)
 
 
-def test_add_jacobian_w_chain():
+def test_add_jacobian_w_chain(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -123,9 +121,9 @@ def test_add_jacobian_w_chain():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_add_jacobian_scalar_w_chain():
+def test_add_jacobian_scalar_w_chain(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[])
@@ -155,9 +153,9 @@ def test_add_jacobian_scalar_w_chain():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_sub_jacobian():
+def test_sub_jacobian(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -186,9 +184,9 @@ def test_sub_jacobian():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_sub_jacobian_w_chain():
+def test_sub_jacobian_w_chain(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -219,9 +217,9 @@ def test_sub_jacobian_w_chain():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_mul_jacobian():
+def test_mul_jacobian(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -248,9 +246,9 @@ def test_mul_jacobian():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_three_mul_jacobian():
+def test_three_mul_jacobian(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[2, 2])
@@ -280,9 +278,9 @@ def test_three_mul_jacobian():
         assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
 
 
-def test_three_mul_jacobian_scalars():
+def test_three_mul_jacobian_scalars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[])
@@ -310,9 +308,9 @@ def test_three_mul_jacobian_scalars():
         assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
 
 
-def test_mul_jacobian_scalars():
+def test_mul_jacobian_scalars(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[])
@@ -339,9 +337,9 @@ def test_mul_jacobian_scalars():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_mul_jacobian_one_scalar():
+def test_mul_jacobian_one_scalar(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[])
@@ -370,9 +368,9 @@ def test_mul_jacobian_one_scalar():
             assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_mul_const_jacobian():
+def test_mul_const_jacobian(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x2", shape=[2, 2])
@@ -385,9 +383,9 @@ def test_mul_const_jacobian():
         assert T.array_equal(jacobian_x1_val, expected_jacobian_x1_val)
 
 
-def test_jacobian_einsum():
+def test_jacobian_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x1 = ad.Variable(name="x1", shape=[3, 3, 3])
@@ -414,8 +412,8 @@ def test_jacobian_einsum():
         assert T.array_equal(jacobian_x2_val, expected_jacobian_x2_val)
 
 
-def test_jacobian_summation_einsum():
-    for datatype in BACKEND_TYPES:
+def test_jacobian_summation_einsum(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         x_sum = ad.einsum('ij->', x)
@@ -434,8 +432,8 @@ def test_jacobian_summation_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_jacobian_summation_einsum_2():
-    for datatype in BACKEND_TYPES:
+def test_jacobian_summation_einsum_2(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         y = ad.Variable(name="y", shape=[2, 2])
@@ -456,8 +454,8 @@ def test_jacobian_summation_einsum_2():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_jacobian_trace_einsum():
-    for datatype in BACKEND_TYPES:
+def test_jacobian_trace_einsum(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         trace = ad.einsum('ii->', x)
@@ -476,9 +474,9 @@ def test_jacobian_trace_einsum():
         assert T.array_equal(grad_x_val, expected_grad_x_val)
 
 
-def test_hessian_quadratic():
+def test_hessian_quadratic(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x = ad.Variable(name="x", shape=[3])

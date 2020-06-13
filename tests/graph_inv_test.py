@@ -3,12 +3,10 @@ import backend as T
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
+def test_kronecker_product_inv(backendopt):
 
-def test_kronecker_product_inv():
-
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -25,9 +23,9 @@ def test_kronecker_product_inv():
         assert tree_eq(inv, newinv, [A, B], tol=1e-6)
 
 
-def test_kronecker_product_repeated_inputs():
+def test_kronecker_product_repeated_inputs(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -43,9 +41,9 @@ def test_kronecker_product_repeated_inputs():
         assert tree_eq(inv, newinv, [A], tol=1e-5)
 
 
-def test_complex_product_inv():
+def test_complex_product_inv(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -67,9 +65,9 @@ def test_complex_product_inv():
         assert tree_eq(inv, newinv, [A, B, C, D], tol=1e-5)
 
 
-def test_high_dim_inv():
+def test_high_dim_inv(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2, 2, 2])
@@ -89,8 +87,8 @@ def test_high_dim_inv():
         assert tree_eq(inv, newinv, [A, B], tol=1e-6)
 
 
-def test_inv_multiple_decomposation():
-    for datatype in BACKEND_TYPES:
+def test_inv_multiple_decomposation(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -109,7 +107,7 @@ def test_inv_multiple_decomposation():
         assert tree_eq(inv, newinv, [A, B, C], tol=1e-5)
 
 
-def test_kronecker_product_nondecomposable():
+def test_kronecker_product_nondecomposable(backendopt):
 
     A = ad.Variable(name="A", shape=[2, 3])
     B = ad.Variable(name="B", shape=[3, 2])
@@ -121,7 +119,7 @@ def test_kronecker_product_nondecomposable():
     assert inv is newinv
 
 
-def test_kronecker_product_non_even():
+def test_kronecker_product_non_even(backendopt):
 
     A = ad.Variable(name="A", shape=[4, 4, 2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
@@ -133,8 +131,8 @@ def test_kronecker_product_non_even():
     assert inv is newinv
 
 
-def test_prune_inv_nodes_simple():
-    for datatype in BACKEND_TYPES:
+def test_prune_inv_nodes_simple(backendopt):
+    for datatype in backendopt:
         A = ad.Variable(name="A", shape=[2, 2])
         B = ad.Variable(name="B", shape=[2, 2])
 
@@ -148,8 +146,8 @@ def test_prune_inv_nodes_simple():
         assert tree_eq(output, new_output, [A, B], tol=1e-6)
 
 
-def test_prune_inv_nodes_transpose():
-    for datatype in BACKEND_TYPES:
+def test_prune_inv_nodes_transpose(backendopt):
+    for datatype in backendopt:
         A = ad.Variable(name="A", shape=[2, 2])
         B = ad.Variable(name="B", shape=[2, 2])
 
@@ -163,7 +161,7 @@ def test_prune_inv_nodes_transpose():
         assert tree_eq(output, new_output, [A, B], tol=1e-6)
 
 
-def test_prune_inv_matmul_no_pruning():
+def test_prune_inv_matmul_no_pruning(backendopt):
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
 
@@ -176,7 +174,7 @@ def test_prune_inv_matmul_no_pruning():
     assert new_output is output
 
 
-def test_prune_inv_nonmatmul_no_pruning():
+def test_prune_inv_nonmatmul_no_pruning(backendopt):
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
 
@@ -189,7 +187,7 @@ def test_prune_inv_nonmatmul_no_pruning():
     assert new_output is output
 
 
-def test_prune_inv_different_num_inputs_no_pruning():
+def test_prune_inv_different_num_inputs_no_pruning(backendopt):
     A = ad.Variable(name="A", shape=[2, 2])
 
     inv_input = ad.einsum('ab,bc->ac', A, A)
@@ -199,7 +197,7 @@ def test_prune_inv_different_num_inputs_no_pruning():
     assert new_output is output
 
 
-def test_prune_inv_no_inv():
+def test_prune_inv_no_inv(backendopt):
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
 
@@ -209,7 +207,7 @@ def test_prune_inv_no_inv():
     assert new_output is output
 
 
-def test_prune_inv_set_not_match():
+def test_prune_inv_set_not_match(backendopt):
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
 
@@ -220,8 +218,8 @@ def test_prune_inv_set_not_match():
     assert new_output is output
 
 
-def test_prune_inv_multiple_inv():
-    for datatype in BACKEND_TYPES:
+def test_prune_inv_multiple_inv(backendopt):
+    for datatype in backendopt:
         A0 = ad.Variable(name="A0", shape=[2, 2])
         A1 = ad.Variable(name="A1", shape=[2, 2])
         A2 = ad.Variable(name="A2", shape=[2, 2])
@@ -238,8 +236,8 @@ def test_prune_inv_multiple_inv():
         assert tree_eq(out, new_out, [A0, A1, A2], tol=1e-6)
 
 
-def test_prune_inv_nodes_cpd():
-    for datatype in BACKEND_TYPES:
+def test_prune_inv_nodes_cpd(backendopt):
+    for datatype in backendopt:
         A = ad.Variable(name="A", shape=[2, 2])
         B = ad.Variable(name="B", shape=[2, 2])
         C = ad.Variable(name="C", shape=[2, 2])
