@@ -5,11 +5,9 @@ from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_c
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
-
-def test_einsum_gen():
-    for datatype in BACKEND_TYPES:
+def test_einsum_gen(backendopt):
+    for datatype in backendopt:
         N = 10
         C = ad.Variable(name="C", shape=[N, N])
         I = ad.Variable(name="I", shape=[N, N, N, N])
@@ -20,7 +18,7 @@ def test_einsum_gen():
         assert len(new_output.inputs) == 2
 
 
-def test_einsum_gen_corner_case():
+def test_einsum_gen_corner_case(backendopt):
     """
     Note: Numpy contraction path cannot find the opt path for this expression.
         It will output the same expression as the input.
@@ -48,8 +46,8 @@ def test_einsum_gen_corner_case():
             assert (len(node.inputs) == 2)
 
 
-def test_einsum_gen_custom():
-    for datatype in BACKEND_TYPES:
+def test_einsum_gen_custom(backendopt):
+    for datatype in backendopt:
         a = ad.Variable(name="a", shape=[2, 2])
         b = ad.Variable(name="b", shape=[2, 5])
         c = ad.Variable(name="c", shape=[5, 2])
@@ -59,8 +57,8 @@ def test_einsum_gen_custom():
         assert tree_eq(output, new_output, [a, b, c])
 
 
-def test_einsum_gen_custom_3operands():
-    for datatype in BACKEND_TYPES:
+def test_einsum_gen_custom_3operands(backendopt):
+    for datatype in backendopt:
         a = ad.Variable(name="a", shape=[2, 2])
         b = ad.Variable(name="b", shape=[2, 5])
         c = ad.Variable(name="c", shape=[5, 2])
@@ -71,7 +69,7 @@ def test_einsum_gen_custom_3operands():
         assert tree_eq(output, new_output, [a, b, c, d])
 
 
-def test_split_einsum():
+def test_split_einsum(backendopt):
 
     A = ad.Variable(name="A", shape=[2, 2])
     B = ad.Variable(name="B", shape=[2, 2])
@@ -86,7 +84,7 @@ def test_split_einsum():
     assert tree_eq(new_einsum, einsum_node, [A, B, C, D, E])
 
 
-def test_get_common_ancestor_simple():
+def test_get_common_ancestor_simple(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 2])
 
@@ -112,7 +110,7 @@ def test_get_common_ancestor_simple():
                       [A, X2], key=lambda node: node.name)
 
 
-def test_get_common_ancestor():
+def test_get_common_ancestor(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 2])
 
@@ -142,7 +140,7 @@ def test_get_common_ancestor():
                       [A, A, X3], key=lambda node: node.name)
 
 
-def test_get_common_ancestor_w_inv():
+def test_get_common_ancestor_w_inv(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 3])
     X = ad.Variable(name="X", shape=[3, 3, 3])
@@ -157,7 +155,7 @@ def test_get_common_ancestor_w_inv():
                       [A, X], key=lambda node: node.name)
 
 
-def test_get_common_ancester_intermediate_leaves():
+def test_get_common_ancester_intermediate_leaves(backendopt):
 
     a = ad.Variable(name="a", shape=[2, 2])
     b = ad.Variable(name="b", shape=[2, 2])
@@ -168,7 +166,7 @@ def test_get_common_ancester_intermediate_leaves():
     assert ancester == d
 
 
-def test_get_common_ancester_dup():
+def test_get_common_ancester_dup(backendopt):
     a = ad.Variable(name="a", shape=[2, 2])
     aa = ad.einsum("ab,bc->ac", a, a)
     out = ad.einsum("ab,bc->ac", aa, a)
@@ -176,8 +174,8 @@ def test_get_common_ancester_dup():
     assert ancester == out
 
 
-def test_split_einsum_dup():
-    for datatype in BACKEND_TYPES:
+def test_split_einsum_dup(backendopt):
+    for datatype in backendopt:
 
         A = ad.Variable(name="A", shape=[2, 2])
         B = ad.Variable(name="B", shape=[2, 2])
@@ -190,8 +188,8 @@ def test_split_einsum_dup():
         assert tree_eq(new_einsum, einsum_node, [A, B])
 
 
-def test_optimal_tree_w_constraint():
-    for datatype in BACKEND_TYPES:
+def test_optimal_tree_w_constraint(backendopt):
+    for datatype in backendopt:
 
         A = ad.Variable(name="A", shape=[2, 2])
         B = ad.Variable(name="B", shape=[2, 2])

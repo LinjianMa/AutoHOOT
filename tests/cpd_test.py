@@ -6,7 +6,6 @@ from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
 from utils import find_topo_sort
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow', 'jax']
 size, rank = 10, 5
 
 
@@ -23,9 +22,9 @@ def expect_jtjvp_val(A, B, C, v_A, v_B, v_C):
     return [jtjvp_A, jtjvp_B, jtjvp_C]
 
 
-def test_cpd_grad():
+def test_cpd_grad(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -68,9 +67,9 @@ def test_cpd_grad():
         assert T.norm(grad_C_val - expected_grad_C) < 1e-8
 
 
-def test_cpd_jtjvp():
+def test_cpd_jtjvp(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -108,9 +107,9 @@ def test_cpd_jtjvp():
         assert T.norm(jtjvp_val[2] - expected_hvp_val[2]) < 1e-8
 
 
-def test_cpd_jtjvp_optimize():
+def test_cpd_jtjvp_optimize(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -153,9 +152,9 @@ def test_cpd_jtjvp_optimize():
         assert T.norm(jtjvp_val[2] - expected_hvp_val[2]) < 1e-8
 
 
-def test_cpd_hessian_simplify():
+def test_cpd_hessian_simplify(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -192,9 +191,9 @@ def test_cpd_hessian_simplify():
         assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
 
 
-def test_cpd_hessian_optimize_diag():
+def test_cpd_hessian_optimize_diag(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -244,9 +243,9 @@ def test_cpd_hessian_optimize_diag():
         assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
 
 
-def test_cpd_hessian_optimize_offdiag():
+def test_cpd_hessian_optimize_offdiag(backendopt):
     dim = 3
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A_list, input_tensor, loss, residual = cpd_graph(dim, size, rank)
@@ -288,10 +287,10 @@ def test_cpd_hessian_optimize_offdiag():
         # assert T.norm(hes_diag_vals[2] - expected_hes_diag_val[2]) < 1e-8
 
 
-def test_cpd_als():
+def test_cpd_als(backendopt):
     dim = 3
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_val = init_rand_cp(dim, size, rank)
@@ -316,10 +315,10 @@ def test_cpd_als():
         assert T.norm(outputs[2] - C_val) < 1e-8
 
 
-def test_cpd_shared_exec():
+def test_cpd_shared_exec(backendopt):
     dim = 3
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_val = init_rand_cp(dim, size, rank)

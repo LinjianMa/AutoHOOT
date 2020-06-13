@@ -9,7 +9,7 @@ from .core import Backend
 
 class JaxBackend(Backend):
     backend_name = 'jax'
-    PRNG_key = random.PRNGKey(0)
+    random_index = 0
 
     @staticmethod
     def context(tensor):
@@ -25,7 +25,8 @@ class JaxBackend(Backend):
 
     @staticmethod
     def to_numpy(tensor):
-        return tensor
+        import numpy as onp
+        return onp.asarray(tensor)
 
     @staticmethod
     def shape(tensor):
@@ -93,10 +94,13 @@ class JaxBackend(Backend):
         return np.einsum(operation, *matrices).reshape((-1, n_columns)) * mask
 
     def random(self, shape):
-        return random.uniform(self.PRNG_key, shape=shape)
+        rand_val = random.uniform(random.PRNGKey(self.random_index),
+                                  shape=shape)
+        self.random_index += 1
+        return rand_val
 
     def seed(self, seed):
-        self.PRNG_key = random.PRNGKey(seed)
+        self.random_index = seed
 
     @staticmethod
     def tensorinv(tensor, ind=2):

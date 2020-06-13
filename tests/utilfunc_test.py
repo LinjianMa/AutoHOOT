@@ -3,11 +3,8 @@ import backend as T
 from utils import update_variables
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
-
-
-def test_update_variables():
-    for datatype in BACKEND_TYPES:
+def test_update_variables(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[2, 2])

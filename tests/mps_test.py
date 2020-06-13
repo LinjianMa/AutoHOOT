@@ -5,11 +5,9 @@ from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
-
-def test_mps():
-    for datatype in BACKEND_TYPES:
+def test_mps(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         mps_graph = MpsGraph.create(4, ranks=[5, 6, 7])
@@ -20,8 +18,8 @@ def test_mps():
         assert tree_eq(mps_graph.output, expect_mps, mps_graph.inputs)
 
 
-def test_mpo():
-    for datatype in BACKEND_TYPES:
+def test_mpo(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         mpo_graph = MpoGraph.create(4, ranks=[5, 6, 7])
@@ -33,8 +31,8 @@ def test_mpo():
         assert tree_eq(mpo_graph.output, expect_mpo, mpo_graph.inputs)
 
 
-def test_gauge_transform_right():
-    for datatype in BACKEND_TYPES:
+def test_gauge_transform_right(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         tensors_input = rand_mps(num=4, rank=4, size=2)
@@ -56,8 +54,8 @@ def test_gauge_transform_right():
         assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
 
-def test_gauge_transform_left():
-    for datatype in BACKEND_TYPES:
+def test_gauge_transform_left(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         tensors_input = rand_mps(num=4, rank=4, size=2)
@@ -79,10 +77,10 @@ def test_gauge_transform_left():
             assert T.norm(inner - T.identity(inner.shape[0])) < 1e-8
 
 
-def test_dmrg_one_sweep():
+def test_dmrg_one_sweep(backendopt):
     max_mps_rank = 5
     num = 4
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
 
         h = qtn.MPO_ham_heis(num)
         dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])
@@ -107,10 +105,10 @@ def test_dmrg_one_sweep():
         assert (abs(energy - quimb_energy) < 1e-8)
 
 
-def test_dmrg_shared_exec_one_sweep():
+def test_dmrg_shared_exec_one_sweep(backendopt):
     max_mps_rank = 5
     num = 4
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
 
         h = qtn.MPO_ham_heis(num)
         dmrg_quimb = qtn.DMRG2(h, bond_dims=[max_mps_rank])

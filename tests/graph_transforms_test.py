@@ -6,10 +6,8 @@ from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 from utils import PseudoNode
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 
-
-def test_einsum_multiuse():
+def test_einsum_multiuse(backendopt):
     """
         An einsum graph like
         A    B   inputs 
@@ -34,7 +32,7 @@ def test_einsum_multiuse():
         output
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a1", shape=[3, 2])
@@ -55,7 +53,7 @@ def test_einsum_multiuse():
         assert T.array_equal(out_val, out_new_val)
 
 
-def test_einsum_find_subtree_after_linearization():
+def test_einsum_find_subtree_after_linearization(backendopt):
     """
         An einsum graph like
         A    B   inputs 
@@ -82,7 +80,7 @@ def test_einsum_find_subtree_after_linearization():
         The subtree inputs must then be [A1, A2, B] rather than A, B.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a1", shape=[3, 2])
@@ -101,7 +99,7 @@ def test_einsum_find_subtree_after_linearization():
         assert (len(tree[1]) == 3)
 
 
-def test_linearization_multiple_same_output():
+def test_linearization_multiple_same_output(backendopt):
     """
         An einsum graph like
         A      inputs
@@ -134,7 +132,7 @@ def test_linearization_multiple_same_output():
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution(dist_op):
+def test_tree_distribution(dist_op, backendopt):
     """
         [Distributive] An einsum graph like
         A    B     C  inputs 
@@ -162,7 +160,7 @@ def test_tree_distribution(dist_op):
 
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -179,13 +177,13 @@ def test_tree_distribution(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_order(dist_op):
+def test_tree_distribution_order(dist_op, backendopt):
     """
         [Distributive]
         Test C * (A + B) = C * A + C * B
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -200,13 +198,13 @@ def test_tree_distribution_order(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_w_add_output(dist_op):
+def test_tree_distribution_w_add_output(dist_op, backendopt):
     """
         Test C * (A + B) + F * (D + E)
             = (C * A + C * B) + (F * D + F * E)
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 3])
@@ -228,7 +226,7 @@ def test_tree_distribution_w_add_output(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_four_terms(dist_op):
+def test_tree_distribution_four_terms(dist_op, backendopt):
     """
         [Distributive] (A + B) * (C + D) 
         A    B     C     D   inputs 
@@ -247,7 +245,7 @@ def test_tree_distribution_four_terms(dist_op):
 
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -273,7 +271,7 @@ def test_tree_distribution_four_terms(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_mim(dist_op):
+def test_tree_distribution_mim(dist_op, backendopt):
     """
         [Distributive] (A + B) * G * (C + D) 
 
@@ -292,7 +290,7 @@ def test_tree_distribution_mim(dist_op):
 
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -315,7 +313,7 @@ def test_tree_distribution_mim(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_two_layers(dist_op):
+def test_tree_distribution_two_layers(dist_op, backendopt):
     """
         [Distributive] ((A + B) * G) * C
 
@@ -326,7 +324,7 @@ def test_tree_distribution_two_layers(dist_op):
         Note that (A+B) * G is contracted first.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -344,7 +342,7 @@ def test_tree_distribution_two_layers(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_tree_distribution_ppE(dist_op):
+def test_tree_distribution_ppE(dist_op, backendopt):
     """
         [Distributive] ((A + B) + C) * G
 
@@ -355,7 +353,7 @@ def test_tree_distribution_ppE(dist_op):
         Note that (A+B) has parent (A + B) + C.
     """
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -372,10 +370,10 @@ def test_tree_distribution_ppE(dist_op):
 
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
-def test_distribute_dup(dist_op):
+def test_distribute_dup(dist_op, backendopt):
     from graph_ops.graph_transformer import distribute_graph_w_linearize
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 3])
@@ -387,11 +385,11 @@ def test_distribute_dup(dist_op):
         assert tree_eq(output, new_output, [a, c])
 
 
-def test_copy_tree():
+def test_copy_tree(backendopt):
     """
         [Copy] Test copying a tree.
     """
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -405,7 +403,7 @@ def test_copy_tree():
         assert new_node.name != output.name
 
 
-def test_rewrite_expr():
+def test_rewrite_expr(backendopt):
     """
         Test rewrite the einsum expression.
     """
@@ -422,7 +420,7 @@ def test_rewrite_expr():
     assert x.einsum_subscripts == y.einsum_subscripts
 
 
-def test_einsum_equal():
+def test_einsum_equal(backendopt):
 
     a1 = ad.Variable(name="a1", shape=[3, 2])
     a2 = ad.Variable(name="a2", shape=[2, 3])
@@ -437,7 +435,7 @@ def test_einsum_equal():
     assert x.inputs == y.inputs
 
 
-def test_einsum_equal_repeated_transpose():
+def test_einsum_equal_repeated_transpose(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 5])
 
@@ -451,7 +449,7 @@ def test_einsum_equal_repeated_transpose():
     assert x.inputs == y.inputs
 
 
-def test_einsum_equal_repeated_transpose():
+def test_einsum_equal_repeated_transpose(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 3])
     B = ad.Variable(name="B", shape=[3, 3])
@@ -466,7 +464,7 @@ def test_einsum_equal_repeated_transpose():
     assert x.inputs == y.inputs
 
 
-def test_einsum_equal_uf_assign_order():
+def test_einsum_equal_uf_assign_order(backendopt):
 
     A = ad.Variable(name="A", shape=[3, 3])
     B = ad.Variable(name="B", shape=[3, 3])
@@ -482,7 +480,7 @@ def test_einsum_equal_uf_assign_order():
     assert x.inputs == y.inputs
 
 
-def test_einsum_rewrite_duplicate_input():
+def test_einsum_rewrite_duplicate_input(backendopt):
 
     a = ad.Variable(name="a", shape=[3, 2])
 
@@ -495,8 +493,8 @@ def test_einsum_rewrite_duplicate_input():
     assert x.einsum_subscripts == y.einsum_subscripts
 
 
-def test_prune_identity():
-    for datatype in BACKEND_TYPES:
+def test_prune_identity(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a1 = ad.Variable(name="a1", shape=[3, 3])
@@ -522,8 +520,8 @@ def test_prune_identity():
         assert tree_eq(out, out_expect, [a1, a2])
 
 
-def test_prune_identity_w_dup():
-    for datatype in BACKEND_TYPES:
+def test_prune_identity_w_dup(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a1 = ad.Variable(name="a1", shape=[3, 3])
@@ -539,9 +537,9 @@ def test_prune_identity_w_dup():
         assert tree_eq(out, out_expect, [a1])
 
 
-def test_simplify_inv_w_identity():
+def test_simplify_inv_w_identity(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -555,9 +553,9 @@ def test_simplify_inv_w_identity():
         assert tree_eq(out, newout, [A], tol=1e-6)
 
 
-def test_simplify_inv_w_redundent_einsum():
+def test_simplify_inv_w_redundent_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -572,9 +570,9 @@ def test_simplify_inv_w_redundent_einsum():
         assert tree_eq(out, newout, [A], tol=1e-6)
 
 
-def test_simplify_optimize_w_tail_einsum():
+def test_simplify_optimize_w_tail_einsum(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[2, 2])
@@ -588,7 +586,7 @@ def test_simplify_optimize_w_tail_einsum():
         assert newout_simplify == A
 
 
-def test_simplify_symmetric_einsum_expr():
+def test_simplify_symmetric_einsum_expr(backendopt):
 
     H = ad.Variable(name="H", shape=[2, 2], symmetry=[[0, 1]])
     x1 = ad.Variable(name="x1", shape=[2])
@@ -603,8 +601,8 @@ def test_simplify_symmetric_einsum_expr():
     assert isinstance(newout_simplify, ad.EinsumNode)
 
 
-def test_prune_scalar_nodes():
-    for datatype in BACKEND_TYPES:
+def test_prune_scalar_nodes(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         a1 = ad.Variable(name="a1", shape=[3, 3])

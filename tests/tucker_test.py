@@ -3,12 +3,11 @@ import backend as T
 from tensors.synthetic_tensors import init_rand_tucker
 from examples.tucker import TuckerGraph, tucker_als, tucker_als_shared_exec
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
 dim, size, rank = 3, 5, 3
 
 
-def test_tucker():
-    for datatype in BACKEND_TYPES:
+def test_tucker(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         tg = TuckerGraph(dim, size, rank)
@@ -27,8 +26,8 @@ def test_tucker():
         assert T.norm(residual_val - expect_residual_val) < 1e-8
 
 
-def test_tucker_als():
-    for datatype in BACKEND_TYPES:
+def test_tucker_als(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_val = init_rand_tucker(dim, size, rank)
@@ -64,8 +63,8 @@ def test_tucker_als():
         assert T.norm(core_val_ad - core_val) < 1e-8
 
 
-def test_tucker_als_shared_exec():
-    for datatype in BACKEND_TYPES:
+def test_tucker_als_shared_exec(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         input_val = init_rand_tucker(dim, size, rank)

@@ -2,13 +2,10 @@ import autodiff as ad
 import backend as T
 from tests.test_utils import tree_eq, gen_dict
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
-BACKEND_TYPES = ['numpy']
 
+def test_executor_retain(backendopt):
 
-def test_executor_retain():
-
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         x2 = ad.Variable(name="x2", shape=[3])
@@ -25,9 +22,9 @@ def test_executor_retain():
         z_val, = executor.run(feed_dict={}, reset_graph=False, out_nodes=[z])
 
 
-def test_executor_dependent():
+def test_executor_dependent(backendopt):
 
-    for datatype in BACKEND_TYPES:
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[3, 3])
@@ -52,8 +49,8 @@ def test_executor_dependent():
         assert A_val != B_val
 
 
-def test_executor_debug_symmetry():
-    for datatype in BACKEND_TYPES:
+def test_executor_debug_symmetry(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[3, 3], symmetry=[[0, 1]])
