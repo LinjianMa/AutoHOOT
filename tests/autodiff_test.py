@@ -2,7 +2,7 @@ import autodiff as ad
 import backend as T
 from tests.test_utils import tree_eq
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
+BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow', 'jax']
 
 
 def test_identity():

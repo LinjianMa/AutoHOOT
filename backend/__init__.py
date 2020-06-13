@@ -16,7 +16,8 @@ _DEFAULT_BACKEND = 'numpy'
 _KNOWN_BACKENDS = {
     'numpy': 'NumpyBackend',
     'ctf': 'CTFBackend',
-    'tensorflow': 'TensorflowBackend'
+    'tensorflow': 'TensorflowBackend',
+    'jax': 'JaxBackend',
 }
 
 _LOADED_BACKENDS = {}
