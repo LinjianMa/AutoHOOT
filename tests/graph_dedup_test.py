@@ -101,6 +101,15 @@ def test_get_transpose_indices():
                                            b)) == [0, 2, 3, 1]
 
 
+def test_get_transpose_indices_dup():
+    a = ad.Variable(name='a', shape=[2, 2])
+    h = ad.Variable(name='h', shape=[2, 2, 2])
+    out1 = ad.einsum("ad,bc,ecd->abe", a, a, h)
+    out2 = ad.einsum("ac,bd,ecd->eab", a, a, h)
+    trans = get_transpose_indices(out1, out2)
+    assert trans == [2, 0, 1] or trans == [2, 1, 0]
+
+
 def test_remove_transposes():
     a = ad.Variable(name="a", shape=[2, 2, 2, 2])
     b = ad.Variable(name="b", shape=[2, 2])

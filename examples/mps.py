@@ -453,6 +453,6 @@ def dmrg_shared_exec(mpo_tensors,
 if __name__ == "__main__":
     # mps = mps_graph(4, 10)
     # mpo = mpo_graph(4, 10)
-    mpo_tensors = ham_heis_mpo(num=6)
-    mps_tensors = rand_mps(num=6, rank=2, size=2)
-    dmrg(mpo_tensors, mps_tensors, max_mps_rank=20, num_iter=2)
+    mpo_tensors = ham_heis_mpo(num=4)
+    mps_tensors = rand_mps(num=4, rank=2, size=2)
+    dmrg_shared_exec(mpo_tensors, mps_tensors, max_mps_rank=20, num_iter=2)

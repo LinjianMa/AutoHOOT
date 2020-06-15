@@ -340,4 +340,4 @@ if __name__ == "__main__":
     # cpd_gradient_descent(size=20, rank=5, learning_rate=1e-3)
     # cpd_newton(size=20, rank=5)
     # cpd_nls_benchmark()
-    cpd_als_shared_exec(400, 100, 1)
+    cpd_als_shared_exec(dim=3, size=400, rank=100, num_iter=1)
