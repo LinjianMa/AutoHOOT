@@ -1,7 +1,8 @@
-from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_all_nodes
 import logging
 import autodiff as ad
 import copy
+
+from utils import get_all_einsum_descendants, get_all_inputs, find_topo_sort, get_all_nodes
 from opt_einsum import contract_path
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -21,6 +22,8 @@ def generate_optimal_tree(node, path=None):
         final_node: The newly generated node.
     """
     from graph_ops.graph_optimizer import fuse_einsums
+    from graph_ops.graph_dedup import declone
+    from graph_ops.graph_transformer import linearize
 
     assert isinstance(node, ad.EinsumNode)
     leaves = get_all_inputs(node)
@@ -53,8 +56,11 @@ def generate_optimal_tree(node, path=None):
     # is just transposing the indices. If this happens, then just merge
     # this node with its input node.
     if len(final_node.inputs) == 1:
+        # To handle the case where duplicated inputs exist
+        linearize(final_node)
         in_node = final_node.inputs[0]
         final_node = fuse_einsums(final_node, in_node.inputs)
+        final_node = declone(final_node)
     return final_node
 
 
