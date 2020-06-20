@@ -2,8 +2,6 @@ import autodiff as ad
 import backend as T
 from source import SourceToSource
 
-BACKEND_TYPES = ['numpy', 'ctf', 'tensorflow']
-
 
 def import_code(code, name="ephermal"):
     """
@@ -29,8 +27,8 @@ def import_code(code, name="ephermal"):
     return m
 
 
-def test_s2s_hvp():
-    for datatype in BACKEND_TYPES:
+def test_s2s_hvp(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3])
         H = ad.Variable(name="H", shape=[3, 3])
@@ -49,13 +47,13 @@ def test_s2s_hvp():
         expected_hv_val = T.tensor([4., 8., 12.])
 
         StS = SourceToSource()
-        forward_str = StS.forward([y])
+        forward_str = StS.forward([y], backend=datatype)
         m = import_code(forward_str)
         y_val_s2s, = m.forward([x_val, H_val])
-        grad_str = StS.gradients(y, [x])
+        grad_str = StS.gradients(y, [x], backend=datatype)
         m = import_code(grad_str)
         grad_x_val_s2s, = m.gradients([x_val, H_val])
-        hvp_str = StS.hvp(y, [x], [v])
+        hvp_str = StS.hvp(y, [x], [v], backend=datatype)
         m = import_code(hvp_str)
         Hv_val_s2s, = m.hvp([x_val, H_val, v_val])
 
@@ -65,8 +63,8 @@ def test_s2s_hvp():
         assert T.array_equal(Hv_val_s2s, expected_hv_val)
 
 
-def test_s2s_jtjvp():
-    for datatype in BACKEND_TYPES:
+def test_s2s_jtjvp(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2])
         A = ad.Variable(name="A", shape=[3, 2])
@@ -82,7 +80,9 @@ def test_s2s_jtjvp():
         expected_jtjvp_x_val = T.einsum("ba,bc,c->a", A_val, A_val, v_val)
 
         StS = SourceToSource()
-        forward_str = StS.forward([jtjvp_x], function_name='jtjvp')
+        forward_str = StS.forward([jtjvp_x],
+                                  function_name='jtjvp',
+                                  backend=datatype)
         m = import_code(forward_str)
         jtjvp_x_val_s2s, = m.jtjvp([A_val, v_val])
 
@@ -90,8 +90,8 @@ def test_s2s_jtjvp():
         assert T.array_equal(jtjvp_x_val_s2s, expected_jtjvp_x_val)
 
 
-def test_s2s_w_constants():
-    for datatype in BACKEND_TYPES:
+def test_s2s_w_constants(backendopt):
+    for datatype in backendopt:
         T.set_backend(datatype)
         A = ad.Variable(name="A", shape=[2, 2])
         I = ad.identity(2)
@@ -100,7 +100,7 @@ def test_s2s_w_constants():
         A_val = T.tensor([[1., 2.], [3., 4.]])
 
         StS = SourceToSource()
-        fwd_str = StS.forward([B], function_name='fwd')
+        fwd_str = StS.forward([B], function_name='fwd', backend=datatype)
         m = import_code(fwd_str)
         out, = m.fwd([A_val])
 

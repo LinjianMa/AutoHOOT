@@ -155,20 +155,19 @@ class SourceToSource():
                     node.name = f'_grad2{forward_node.name}'
         return file_string
 
-    def _forward_head_print(self):
-        return f'import backend as T\n'
-
-    def _jax_forward_head_print(self):
+    def import_lines(self, backend):
         file_string = ''
-        file_string += f'import jax.numpy as T\n'
-        file_string += f'from utils import jit_decorator\n'
-        file_string += f'@jit_decorator'
+        file_string += f'import backend as T\n'
+        file_string += f'T.set_backend(\'{backend}\')\n'
+        if backend == 'jax':
+            file_string += f'from utils import jit_decorator\n'
+            file_string += f'@jit_decorator\n'
         return file_string
 
     def forward(self,
                 output_node_list,
                 function_name='forward',
-                backend='backend'):
+                backend='numpy'):
         """Forward pass source code generation.
         function_name: the output function name
         backend: backend or jax
@@ -177,12 +176,8 @@ class SourceToSource():
         self.input_index = 0
 
         file_string = ''
-        if backend == 'backend':
-            file_string += self._forward_head_print()
-        elif backend == 'jax':
-            file_string += self._jax_forward_head_print()
-        else:
-            raise NotImplementedError
+        file_string += self.import_lines(backend)
+
         file_string += new_line(f'def {function_name}(inputs):')
         file_string += self._sub_forward(output_node_list)
         # return expression
@@ -190,13 +185,13 @@ class SourceToSource():
         file_string += indent_line(f'return [{returned_names}]')
         return file_string
 
-    def gradients(self, output_node, node_list):
+    def gradients(self, output_node, node_list, backend='numpy'):
         """Gradients source code generation."""
         file_string = ''
         self.file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
-        file_string += f'import backend as T\n'
+        file_string += self.import_lines(backend)
         file_string += f'def gradients(inputs):\n'
         file_string += self._sub_gradients(output_node, node_list)
         # return expression
@@ -205,12 +200,12 @@ class SourceToSource():
         file_string += indent_line(f'return [{returned_grad_names}]')
         return file_string
 
-    def hvp(self, output_node, node_list, vector_list):
+    def hvp(self, output_node, node_list, vector_list, backend='numpy'):
         """Hvp source code generation."""
         file_string = ''
         self.mid_name = '_a'
         self.input_index = 0
-        file_string += f'import backend as T\n'
+        file_string += self.import_lines(backend)
         file_string += f'def hvp(inputs):\n'
         file_string += self._sub_gradients(output_node, node_list)
         inner_product_node, gtv_str = self._sub_gTv(vector_list)
