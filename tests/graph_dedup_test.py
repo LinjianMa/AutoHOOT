@@ -93,6 +93,10 @@ def test_get_transpose_indices():
     assert get_transpose_indices(ad.einsum('adb,bc->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == None
 
+    # complicated contraction index
+    assert get_transpose_indices(ad.einsum('ab,cd,ef,gh,gh,ij->ij', b, b, b, b, b, b),
+                                 ad.einsum('ab,cd,cd,gh,gh,ij->ji', b, b, b, b, b, b)) == None
+
     # transposable
     assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == [0, 2, 1]
