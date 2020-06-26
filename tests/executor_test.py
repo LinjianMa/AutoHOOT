@@ -8,7 +8,7 @@ def test_executor_retain(backendopt):
     for datatype in backendopt:
         T.set_backend(datatype)
 
-        x2 = ad.Variable(name="x2", shape=[3])
+        x2 = ad.Variable(name="x2", shape=[3, 3])
         y = ad.sum(x2)
         z = y * 2
 
