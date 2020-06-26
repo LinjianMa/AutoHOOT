@@ -848,17 +848,20 @@ class EinsumNode(OpNode):
         out_subscripts: The corrected subscripts of the einsum node.
         input_nodes: The input nodes of the corrected einsum node.
         """
-        grad_isolated_indices_set = set(out_subscripts)
+        grad_isolated_indices = [char for char in out_subscripts]
         for node in input_nodes:
-            grad_isolated_indices_set -= set(node.subscript)
-        if len(grad_isolated_indices_set) > 0:
+            grad_isolated_indices = [
+                char for char in grad_isolated_indices
+                if not char in node.subscript
+            ]
+        if len(grad_isolated_indices) > 0:
             ones_node = ones([
                 length for i, length in enumerate(shape)
-                if out_subscripts[i] in grad_isolated_indices_set
+                if out_subscripts[i] in grad_isolated_indices
             ])
             input_nodes.append(
                 PseudoNode(node=ones_node,
-                           subscript="".join(list(grad_isolated_indices_set))))
+                           subscript="".join(grad_isolated_indices)))
         return out_subscripts, input_nodes
 
     def _grad_einsum(self, k, output_grad):
