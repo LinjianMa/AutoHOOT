@@ -1216,25 +1216,9 @@ def sum(node, axis=None):
 
 
 def matmul(node_A, node_B):
-    # when both are matrices
-    if len(node_A.shape) == 2 and len(node_B.shape) == 2:
-        assert node_A.shape[1] == node_B.shape[0]
-        return einsum("ab,bc->ac", node_A, node_B)
-    # vector @ matrix
-    elif len(node_A.shape) == 1 and len(node_B.shape) == 2:
-        if node_A.shape[0] == node_B.shape[0]:
-            return einsum("a,ab->b", node_A, node_B)
-        # the case of outer product
-        elif node_B.shape[0] == 1:
-            return einsum("a,bc->ac", node_A, node_B)
-    # matrix @ vector
-    elif len(node_A.shape) == 2 and len(node_B.shape) == 1:
-        assert node_A.shape[1] == node_B.shape[0]
-        return einsum("ab,b->a", node_A, node_B)
-    # inner product
-    else:
-        assert node_A.shape[0] == node_B.shape[0]
-        return einsum("a,a->", node_A, node_B)
+    assert len(node_A.shape) == 2 and len(node_B.shape) == 2
+    assert node_A.shape[1] == node_B.shape[0]
+    return einsum("ab,bc->ac", node_A, node_B)
 
 
 def tensordot(node_A, node_B, axes):
