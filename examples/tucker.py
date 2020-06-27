@@ -88,7 +88,7 @@ class TuckerGraph(object):
         self.A_list = []
         A_list_subscripts = []
         for i in range(dim):
-            node = ad.Variable(name=f'A{i}', shape=[size, rank])
+            node = ad.Matrix(name=f'A{i}', shape=[size, rank], orthonormal=1)
             self.A_list.append(node)
             A_list_subscripts.append(f"{X_subscripts[i]}{core_subscripts[i]}")
 

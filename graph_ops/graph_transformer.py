@@ -15,10 +15,10 @@ import autodiff as ad
 from graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect, get_leaves
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
-from utils import replace_node, sympy_simplify
+from utils import replace_node, sympy_simplify, get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -374,6 +374,57 @@ def prune_scalar_nodes(einsum_node):
         return scalar * output_node
 
 
+def prune_orthonormal_matmuls(einsum_node):
+    """
+    Remove the matrices of a einsum_node if M @ M.T like structures exist.
+    Note: we assume that this operation will be generated in the optimal tree.
+    Args:
+        einsum_node: An fused einsum node.
+    Return:
+        An optimized einsum node.
+    """
+    def remove_orthonormal_matmul(node):
+        """
+        Return an identity node if the input node is an orthonormal matmul.
+        Return the input itself otherwise.
+        """
+        in_subs, out_subs, _ = _parse_einsum_input(
+            (node.einsum_subscripts, *node.inputs))
+        in_subs = in_subs.split(',')
+
+        if len(in_subs
+               ) == 2 and node.inputs[0] == node.inputs[1] and isinstance(
+                   node.inputs[0],
+                   ad.MatrixNode) and node.inputs[0].orthonormal != None:
+            o_index = node.inputs[0].orthonormal
+            contract_index = 1 - o_index
+            if in_subs[0][contract_index] == in_subs[1][contract_index]:
+                if {in_subs[0][o_index], in_subs[1][o_index]
+                    } == set(out_subs) and len(set(out_subs)) == 2:
+                    return ad.identity(node.inputs[0].shape[o_index])
+        return node
+
+    output_node = generate_optimal_tree(einsum_node)
+    output_pnode = PseudoNode(output_node)
+    all_pnodes = find_topo_sort_p([output_pnode])
+    # optimize
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if isinstance(node, ad.EinsumNode):
+                new_node = remove_orthonormal_matmul(node)
+                replace_node(pnode, new_node)
+    output_node = output_pnode.node
+
+    if isinstance(output_node, ad.EinsumNode):
+        linearize(output_node)
+        leaves = get_leaves(get_all_einsum_descendants(output_node))
+        output_node = fuse_einsums(output_node, leaves)
+        output_node = declone(output_node)
+
+    return output_node
+
+
 def optimize(node):
     """Optimize a graph with a single output node.
 
@@ -457,6 +508,17 @@ def simplify(output_node):
     # fuse again
     output_node = output_pnode.node
     output_node = fuse_all_einsums(output_node)
+
+    # prune the orthonormal matmuls
+    all_pnodes = find_topo_sort_p([output_pnode])
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                new_node = prune_orthonormal_matmuls(node)
+                replace_node(pnode, new_node)
 
     # prune inverse nodes
     output_pnode = PseudoNode(output_node)

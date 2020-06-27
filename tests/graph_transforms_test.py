@@ -1,7 +1,7 @@
 import pytest
 import autodiff as ad
 import backend as T
-from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes
+from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes, prune_orthonormal_matmuls
 from graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
 from utils import PseudoNode
@@ -614,3 +614,16 @@ def test_prune_scalar_nodes(backendopt):
 
         assert isinstance(out_prune, ad.MulByConstNode)
         assert tree_eq(out, out_prune, [a1, a2])
+
+
+def test_prune_orthonormal_matmuls():
+
+    a1 = ad.Matrix(name="a1", shape=[3, 3], orthonormal=0)
+    a2 = ad.Matrix(name="a1", shape=[3, 3], orthonormal=0)
+    out = ad.einsum("ab,cb,de,fe->acdf", a1, a1, a2, a2)
+    out_prune = prune_orthonormal_matmuls(out)
+    # out: einsum('dc,ba->abcd',identity(3),identity(3))
+    assert isinstance(out_prune, ad.EinsumNode)
+    assert len(out_prune.inputs) == 2
+    for innode in out_prune.inputs:
+        assert isinstance(innode, ad.IdentityNode)

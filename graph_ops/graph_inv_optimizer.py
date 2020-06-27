@@ -5,10 +5,9 @@
 import logging
 import numpy as np
 import autodiff as ad
+
 from utils import PseudoNode
-
 from graph_ops.graph_optimizer import UF
-
 from numpy.core.einsumfunc import _parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -159,8 +158,8 @@ def optimize_inverse(inv_node):
     if isinstance(input_node, ad.EinsumNode):
         return split_inv_einsum(inv_node)
 
-    if isinstance(input_node, ad.AddNode) and (
-            input_node.inputs[0].name == input_node.inputs[1].name):
+    if isinstance(input_node, ad.AddNode) and (input_node.inputs[0].name
+                                               == input_node.inputs[1].name):
 
         inverse_node = optimize_inverse(ad.tensorinv(input_node.inputs[0]))
         subscript = "".join(
@@ -240,9 +239,8 @@ def prune_single_inv_node(einsum_node, inv_node):
         set("".join([p_einsum_input.subscript, p_inv_input.subscript])) -
         set(contract_char))
 
-    if not (len(p_einsum_input.subscript) == 2
-            and len(p_inv_input.subscript) == 2 and len(contract_char) == 1
-            and len(uncontract_str) == 2):
+    if not (len(p_einsum_input.subscript) == 2 and len(p_inv_input.subscript)
+            == 2 and len(contract_char) == 1 and len(uncontract_str) == 2):
         # this is not a matmul. Just return the initial node
         logger.info(
             f"the op between inv input and the selected einsum is not matmul, can't prune inv"
@@ -281,7 +279,9 @@ def prune_single_inv_node(einsum_node, inv_node):
 
 def prune_inv_node(einsum_node):
     """
-    Prune input inv nodes in the einsum node if condition mets.
+    Prune input inv nodes in the einsum node if following two conditions met:
+        1. inv(A) @ A or similar structures in the einsum
+        2. inv(A) where A is identity node
 
     Parameters
     ----------
@@ -297,14 +297,22 @@ def prune_inv_node(einsum_node):
     for node in einsum_node.inputs:
         assert not isinstance(node, ad.EinsumNode)
 
+    # condition 1
     inv_inputs_list = list(
         filter(lambda node: isinstance(node, ad.TensorInverseNode),
                einsum_node.inputs))
-
     if len(inv_inputs_list) == 0:
         logger.info(f"No inv nodes in the inputs, can't prune inv")
         return einsum_node
-
     for inv_node in inv_inputs_list:
         einsum_node = prune_single_inv_node(einsum_node, inv_node)
+
+    # condition 2
+    new_inputs = einsum_node.inputs
+    for i, innode in enumerate(new_inputs):
+        if isinstance(innode, ad.TensorInverseNode) and isinstance(
+                innode.inputs[0], ad.IdentityNode):
+            new_inputs[i] = innode.inputs[0]
+    einsum_node.set_inputs(new_inputs)
+
     return einsum_node
