@@ -105,3 +105,19 @@ def test_s2s_w_constants(backendopt):
         out, = m.fwd([A_val])
 
         assert T.array_equal(A_val, out)
+
+
+def test_s2s_tensorinv(backendopt):
+    for datatype in backendopt:
+        T.set_backend(datatype)
+        A = ad.Variable(name="A", shape=[2, 2])
+        B = ad.tensorinv(A)
+
+        A_val = T.tensor([[1., 0.], [0., 1.]])
+
+        StS = SourceToSource()
+        fwd_str = StS.forward([B], function_name='fwd', backend=datatype)
+        m = import_code(fwd_str)
+        out, = m.fwd([A_val])
+
+        assert T.array_equal(A_val, out)
