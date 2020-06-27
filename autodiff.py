@@ -68,9 +68,6 @@ class Node(object):
     def __pow__(self, other):
         return power(self, other)
 
-    def __matmul__(self, other):
-        return matmul(self, other)
-
     def clone(self):
         # Generate a new node with a different name.
         new_name = self.name + self.suffix_getter.getint()
@@ -848,7 +845,7 @@ class EinsumNode(OpNode):
         out_subscripts: The corrected subscripts of the einsum node.
         input_nodes: The input nodes of the corrected einsum node.
         """
-        grad_isolated_indices = [char for char in out_subscripts]
+        grad_isolated_indices = list(out_subscripts)
         for node in input_nodes:
             grad_isolated_indices = [
                 char for char in grad_isolated_indices
@@ -1213,12 +1210,6 @@ def sum(node, axis=None):
     subscripts = indices_to_subscripts([list(range(len(node.shape)))], [],
                                        len(node.shape))
     return einsum(subscripts, node)
-
-
-def matmul(node_A, node_B):
-    assert len(node_A.shape) == 2 and len(node_B.shape) == 2
-    assert node_A.shape[1] == node_B.shape[0]
-    return einsum("ab,bc->ac", node_A, node_B)
 
 
 def tensordot(node_A, node_B, axes):

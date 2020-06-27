@@ -54,7 +54,7 @@ def test_executor_debug_symmetry(backendopt):
         T.set_backend(datatype)
 
         A = ad.Variable(name="A", shape=[3, 3], symmetry=[[0, 1]])
-        out = A @ A
+        out = ad.einsum("ab,bc->ac", A, A)
         A_val = T.random((3, 3))
         A_val += T.transpose(A_val)
 

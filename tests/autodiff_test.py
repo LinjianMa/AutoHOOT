@@ -2,6 +2,7 @@ import autodiff as ad
 import backend as T
 from tests.test_utils import tree_eq
 
+
 def test_identity(backendopt):
 
     for datatype in backendopt:
@@ -318,37 +319,6 @@ def test_add_mul_mix_3(backendopt):
         assert T.array_equal(grad_x3_val, expected_grad_x3_val)
 
 
-def test_matmul_two_vars(backendopt):
-
-    for datatype in backendopt:
-        T.set_backend(datatype)
-
-        x2 = ad.Variable(name="x2", shape=[3, 2])
-        x3 = ad.Variable(name="x3", shape=[2, 3])
-        y = ad.sum(x2 @ x3)
-
-        grad_x2, grad_x3 = ad.gradients(y, [x2, x3])
-
-        executor = ad.Executor([y, grad_x2, grad_x3])
-        x2_val = T.tensor([[1, 2], [3, 4], [5, 6]])  # 3x2
-        x3_val = T.tensor([[7, 8, 9], [10, 11, 12]])  # 2x3
-
-        y_val, grad_x2_val, grad_x3_val = executor.run(feed_dict={
-            x2: x2_val,
-            x3: x3_val
-        })
-
-        expected_grad_sum = T.ones_like(T.dot(x2_val, x3_val))
-        expected_yval = T.sum(T.dot(x2_val, x3_val))
-        expected_grad_x2_val = T.dot(expected_grad_sum, T.transpose(x3_val))
-        expected_grad_x3_val = T.dot(T.transpose(x2_val), expected_grad_sum)
-
-        assert isinstance(y, ad.Node)
-        assert T.array_equal(y_val, expected_yval)
-        assert T.array_equal(grad_x2_val, expected_grad_x2_val)
-        assert T.array_equal(grad_x3_val, expected_grad_x3_val)
-
-
 def test_einsum(backendopt):
 
     for datatype in backendopt:
@@ -543,7 +513,7 @@ def test_inner_product(backendopt):
     for datatype in backendopt:
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[1, 3])
-        x_inner = ad.sum(x @ ad.transpose(x))
+        x_inner = ad.sum(ad.einsum("ab,bc->ac", x, ad.transpose(x)))
 
         grad_x, = ad.gradients(x_inner, [x])
 
@@ -751,7 +721,7 @@ def test_inner_product_hvp(backendopt):
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[3, 1])
         v = ad.Variable(name="v", shape=[3, 1])
-        y = ad.sum(ad.transpose(x) @ x)
+        y = ad.sum(ad.einsum("ab,bc->ac", ad.transpose(x), x))
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
@@ -780,7 +750,7 @@ def test_hvp1(backendopt):
         x = ad.Variable(name="x", shape=[3, 1])
         H = ad.Variable(name="H", shape=[3, 3])
         v = ad.Variable(name="v", shape=[3, 1])
-        y = ad.sum(x * (H @ x))
+        y = ad.sum(x * ad.einsum("ab,bc->ac", H, x))
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
@@ -811,7 +781,9 @@ def test_hvp2(backendopt):
         x = ad.Variable(name="x", shape=[3, 1])
         H = ad.Variable(name="H", shape=[3, 3])
         v = ad.Variable(name="v", shape=[3, 1])
-        y = ad.sum(ad.transpose(x) @ H @ x)
+        y = ad.sum(
+            ad.einsum("ab,bc->ac", ad.einsum("ab,bc->ac", ad.transpose(x), H),
+                      x))
 
         grad_x, = ad.gradients(y, [x])
         Hv, = ad.hvp(output_node=y, node_list=[x], vector_list=[v])
