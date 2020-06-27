@@ -68,9 +68,6 @@ class Node(object):
     def __pow__(self, other):
         return power(self, other)
 
-    def __matmul__(self, other):
-        return matmul(self, other)
-
     def clone(self):
         # Generate a new node with a different name.
         new_name = self.name + self.suffix_getter.getint()
@@ -706,69 +703,6 @@ class PowerNode(OpNode):
         return "T.power(%s, %s)" % (inputs[0].name, self.const_attr)
 
 
-class MatMulNode(OpNode):
-    """Node to matrix multiply two nodes."""
-    @staticmethod
-    def create(*args, **kwargs):
-        return MatMulNode(*args, **kwargs)
-
-    def __init__(self, node_A, node_B):
-        """Create a new node that is the result a matrix multiple of two input nodes.
-
-        Parameters
-        ----------
-        node_A: lhs of matrix multiply
-        node_B: rhs of matrix multiply
-
-        Returns
-        -------
-        Returns a node that is the result a matrix multiple of two input nodes.
-        """
-        super().__init__()
-        self.inputs = [node_A, node_B]
-        self.name = "T.dot(%s, %s)" % (node_A.name, node_B.name)
-
-        # when both are matrices
-        if len(node_A.shape) == 2 and len(node_B.shape) == 2:
-            assert node_A.shape[1] == node_B.shape[0]
-            self.shape = [node_A.shape[0], node_B.shape[1]]
-        # vector matmul matrix
-        elif len(node_A.shape) == 1 and len(node_B.shape) == 2:
-            if node_A.shape[0] == node_B.shape[0]:
-                self.shape = [node_B.shape[1]]
-            # the case of outer product
-            elif node_B.shape[0] == 1:
-                self.shape = [node_A.shape[0], node_B.shape[1]]
-        # matrix matmul vector
-        elif len(node_A.shape) == 2 and len(node_B.shape) == 1:
-            assert node_A.shape[1] == node_B.shape[0]
-            self.shape = [node_A.shape[0]]
-        # inner product
-        else:
-            assert node_A.shape[0] == node_B.shape[0]
-            self.shape = [1]
-
-    def compute(self, input_vals):
-        """Given values of input selfs, return result of matrix multiplication."""
-        assert len(input_vals) == 2
-        assert T.is_tensor(input_vals[0])
-        assert T.is_tensor(input_vals[1])
-        return T.dot(input_vals[0], input_vals[1])
-
-    def transposed_vjp(self, output_grad):
-        """Given vjp of multiply self, return vjp contributions to each input.
-
-        Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
-        """
-        grad_A = matmul(output_grad, transpose(self.inputs[1]))
-        grad_B = matmul(transpose(self.inputs[0]), output_grad)
-        return [grad_A, grad_B]
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 2
-        return "T.dot(%s, %s)" % (inputs[0].name, inputs[1].name)
-
-
 class EinsumNode(OpNode):
     """Node to perform einstein summation for two nodes."""
     @staticmethod
@@ -911,17 +845,20 @@ class EinsumNode(OpNode):
         out_subscripts: The corrected subscripts of the einsum node.
         input_nodes: The input nodes of the corrected einsum node.
         """
-        grad_isolated_indices_set = set(out_subscripts)
+        grad_isolated_indices = list(out_subscripts)
         for node in input_nodes:
-            grad_isolated_indices_set -= set(node.subscript)
-        if len(grad_isolated_indices_set) > 0:
+            grad_isolated_indices = [
+                char for char in grad_isolated_indices
+                if not char in node.subscript
+            ]
+        if len(grad_isolated_indices) > 0:
             ones_node = ones([
                 length for i, length in enumerate(shape)
-                if out_subscripts[i] in grad_isolated_indices_set
+                if out_subscripts[i] in grad_isolated_indices
             ])
             input_nodes.append(
                 PseudoNode(node=ones_node,
-                           subscript="".join(list(grad_isolated_indices_set))))
+                           subscript="".join(grad_isolated_indices)))
         return out_subscripts, input_nodes
 
     def _grad_einsum(self, k, output_grad):
@@ -1071,65 +1008,6 @@ class NormNode(OpNode):
     def s2s_expr(self, inputs):
         assert len(inputs) == 1
         return "T.norm(%s, %s, %s)" % (inputs[0].name, self.order, self.axis)
-
-
-class SumNode(OpNode):
-    @staticmethod
-    def create(*args, **kwargs):
-        return SumNode(*args, **kwargs)
-
-    def __init__(self, node, axis=None):
-        super().__init__()
-        self.axis = axis
-        self.inputs = [node]
-        self.name = "T.sum(%s, %s)" % (node.name, axis)
-        if axis == None:
-            self.shape = [1]
-        else:
-            raise NotImplementedError
-
-    def compute(self, input_vals):
-        assert len(input_vals) == 1
-        assert T.is_tensor(input_vals[0])
-        return T.sum(input_vals[0], self.axis)
-
-    def transposed_vjp(self, output_grad):
-        if self.axis != None:
-            raise NotImplementedError
-        return [output_grad * oneslike(self.inputs[0])]
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 1
-        return "T.sum(%s, %s)" % (inputs[0].name, self.axis)
-
-
-class TransposeNode(OpNode):
-    @staticmethod
-    def create(*args, **kwargs):
-        return TransposeNode(*args, **kwargs)
-
-    def __init__(self, node):
-
-        super().__init__()
-        self.inputs = [node]
-        self.name = "T.transpose(%s)" % (node.name)
-        assert len(node.shape) <= 2
-        if len(node.shape) == 2:
-            self.shape = [node.shape[1], node.shape[0]]
-        else:
-            self.shape = [1, node.shape[0]]
-
-    def compute(self, input_vals):
-        assert len(input_vals) == 1
-        assert T.is_tensor(input_vals[0])
-        return T.transpose(input_vals[0])
-
-    def transposed_vjp(self, output_grad):
-        return [transpose(output_grad)]
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 1
-        return "T.transpose(%s)" % (inputs[0].name)
 
 
 class ZerosLikeNode(OpNode):
@@ -1304,7 +1182,6 @@ sub = SubNode.create
 add_byconst = AddByConstNode.create
 mul_byconst = MulByConstNode.create
 sub_byconst = SubByConstNode.create
-matmul = MatMulNode.create
 ones = OnesNode.create
 oneslike = OnesLikeNode.create
 zeroslike = ZerosLikeNode.create
@@ -1312,14 +1189,29 @@ negative = NegativeNode.create
 power = PowerNode.create
 einsum = EinsumNode.create
 norm = NormNode.create
-sum = SumNode.create
-transpose = TransposeNode.create
 identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
 scalar = ScalarNode.create
 
-
+#############################################
 # Definition of functions based on EinsumNode
+
+
+def transpose(node):
+    # TODO: let it handle general tensor transpose
+    assert len(node.shape) == 2
+    return einsum("ab->ba", node)
+
+
+def sum(node, axis=None):
+    if axis != None:
+        raise Exception(f"Sum with axis {axis} is not implemented.")
+
+    subscripts = indices_to_subscripts([list(range(len(node.shape)))], [],
+                                       len(node.shape))
+    return einsum(subscripts, node)
+
+
 def tensordot(node_A, node_B, axes):
     """
     Compute tensor dot product along specified axes.
@@ -1358,6 +1250,10 @@ def tensordot(node_A, node_B, axes):
     subscripts = indices_to_subscripts([input_indices_A, input_indices_B],
                                        out_indices, dim)
     return einsum(subscripts, node_A, node_B)
+
+
+# Definition of functions based on EinsumNode finished
+######################################################
 
 
 def chainjacobian(node_A, node_B):

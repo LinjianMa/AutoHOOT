@@ -95,7 +95,7 @@ def test_s2s_w_constants(backendopt):
         T.set_backend(datatype)
         A = ad.Variable(name="A", shape=[2, 2])
         I = ad.identity(2)
-        B = A @ I
+        B = ad.einsum("ab,bc->ac", A, I)
 
         A_val = T.tensor([[1., 2.], [3., 4.]])
 
