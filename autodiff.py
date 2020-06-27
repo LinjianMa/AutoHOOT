@@ -514,169 +514,6 @@ class SubByConstNode(OpNode):
         return "(%s - %s)" % (inputs[0].name, self.const_attr)
 
 
-class MulNode(DistributiveNode):
-    @staticmethod
-    def create(*args, **kwargs):
-        return MulNode(*args, **kwargs)
-
-    def __init__(self, node_A, node_B):
-        super().__init__()
-        self.inputs = [node_A, node_B]
-        self.scalar_A = False
-        self.scalar_B = False
-        if node_A.shape == [] or node_A.shape == [1]:
-            self.scalar_A = True
-        if node_B.shape == [] or node_B.shape == [1]:
-            self.scalar_B = True
-        self.name = "(%s * %s)" % (node_A.name, node_B.name)
-
-        if self.scalar_A:
-            self.shape = node_B.shape
-        elif self.scalar_B:
-            self.shape = node_A.shape
-        else:
-            assert node_A.shape == node_B.shape
-            self.shape = node_A.shape
-
-    def compute(self, input_vals):
-        """Given values of two input nodes, return result of element-wise multiplication."""
-        assert len(input_vals) == 2
-        if self.scalar_A is False and self.scalar_B is False:
-            assert input_vals[0].shape == input_vals[1].shape
-        if self.scalar_A:
-            assert input_vals[0].shape == ()
-        if self.scalar_B:
-            assert input_vals[1].shape == ()
-        return input_vals[0] * input_vals[1]
-
-    def transposed_vjp(self, output_grad):
-        if self.scalar_A is False and self.scalar_B is True:
-            return [
-                output_grad * self.inputs[1],
-                sum(output_grad * self.inputs[0])
-            ]
-        elif self.scalar_A is True and self.scalar_B is False:
-            return [
-                sum(output_grad * self.inputs[1]), output_grad * self.inputs[0]
-            ]
-        else:
-            return [output_grad * self.inputs[1], output_grad * self.inputs[0]]
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 2
-        return "(%s * %s)" % (inputs[0].name, inputs[1].name)
-
-    def _jacobian_tensor_scalar(self, input_scalar, input_tensor):
-        # Computes the Jacobian for scalar * tensor w.r.t tensor
-        #   For the case C["ijkl"] = A["ijkl"]*S or S*A["ijkl"],
-        #   Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*S.
-        order = len(self.shape)
-        identity_nodes = [identity(self.shape[i]) for i in range(order)]
-        input_indices = [[i, i + order] for i in range(order)]
-        out_index = [i for i in range(2 * order)]
-        subscripts = indices_to_subscripts(input_indices, out_index, 2 * order)
-        jacobian_tensor = input_scalar * einsum(subscripts, *identity_nodes)
-        jacobian_tensor.set_in_indices_length(order)
-        return jacobian_tensor
-
-    def jacobian(self, output_jacobian):
-        # When a scalar presents, the jacobian w.r.t to the scalar is always
-        # the the other input.
-        left_op = self.inputs[1]
-        right_op = self.inputs[0]
-
-        if self.scalar_A is True and self.scalar_B is True:
-            left_op.set_in_indices_length(0)
-            right_op.set_in_indices_length(0)
-        if self.scalar_A is False and self.scalar_B is True:
-            """
-            Example:
-            For the case C["ijkl"] = A["ijkl"]*B,
-            Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B.
-            Jacobian(C_B) = A.
-            """
-            input_scalar = self.inputs[1]
-            input_tensor = self.inputs[0]
-            left_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
-        if self.scalar_A is True and self.scalar_B is False:
-            """
-            Example:
-            For the case C["ijkl"] = A*B["ijkl"],
-            Jacobian(C_B)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*A.
-            Jacobian(C_A) = B.
-            """
-            input_scalar = self.inputs[0]
-            input_tensor = self.inputs[1]
-            right_op = self._jacobian_tensor_scalar(input_scalar, input_tensor)
-        if self.scalar_A is False and self.scalar_B is False:
-            """
-            Example:
-            For the case C["ijkl"] = A["ijkl"]*B["ijkl"],
-            Jacobian(C_A)["abcdijkl"] = I["ai"]*I["bj"]*I["ck"]*I["dl"]*B["ijkl"].
-            """
-            order = len(self.shape)
-            identity_nodes = [identity(self.shape[i]) for i in range(order)]
-            input_indices = [[i, i + order] for i in range(order)]
-            input_indices.append([i + order for i in range(order)])
-            out_index = [i for i in range(2 * order)]
-            subscripts = indices_to_subscripts(input_indices, out_index,
-                                               2 * order)
-
-            input_nodes_A = identity_nodes + [self.inputs[1]]
-            input_nodes_B = identity_nodes + [self.inputs[0]]
-
-            left_op = einsum(subscripts, *input_nodes_A)
-            right_op = einsum(subscripts, *input_nodes_B)
-            left_op.set_in_indices_length(order)
-            right_op.set_in_indices_length(order)
-
-        return [
-            chainjacobian(output_jacobian, left_op),
-            chainjacobian(output_jacobian, right_op)
-        ]
-
-
-class MulByConstNode(MulNode):
-    """Node to element-wise multiply a nodes by a constant."""
-    @staticmethod
-    def create(*args, **kwargs):
-        # If the input is 1.0 * node, we return the node.
-        const_val = args[1]
-        if const_val == 1.:
-            return args[0]
-        return MulByConstNode(*args, **kwargs)
-
-    def __init__(self, node_A, const_val):
-        assert isinstance(const_val, (int, float))
-        super().__init__(node_A, ScalarNode(const_val))
-        assert isinstance(self.inputs[1], ScalarNode)
-
-    def set_inputs(self, inputs):
-        assert len(inputs) == 2
-        self.inputs = inputs
-        self.name = "(%s * %s)" % (inputs[0].name, inputs[1].name)
-
-    def compute(self, input_vals):
-        """Given values of input node, return result of element-wise multiplication."""
-        assert len(input_vals) == 2
-        return input_vals[0] * input_vals[1]
-
-    def transposed_vjp(self, output_grad):
-        return [output_grad * self.inputs[1]]
-
-    def jacobian(self, output_jacobian):
-        if not self.scalar_A:
-            jac = self._jacobian_tensor_scalar(self.inputs[1], self.inputs[0])
-        else:
-            jac = self.inputs[1]
-            jac.set_in_indices_length(0)
-        return [chainjacobian(output_jacobian, jac)]
-
-    def s2s_expr(self, inputs):
-        assert len(inputs) == 2
-        return "(%s * %s)" % (inputs[0].name, inputs[1].name)
-
-
 class PowerNode(OpNode):
     """Node to element-wise power a nodes by a constant."""
     @staticmethod
@@ -834,7 +671,7 @@ class EinsumNode(OpNode):
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
-            assert T.is_tensor(val)
+            assert T.is_tensor(val) or isinstance(val, (int, float))
         return T.einsum(self.einsum_subscripts, *input_vals)
 
     def _output_shape(self, subscripts, nodes):
@@ -1054,7 +891,7 @@ class NormNode(OpNode):
         self.inputs = [node]
         self.name = "T.norm(%s, %s, %s)" % (node.name, order, axis)
         if axis == None:
-            self.shape = [1]
+            self.shape = []
         else:
             raise NotImplementedError
 
@@ -1084,7 +921,7 @@ class SumNode(OpNode):
         self.inputs = [node]
         self.name = "T.sum(%s, %s)" % (node.name, axis)
         if axis == None:
-            self.shape = [1]
+            self.shape = []
         else:
             raise NotImplementedError
 
@@ -1299,10 +1136,8 @@ Variable = VariableNode.create
 Constant = ConstantNode.create
 Empty = EmptyNode.create
 add = AddNode.create
-mul = MulNode.create
 sub = SubNode.create
 add_byconst = AddByConstNode.create
-mul_byconst = MulByConstNode.create
 sub_byconst = SubByConstNode.create
 matmul = MatMulNode.create
 ones = OnesNode.create
@@ -1358,6 +1193,48 @@ def tensordot(node_A, node_B, axes):
     subscripts = indices_to_subscripts([input_indices_A, input_indices_B],
                                        out_indices, dim)
     return einsum(subscripts, node_A, node_B)
+
+
+def mul(node_A, node_B):
+    scalar_A = False
+    scalar_B = False
+    if node_A.shape == []:
+        scalar_A = True
+    if node_B.shape == []:
+        scalar_B = True
+
+    if scalar_A is True and scalar_B is True:
+        subscripts = ",->"
+    elif scalar_A is False and scalar_B is True:
+        """ Example: C["ijkl"] = A["ijkl"]*B
+        """
+        input_indices = [list(range(len(node_A.shape))), []]
+        out_indices = list(range(len(node_A.shape)))
+        dim = len(node_A.shape)
+        subscripts = indices_to_subscripts(input_indices, out_indices, dim)
+    elif scalar_A is True and scalar_B is False:
+        """ Example: C["ijkl"] = A*B["ijkl"]
+        """
+        input_indices = [[], list(range(len(node_B.shape)))]
+        out_indices = list(range(len(node_B.shape)))
+        dim = len(node_B.shape)
+        subscripts = indices_to_subscripts(input_indices, out_indices, dim)
+    elif scalar_A is False and scalar_B is False:
+        assert node_A.shape == node_B.shape
+        shape_indices = list(range(len(node_B.shape)))
+        input_indices = [shape_indices, shape_indices]
+        out_indices = shape_indices
+        dim = 2 * len(node_A.shape)
+        subscripts = indices_to_subscripts(input_indices, out_indices, dim)
+
+    return einsum(subscripts, node_A, node_B)
+
+
+def mul_byconst(node, const_val):
+    if const_val == 1.:
+        return node
+    assert isinstance(const_val, (int, float)) or T.is_tensor(const_val)
+    return mul(node, ScalarNode(const_val))
 
 
 def chainjacobian(node_A, node_B):

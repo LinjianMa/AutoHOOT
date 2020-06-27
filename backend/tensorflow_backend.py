@@ -62,6 +62,13 @@ class TensorflowBackend(Backend):
 
     @staticmethod
     def einsum(subscripts, *operands, optimize=True):
+
+        for i, val in enumerate(operands):
+            if not isinstance(val, tf.Tensor):
+                # tensorflow einsum cannot deal with scalars
+                assert isinstance(val, (int, float))
+                operands[i] = tf.constant(val)
+
         if optimize == True:
             return tf.einsum(subscripts, *operands, optimize='greedy')
         elif optimize == False:
