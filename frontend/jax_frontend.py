@@ -5,6 +5,9 @@ import autodiff as ad
 
 def make_jaxpr(fun):
     """
+    Extracting the JAXPR and the constants of the input functions.
+    Note that extracting the function constant values are necessary fo the graph construction.
+    Therefore this function is used rather than the jax internal make_jaxpr.
     Reference: https://jax.readthedocs.io/en/latest/notebooks/Writing_custom_interpreters_in_Jax.html#1.-Tracing-a-function
     """
     from functools import wraps
@@ -39,18 +42,28 @@ def make_jaxpr(fun):
 
 
 def parse_jax_dot_general(parameters, innodes):
-    # jax dot_general reference:
-    #     https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.dot_general.html?highlight=dot_general#jax.lax.dot_general
-    # Note: the dot_general is a bit different from tensordot because it has specific batch dimensions
+    """
+    Parse the JAX dot_general function.
 
+    Parameters
+    ----------
+    parameters: A dict containing the parameters of the dot_general function.
+        parameters['dimension_numbers'] is a tuple of tuples of the form
+        ((lhs_contracting_dims, rhs_contracting_dims), (lhs_batch_dims, rhs_batch_dims)).
+    innodes: The input nodes for the generated einsum node.
+
+    Returns
+    -------
+    An einsum node equivalent to the dot_general function.
+
+    jax dot_general reference:
+        https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.dot_general.html?highlight=dot_general#jax.lax.dot_general
+    Note: the dot_general is a bit different from tensordot because it has specific batch dimensions
+    """
     from utils import indices_to_subscripts
     assert len(innodes) == 2
     node_A, node_B = innodes
-
-    # dim_numbers: a tuple of tuples of the form
-    # ((lhs_contracting_dims, rhs_contracting_dims), (lhs_batch_dims, rhs_batch_dims))
     dim_numbers = parameters['dimension_numbers']
-
     contract_dims, batch_dims = dim_numbers
 
     A_contract_dims, B_contract_dims = contract_dims
@@ -115,7 +128,7 @@ def parse_jax_mul(parameters, innodes):
 
 def parse_jax_operator(operator, parameters, innodes):
     """
-    Tranfer one JAX operator to an operation node.
+    Transfer one JAX operator to an operation node.
 
     Parameters
     ----------

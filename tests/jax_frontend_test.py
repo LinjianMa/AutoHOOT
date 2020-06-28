@@ -5,20 +5,6 @@ import backend as T
 from frontend.jax_frontend import make_graph
 
 
-def check_wrapper(testfunc, *inputs):
-
-    out_nodes, variables = make_graph(testfunc, *inputs)
-    executor = ad.Executor(out_nodes)
-
-    feed_dict = dict(zip(variables, inputs))
-
-    outvals = executor.run(feed_dict=feed_dict)
-    expect_outvals = testfunc(*inputs)
-
-    for outval, expect_outval in zip(outvals, expect_outvals):
-        assert T.norm(outval - expect_outval) < 1e-6
-
-
 def test_simpledot():
     def testfunc(w, b, x):
         return np.dot(w, x) + b + np.ones(5), x
@@ -27,7 +13,17 @@ def test_simpledot():
     w = T.random((5, 10))
     b = T.random((5, ))
     x = T.random((10, ))
-    check_wrapper(testfunc, w, b, x)
+    inputs = [w, b, x]
+
+    out_nodes, variables = make_graph(testfunc, *inputs)
+    executor = ad.Executor(out_nodes)
+    feed_dict = dict(zip(variables, inputs))
+
+    outvals = executor.run(feed_dict=feed_dict)
+    expect_outvals = testfunc(*inputs)
+
+    for outval, expect_outval in zip(outvals, expect_outvals):
+        assert T.norm(outval - expect_outval) < 1e-6
 
 
 def test_mul():
@@ -40,4 +36,14 @@ def test_mul():
     w = T.random((5, 10))
     b = T.random((5, 10))
     x = T.random((5, 10))
-    check_wrapper(testfunc, w, b, x)
+    inputs = [w, b, x]
+
+    out_nodes, variables = make_graph(testfunc, *inputs)
+    executor = ad.Executor(out_nodes)
+    feed_dict = dict(zip(variables, inputs))
+
+    outvals = executor.run(feed_dict=feed_dict)
+    expect_outvals = testfunc(*inputs)
+
+    for outval, expect_outval in zip(outvals, expect_outvals):
+        assert T.norm(outval - expect_outval) < 1e-6
