@@ -179,10 +179,17 @@ class ConstantNode(Node):
     def create(*args, **kwargs):
         return ConstantNode(*args, **kwargs)
 
-    def __init__(self, name, shape=None):
+    def __init__(self, name, shape=None, value=None):
         super().__init__()
         self.name = name
         self.shape = shape
+        self.value = value
+
+    def compute(self):
+        return T.tensor(self.value)
+
+    def s2s_expr(self, inputs):
+        return f"T.tensor({self.value})"
 
     def set_inputs(self, inputs):
         # constant node should not have inputs
@@ -202,14 +209,7 @@ class ScalarNode(ConstantNode):
 
     def __init__(self, value):
         name = f"{float(value)}"
-        self.value = value
-        super().__init__(name, [])
-
-    def compute(self):
-        return T.tensor(self.value)
-
-    def s2s_expr(self, inputs):
-        return f"T.tensor({self.value})"
+        super().__init__(name, shape=[], value=value)
 
 
 class IdentityNode(ConstantNode):
