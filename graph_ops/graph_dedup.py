@@ -219,32 +219,6 @@ def get_transpose_indices(A, B):
     >>> get_transpose_indices(node_A, node_B)
     [1, 0, 2]
     """
-    def get_diminfo_permutation(A, B):
-        """
-        Get the permutation of A such that each element of A's permutation and B
-            represents the same connected dimensions.
-        Parameters
-        ----------
-        A, B : Lists, where each element in the list represents the connected dims.
-        Returns
-        -------
-            Returns the permutation list if it exists, otherwise return None.
-        """
-        if len(A) != len(B):
-            return None
-        permutation = []
-        for dimlist_B in B:
-            for ia, dimlist_A in enumerate(A):
-                if ia not in permutation:
-                    if all(dim_A.node_name == dim_B.node_name
-                           and dim_A.dim_index == dim_B.dim_index
-                           for dim_A, dim_B in zip(dimlist_A, dimlist_B)):
-                        permutation.append(ia)
-                        break
-        if len(permutation) < len(A):
-            return None
-        return permutation
-
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
         return None
     if A.inputs != B.inputs:
@@ -254,19 +228,32 @@ def get_transpose_indices(A, B):
 
     dset_A = get_disjoint_set(A)
     dset_B = get_disjoint_set(B)
-    dest_A_val = list(dset_A.values())
-    dset_B_val = list(dset_B.values())
 
-    permutation = get_diminfo_permutation(dset_A.keys(), dset_B.keys())
-    if permutation == None:
+    # change the keys to string format for later equality check
+    dimname_func = lambda x: f"{x.node_name}-{x.dim_index}"
+    dset_A = [("|".join(map(dimname_func, key)), value)
+              for key, value in dset_A.items()]
+    dset_B = [("|".join(map(dimname_func, key)), value)
+              for key, value in dset_B.items()]
+    dset_A_keys, dset_A_vals = zip(*dset_A)
+    dset_B_keys, dset_B_vals = zip(*dset_B)
+
+    if sorted(dset_A_keys) != sorted(dset_B_keys):
         return None
 
-    # Check if all the contracted dims are the same.
-    for i in range(len(permutation)):
-        if (dest_A_val[permutation[i]] == -1 and dset_B_val[i] != -1):
+    # Check if all the contracted char refers to the same dim.
+    for i, key in enumerate(dset_A_keys):
+        if (dset_A_vals[i] == -1
+                and dset_B_vals[dset_B_keys.index(key)] != -1):
             return None
 
-    transpose_indices = permutation[:len(A.shape)]
+    argsort_A = np.argsort(dset_A_keys[:len(A.shape)])
+    argsort_B = np.argsort(dset_B_keys[:len(A.shape)])
+
+    transpose_indices = [0 for _ in range(len(A.shape))]
+    for index_A, index_B in zip(argsort_A, argsort_B):
+        transpose_indices[index_B] = index_A
+
     # If the transpose indices is sorted ascendingly. There is no transpose.
     if transpose_indices == sorted(transpose_indices):
         return None
