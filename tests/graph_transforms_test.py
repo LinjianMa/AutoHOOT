@@ -619,7 +619,7 @@ def test_prune_scalar_nodes(backendopt):
 def test_prune_orthonormal_matmuls():
 
     a1 = ad.Matrix(name="a1", shape=[3, 3], orthonormal=0)
-    a2 = ad.Matrix(name="a1", shape=[3, 3], orthonormal=0)
+    a2 = ad.Matrix(name="a2", shape=[3, 3], orthonormal=0)
     out = ad.einsum("ab,cb,de,fe->acdf", a1, a1, a2, a2)
     out_prune = prune_orthonormal_matmuls(out)
     # out: einsum('dc,ba->abcd',identity(3),identity(3))
@@ -627,3 +627,14 @@ def test_prune_orthonormal_matmuls():
     assert len(out_prune.inputs) == 2
     for innode in out_prune.inputs:
         assert isinstance(innode, ad.IdentityNode)
+
+
+def test_prune_orthonormal_chain_matmuls():
+
+    a1 = ad.Matrix(name="a1", shape=[3, 3], orthonormal=0)
+    a2 = ad.Matrix(name="a1", shape=[3, 3])
+    out = ad.einsum("ab,bc,dc,de,ef,gf->ag", a2, a1, a1, a2, a1, a1)
+    out_prune = prune_orthonormal_matmuls(out)
+    # out: T.einsum('ad,dc,ce,eb->ab',a1,T.identity(3),a1,T.identity(3))
+    assert isinstance(out_prune, ad.EinsumNode)
+    assert len(out_prune.inputs) == 4

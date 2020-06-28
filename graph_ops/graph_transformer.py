@@ -6,19 +6,19 @@
         * Linearization
 """
 import logging
-
+import itertools
 import copy
 import numpy as np
-from collections import deque
-
 import autodiff as ad
+
+from collections import deque
 from graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect, get_leaves
+from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
 from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
-from utils import replace_node, sympy_simplify, get_all_einsum_descendants
+from utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -383,46 +383,65 @@ def prune_orthonormal_matmuls(einsum_node):
     Return:
         An optimized einsum node.
     """
-    def remove_orthonormal_matmul(node):
-        """
-        Return an identity node if the input node is an orthonormal matmul.
-        Return the input itself otherwise.
-        """
-        in_subs, out_subs, _ = _parse_einsum_input(
-            (node.einsum_subscripts, *node.inputs))
-        in_subs = in_subs.split(',')
+    _, p_outnode, p_innodes = generate_einsum_info(einsum_node)
+    subs_list = [pnode.subscript
+                 for pnode in p_innodes] + [p_outnode.subscript]
 
-        if len(in_subs
-               ) == 2 and node.inputs[0] == node.inputs[1] and isinstance(
-                   node.inputs[0],
-                   ad.MatrixNode) and node.inputs[0].orthonormal != None:
-            o_index = node.inputs[0].orthonormal
-            contract_index = 1 - o_index
-            if in_subs[0][contract_index] == in_subs[1][contract_index]:
-                if {in_subs[0][o_index], in_subs[1][o_index]
-                    } == set(out_subs) and len(set(out_subs)) == 2:
-                    return ad.identity(node.inputs[0].shape[o_index])
-        return node
+    ortho_pnode_set = {}
+    for pnode in p_innodes:
+        if isinstance(pnode.node,
+                      ad.MatrixNode) and pnode.node.orthonormal != None:
+            nodename = pnode.node.name
+            if nodename in ortho_pnode_set.keys():
+                ortho_pnode_set[nodename].append(pnode)
+            else:
+                ortho_pnode_set[nodename] = [pnode]
 
-    output_node = generate_optimal_tree(einsum_node)
-    output_pnode = PseudoNode(output_node)
-    all_pnodes = find_topo_sort_p([output_pnode])
-    # optimize
-    with OutputInjectedModeP(all_pnodes):
-        for pnode in all_pnodes:
-            node = pnode.node
-            if isinstance(node, ad.EinsumNode):
-                new_node = remove_orthonormal_matmul(node)
-                replace_node(pnode, new_node)
-    output_node = output_pnode.node
+    for pnodes in ortho_pnode_set.values():
+        if len(pnodes) < 2:
+            continue
 
-    if isinstance(output_node, ad.EinsumNode):
-        linearize(output_node)
-        leaves = get_leaves(get_all_einsum_descendants(output_node))
-        output_node = fuse_einsums(output_node, leaves)
-        output_node = declone(output_node)
+        pruned_pnodes = pnodes
+        pnodes_subs = list(itertools.combinations(pnodes, 2))
 
-    return output_node
+        for pnodes_binary_input in pnodes_subs:
+            if not set(pnodes_binary_input).issubset(set(pruned_pnodes)):
+                continue
+
+            pnode_A, pnode_B = pnodes_binary_input
+            # define orthonormal index and contraction index
+            o_index = pnode_A.node.orthonormal
+            c_index = 1 - o_index
+            # Criteria for the pruning: the o_index of two inputs are different,
+            # and the c_index only appear in these two nodes.
+            if pnode_A.subscript[c_index] == pnode_B.subscript[
+                    c_index] and pnode_A.subscript[
+                        o_index] != pnode_B.subscript[o_index]:
+                if len(
+                        list(
+                            filter(
+                                lambda subs: pnode_A.subscript[c_index] in
+                                subs, subs_list))) == 2:
+                    pruned_pnodes = [
+                        pnode for pnode in pruned_pnodes
+                        if not pnode in pnodes_binary_input
+                    ]
+                    p_innodes = [
+                        pnode for pnode in p_innodes
+                        if not pnode in pnodes_binary_input
+                    ]
+                    p_innodes.append(
+                        PseudoNode(
+                            node=ad.identity(pnode_A.node.shape[o_index]),
+                            subscript=
+                            f"{pnode_A.subscript[o_index]}{pnode_B.subscript[o_index]}"
+                        ))
+
+    new_input_subs = [pnode.subscript for pnode in p_innodes]
+    new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript
+    new_inputs = [pnode.node for pnode in p_innodes]
+
+    return ad.einsum(new_subscripts, *new_inputs)
 
 
 def optimize(node):
