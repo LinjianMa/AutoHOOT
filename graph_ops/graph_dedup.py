@@ -228,24 +228,35 @@ def get_transpose_indices(A, B):
 
     dset_A = get_disjoint_set(A)
     dset_B = get_disjoint_set(B)
-    # change the keys to string format for later equality check
-    dset_A = {"|".join(map(str, key)): value for key, value in dset_A.items()}
-    dset_B = {"|".join(map(str, key)): value for key, value in dset_B.items()}
 
-    if dset_A.keys() != dset_B.keys():
+    # change the keys to string format for later equality check
+    dimname_func = lambda x: f"{x.node_name}-{x.dim_index}"
+    dset_A = [("|".join(map(dimname_func, key)), value)
+              for key, value in dset_A.items()]
+    dset_B = [("|".join(map(dimname_func, key)), value)
+              for key, value in dset_B.items()]
+    dset_A_keys, dset_A_vals = zip(*dset_A)
+    dset_B_keys, dset_B_vals = zip(*dset_B)
+
+    if sorted(dset_A_keys) != sorted(dset_B_keys):
         return None
+
     # Check if all the contracted char refers to the same dim.
-    for key in dset_A.keys():
-        if (dset_A[key] == -1 and dset_B[key] != dset_A[key]):
+    for i, key in enumerate(dset_A_keys):
+        if (dset_A_vals[i] == -1
+                and dset_B_vals[dset_B_keys.index(key)] != -1):
             return None
 
-    inv_dset_B = dict(zip(dset_B.values(), dset_B.keys()))
-    transpose_indices = [dset_A[inv_dset_B[i]] for i in range(len(B.shape))]
+    argsort_A = np.argsort(dset_A_keys[:len(A.shape)])
+    argsort_B = np.argsort(dset_B_keys[:len(A.shape)])
+
+    transpose_indices = [0 for _ in range(len(A.shape))]
+    for index_A, index_B in zip(argsort_A, argsort_B):
+        transpose_indices[index_B] = index_A
 
     # If the transpose indices is sorted ascendingly. There is no transpose.
     if transpose_indices == sorted(transpose_indices):
         return None
-
     return transpose_indices
 
 

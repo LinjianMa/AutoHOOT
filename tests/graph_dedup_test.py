@@ -93,12 +93,25 @@ def test_get_transpose_indices():
     assert get_transpose_indices(ad.einsum('adb,bc->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == None
 
+    # complicated contraction index
+    assert get_transpose_indices(ad.einsum('ab,cd,ef,gh,gh,ij->ij', b, b, b, b, b, b),
+                                 ad.einsum('ab,cd,cd,gh,gh,ij->ji', b, b, b, b, b, b)) == None
+
     # transposable
     assert get_transpose_indices(ad.einsum('acb,bd->adc', a, b),
                                  ad.einsum('dab,bc->dac', a, b)) == [0, 2, 1]
     assert get_transpose_indices(ad.einsum('acje,ie->iacj', c, b),
                                  ad.einsum('jace,ie->iacj', c,
                                            b)) == [0, 2, 3, 1]
+
+
+def test_get_transpose_indices_dup():
+    a = ad.Variable(name='a', shape=[2, 2])
+    h = ad.Variable(name='h', shape=[2, 2, 2])
+    out1 = ad.einsum("ad,bc,ecd->abe", a, a, h)
+    out2 = ad.einsum("ac,bd,ecd->eab", a, a, h)
+    trans = get_transpose_indices(out1, out2)
+    assert trans == [2, 0, 1] or trans == [2, 1, 0]
 
 
 def test_remove_transposes():
