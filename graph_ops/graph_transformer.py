@@ -377,53 +377,53 @@ def prune_scalar_nodes(einsum_node):
 def prune_orthonormal_matmuls(einsum_node):
     """
     Remove the matrices of a einsum_node if M @ M.T like structures exist.
-    Note: we assume that this operation will be generated in the optimal tree.
     Args:
         einsum_node: An fused einsum node.
     Return:
         An optimized einsum node.
     """
+    from utils import orthonormal_indices_map
+
     _, p_outnode, p_innodes = generate_einsum_info(einsum_node)
     subs_list = [pnode.subscript
                  for pnode in p_innodes] + [p_outnode.subscript]
 
-    ortho_pnode_set = {}
+    ortho_pnode_map = {}
     for pnode in p_innodes:
         if isinstance(pnode.node,
                       ad.MatrixNode) and pnode.node.orthonormal != None:
             nodename = pnode.node.name
-            if nodename in ortho_pnode_set.keys():
-                ortho_pnode_set[nodename].append(pnode)
+            if nodename in ortho_pnode_map:
+                ortho_pnode_map[nodename].append(pnode)
             else:
-                ortho_pnode_set[nodename] = [pnode]
+                ortho_pnode_map[nodename] = [pnode]
 
-    for pnodes in ortho_pnode_set.values():
+    for pnodes in ortho_pnode_map.values():
         if len(pnodes) < 2:
             continue
 
-        pruned_pnodes = pnodes
+        remaining_pnodes = pnodes
         pnodes_subs = list(itertools.combinations(pnodes, 2))
 
         for pnodes_binary_input in pnodes_subs:
-            if not set(pnodes_binary_input).issubset(set(pruned_pnodes)):
+            if not set(pnodes_binary_input).issubset(set(remaining_pnodes)):
                 continue
 
             pnode_A, pnode_B = pnodes_binary_input
-            # define orthonormal index and contraction index
-            o_index = pnode_A.node.orthonormal
-            c_index = 1 - o_index
+            o_index, c_index = orthonormal_indices_map[
+                pnode_A.node.orthonormal]
             # Criteria for the pruning: the o_index of two inputs are different,
             # and the c_index only appear in these two nodes.
             if pnode_A.subscript[c_index] == pnode_B.subscript[
                     c_index] and pnode_A.subscript[
                         o_index] != pnode_B.subscript[o_index]:
-                if len(
-                        list(
-                            filter(
-                                lambda subs: pnode_A.subscript[c_index] in
-                                subs, subs_list))) == 2:
-                    pruned_pnodes = [
-                        pnode for pnode in pruned_pnodes
+                num_subs_w_cindex = len(
+                    list(
+                        filter(lambda subs: pnode_A.subscript[c_index] in subs,
+                               subs_list)))
+                if num_subs_w_cindex == 2:
+                    remaining_pnodes = [
+                        pnode for pnode in remaining_pnodes
                         if not pnode in pnodes_binary_input
                     ]
                     p_innodes = [

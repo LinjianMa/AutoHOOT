@@ -305,20 +305,20 @@ class MatrixNode(VariableNode):
     def __init__(self, name, shape, symmetry=[], orthonormal=None):
         """
         orthonormal: whether the matrix is orthonormal.
-            If 0, then orthonormal in the column dimension: M @ M.T = I
-            If 1, then orthonormal in the row dimension: M.T @ M = I
+            If column, then orthonormal in the column dimension: M @ M.T = I
+            If row, then orthonormal in the row dimension: M.T @ M = I
         """
-        assert orthonormal in (None, 0, 1)
+        assert orthonormal in (None, 'column', 'row')
         assert len(shape) == 2
         self.orthonormal = orthonormal
         super().__init__(name, shape, symmetry)
 
     def check_orthonormal(self, input_val):
         assert len(input_val.shape) == 2
-        if self.orthonormal == 0:
+        if self.orthonormal == 'column':
             assert T.norm(input_val @ T.transpose(input_val) -
                           T.identity(input_val.shape[0])) < 1e-8
-        elif self.orthonormal == 1:
+        elif self.orthonormal == 'row':
             assert T.norm(
                 T.transpose(input_val) @ input_val -
                 T.identity(input_val.shape[1])) < 1e-8

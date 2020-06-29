@@ -66,7 +66,7 @@ def test_executor_debug_orthonormal(backendopt):
     for datatype in backendopt:
         T.set_backend(datatype)
 
-        A = ad.Matrix(name="A", shape=[3, 3], orthonormal=1)
+        A = ad.Matrix(name="A", shape=[3, 3], orthonormal='row')
         out = A @ A
         A_val, _, _ = T.svd(T.random((3, 3)))
 
