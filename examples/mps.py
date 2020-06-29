@@ -417,7 +417,6 @@ def dmrg_shared_exec(mpo_tensors,
     for i, hes in enumerate(dg.hessians):
         dg.hessians[i] = simplify(hes)
         assert isinstance(hes, ad.EinsumNode)
-    # TODO: check number of operations in the dimension tree
     dg.hessians = generate_sequential_optimal_tree(dg.hessians, dg.mps_inputs)
     executor = ad.Executor(dg.hessians)
 
