@@ -294,6 +294,33 @@ class VariableNode(Node):
                           T.transpose(input_val, transpose_axes)) < 1e-8
 
 
+class MatrixNode(VariableNode):
+    @staticmethod
+    def create(*args, **kwargs):
+        return MatrixNode(*args, **kwargs)
+
+    def __init__(self, name, shape, symmetry=[], orthonormal=None):
+        """
+        orthonormal: whether the matrix is orthonormal.
+            If column, then orthonormal in the column dimension: M @ M.T = I
+            If row, then orthonormal in the row dimension: M.T @ M = I
+        """
+        assert orthonormal in (None, 'column', 'row')
+        assert len(shape) == 2
+        self.orthonormal = orthonormal
+        super().__init__(name, shape, symmetry)
+
+    def check_orthonormal(self, input_val):
+        assert len(input_val.shape) == 2
+        if self.orthonormal == 'column':
+            assert T.norm(input_val @ T.transpose(input_val) -
+                          T.identity(input_val.shape[0])) < 1e-8
+        elif self.orthonormal == 'row':
+            assert T.norm(
+                T.transpose(input_val) @ input_val -
+                T.identity(input_val.shape[1])) < 1e-8
+
+
 # This is a straight through node.
 class CloneNode(OpNode):
     @staticmethod
@@ -1174,6 +1201,7 @@ class TensorInverseNode(OpNode):
 
 # Create global singletons of operators.
 Variable = VariableNode.create
+Matrix = MatrixNode.create
 Constant = ConstantNode.create
 Empty = EmptyNode.create
 add = AddNode.create
@@ -1331,6 +1359,8 @@ class Executor:
         if debug:
             for node, val in feed_dict.items():
                 node.check_symmetry(val)
+                if isinstance(node, MatrixNode):
+                    node.check_orthonormal(val)
 
         if len(out_nodes) == 0:
             out_nodes = self.eval_node_list

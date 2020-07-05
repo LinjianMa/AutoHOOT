@@ -6,12 +6,12 @@
         * Linearization
 """
 import logging
-
+import itertools
 import copy
 import numpy as np
-from collections import deque
-
 import autodiff as ad
+
+from collections import deque
 from graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
 from graph_ops.graph_generator import generate_optimal_tree
 from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
@@ -374,6 +374,80 @@ def prune_scalar_nodes(einsum_node):
         return scalar * output_node
 
 
+def prune_orthonormal_matmuls(einsum_node):
+    """
+    Remove the matrices of a einsum_node if M @ M.T like structures exist.
+    Args:
+        einsum_node: An fused einsum node.
+    Return:
+        An optimized einsum node.
+    """
+
+    # A map from the orthonormal matrix mode to (orthonormal_index, contraction_index)
+    orthonormal_indices_map = {'column': (0, 1), 'row': (1, 0)}
+
+    _, p_outnode, p_innodes = generate_einsum_info(einsum_node)
+    subs_list = [pnode.subscript
+                 for pnode in p_innodes] + [p_outnode.subscript]
+
+    ortho_pnode_map = {}
+    for pnode in p_innodes:
+        if isinstance(pnode.node,
+                      ad.MatrixNode) and pnode.node.orthonormal != None:
+            nodename = pnode.node.name
+            if nodename in ortho_pnode_map:
+                ortho_pnode_map[nodename].append(pnode)
+            else:
+                ortho_pnode_map[nodename] = [pnode]
+
+    for pnodes in ortho_pnode_map.values():
+        if len(pnodes) < 2:
+            continue
+
+        remaining_pnodes = pnodes
+        pnodes_subs = list(itertools.combinations(pnodes, 2))
+
+        for pnodes_binary_input in pnodes_subs:
+            if not set(pnodes_binary_input).issubset(set(remaining_pnodes)):
+                continue
+
+            pnode_A, pnode_B = pnodes_binary_input
+            o_index, c_index = orthonormal_indices_map[
+                pnode_A.node.orthonormal]
+            # Criteria for the pruning: the o_index of two inputs are different,
+            # and the c_index only appear in these two nodes.
+            c_index_is_equal = pnode_A.subscript[c_index] == pnode_B.subscript[
+                c_index]
+            o_index_not_equal = pnode_A.subscript[
+                o_index] != pnode_B.subscript[o_index]
+            if not (c_index_is_equal and o_index_not_equal):
+                continue
+            num_subs_w_cindex = len(
+                list(
+                    filter(lambda subs: pnode_A.subscript[c_index] in subs,
+                           subs_list)))
+            if not num_subs_w_cindex == 2:
+                continue
+            remaining_pnodes = [
+                pnode for pnode in remaining_pnodes
+                if not pnode in pnodes_binary_input
+            ]
+            p_innodes = [
+                pnode for pnode in p_innodes
+                if not pnode in pnodes_binary_input
+            ]
+
+            i_node = ad.identity(pnode_A.node.shape[o_index])
+            i_subs = f"{pnode_A.subscript[o_index]}{pnode_B.subscript[o_index]}"
+            p_innodes.append(PseudoNode(node=i_node, subscript=i_subs))
+
+    new_input_subs = [pnode.subscript for pnode in p_innodes]
+    new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript
+    new_inputs = [pnode.node for pnode in p_innodes]
+
+    return ad.einsum(new_subscripts, *new_inputs)
+
+
 def optimize(node):
     """Optimize a graph with a single output node.
 
@@ -457,6 +531,17 @@ def simplify(output_node):
     # fuse again
     output_node = output_pnode.node
     output_node = fuse_all_einsums(output_node)
+
+    # prune the orthonormal matmuls
+    all_pnodes = find_topo_sort_p([output_pnode])
+    with OutputInjectedModeP(all_pnodes):
+        for pnode in all_pnodes:
+            node = pnode.node
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
+            if isinstance(node, ad.EinsumNode):
+                new_node = prune_orthonormal_matmuls(node)
+                replace_node(pnode, new_node)
 
     # prune inverse nodes
     output_pnode = PseudoNode(output_node)
