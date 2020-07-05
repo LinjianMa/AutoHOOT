@@ -1,7 +1,8 @@
 import autodiff as ad
 import backend as T
 import quimb.tensor as qtn
-from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph
+
+from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph, DmrgGraph
 from tests.test_utils import tree_eq
 from tensors.quimb_tensors import rand_mps, gauge_transform_mps, load_quimb_tensors
 
@@ -131,3 +132,23 @@ def test_dmrg_shared_exec_one_sweep(backendopt):
         # mps (eigenvector), because the eigenvectors can vary a lot while keeping the
         # eigenvalue unchanged.
         assert (abs(energy - quimb_energy) < 1e-8)
+
+
+def test_dmrg_shared_exec_graph():
+
+    from graph_ops.graph_transformer import simplify
+    from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
+    from utils import find_topo_sort
+
+    num, rank, size = 4, 3, 2
+    mpo_ranks = [rank for i in range(1, num)]
+    mps_ranks = [rank for i in range(1, num)]
+
+    dg = DmrgGraph.create(num, mpo_ranks, mps_ranks, size)
+    for i, hes in enumerate(dg.hessians):
+        dg.hessians[i] = simplify(hes)
+        assert isinstance(hes, ad.EinsumNode)
+    dg.hessians = generate_sequential_optimal_tree(dg.hessians, dg.mps_inputs)
+
+    # 8 input variables (4 H term in MPO, 4 A term in MPS), 7 einsum nodes
+    assert len(find_topo_sort(dg.hessians)) == 15

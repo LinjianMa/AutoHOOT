@@ -4,11 +4,11 @@
 """
 import logging
 import autodiff as ad
-from utils import get_all_inputs, find_topo_sort
 
+from utils import get_all_inputs, find_topo_sort, OutputInjectedMode
 from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree, generate_optimal_tree_w_constraint
 from graph_ops.graph_dedup import dedup, remove_transposes
-
+from graph_ops.graph_transformer import rewrite_einsum_expr
 from numpy.core.einsumfunc import _parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -62,6 +62,16 @@ def generate_sequential_optimal_tree(einsum_nodes, input_nodes):
 
         new_nodes.append(
             generate_optimal_tree_w_constraint(node, contract_order))
+
+    # After generate_optimal_tree_w_constraint, some einstrs are not in the canonical format,
+    # needs to rewrite again for dedup
+    all_nodes = find_topo_sort(new_nodes)
+    with OutputInjectedMode(all_nodes):
+        for node in all_nodes:
+            if isinstance(node, ad.EinsumNode):
+                rewrite_einsum_expr(node)
+            if node.inputs != []:
+                node.set_inputs(node.inputs)
 
     dedup(*new_nodes)
     remove_transposes(find_topo_sort(new_nodes))
