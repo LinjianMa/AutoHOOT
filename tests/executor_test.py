@@ -67,7 +67,7 @@ def test_executor_debug_orthonormal(backendopt):
         T.set_backend(datatype)
 
         A = ad.Matrix(name="A", shape=[3, 3], orthonormal='row')
-        out = A @ A
+        out = ad.einsum("ab,bc->ac", A, A)
         A_val, _, _ = T.svd(T.random((3, 3)))
 
         executor = ad.Executor([out])
