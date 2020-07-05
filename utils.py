@@ -15,9 +15,6 @@ logger = logging.getLogger('optimizer')
 logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
-# A map from the orthonormal matrix mode to (orthonormal_index, contraction_index)
-orthonormal_indices_map = {'column': (0, 1), 'row': (1, 0)}
-
 
 def jit_decorator(forward):
     from jax import jit

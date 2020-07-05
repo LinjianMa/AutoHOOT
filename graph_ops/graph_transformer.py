@@ -382,7 +382,9 @@ def prune_orthonormal_matmuls(einsum_node):
     Return:
         An optimized einsum node.
     """
-    from utils import orthonormal_indices_map
+
+    # A map from the orthonormal matrix mode to (orthonormal_index, contraction_index)
+    orthonormal_indices_map = {'column': (0, 1), 'row': (1, 0)}
 
     _, p_outnode, p_innodes = generate_einsum_info(einsum_node)
     subs_list = [pnode.subscript
@@ -414,28 +416,30 @@ def prune_orthonormal_matmuls(einsum_node):
                 pnode_A.node.orthonormal]
             # Criteria for the pruning: the o_index of two inputs are different,
             # and the c_index only appear in these two nodes.
-            if pnode_A.subscript[c_index] == pnode_B.subscript[
-                    c_index] and pnode_A.subscript[
-                        o_index] != pnode_B.subscript[o_index]:
-                num_subs_w_cindex = len(
-                    list(
-                        filter(lambda subs: pnode_A.subscript[c_index] in subs,
-                               subs_list)))
-                if num_subs_w_cindex == 2:
-                    remaining_pnodes = [
-                        pnode for pnode in remaining_pnodes
-                        if not pnode in pnodes_binary_input
-                    ]
-                    p_innodes = [
-                        pnode for pnode in p_innodes
-                        if not pnode in pnodes_binary_input
-                    ]
-                    p_innodes.append(
-                        PseudoNode(
-                            node=ad.identity(pnode_A.node.shape[o_index]),
-                            subscript=
-                            f"{pnode_A.subscript[o_index]}{pnode_B.subscript[o_index]}"
-                        ))
+            c_index_is_equal = pnode_A.subscript[c_index] == pnode_B.subscript[
+                c_index]
+            o_index_not_equal = pnode_A.subscript[
+                o_index] != pnode_B.subscript[o_index]
+            if not (c_index_is_equal and o_index_not_equal):
+                continue
+            num_subs_w_cindex = len(
+                list(
+                    filter(lambda subs: pnode_A.subscript[c_index] in subs,
+                           subs_list)))
+            if not num_subs_w_cindex == 2:
+                continue
+            remaining_pnodes = [
+                pnode for pnode in remaining_pnodes
+                if not pnode in pnodes_binary_input
+            ]
+            p_innodes = [
+                pnode for pnode in p_innodes
+                if not pnode in pnodes_binary_input
+            ]
+
+            i_node = ad.identity(pnode_A.node.shape[o_index])
+            i_subs = f"{pnode_A.subscript[o_index]}{pnode_B.subscript[o_index]}"
+            p_innodes.append(PseudoNode(node=i_node, subscript=i_subs))
 
     new_input_subs = [pnode.subscript for pnode in p_innodes]
     new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript

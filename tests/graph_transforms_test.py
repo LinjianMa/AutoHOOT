@@ -632,7 +632,7 @@ def test_prune_orthonormal_matmuls():
 def test_prune_orthonormal_chain_matmuls():
 
     a1 = ad.Matrix(name="a1", shape=[3, 3], orthonormal='column')
-    a2 = ad.Matrix(name="a1", shape=[3, 3])
+    a2 = ad.Matrix(name="a2", shape=[3, 3])
     out = ad.einsum("ab,bc,dc,de,ef,gf->ag", a2, a1, a1, a2, a1, a1)
     out_prune = prune_orthonormal_matmuls(out)
     # out: T.einsum('ad,dc,ce,eb->ab',a2,T.identity(3),a2,T.identity(3))
