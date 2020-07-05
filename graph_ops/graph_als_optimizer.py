@@ -63,7 +63,7 @@ def generate_sequential_optimal_tree(einsum_nodes, input_nodes):
         new_nodes.append(
             generate_optimal_tree_w_constraint(node, contract_order))
 
-    # After generate_optimal_tree_w_constraint, some einstr becomes not standard,
+    # After generate_optimal_tree_w_constraint, some einstrs are not in the canonical format,
     # needs to rewrite again for dedup
     all_nodes = find_topo_sort(new_nodes)
     with OutputInjectedMode(all_nodes):
