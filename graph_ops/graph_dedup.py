@@ -142,14 +142,20 @@ def collapse_symmetric_expr(A, B):
                 return False
         return True
 
-    def equivalent_list_dims(list_dims_A, list_dims_B):
+    def equivalent_list_dims_w_permutation(list_dims_A, list_dims_B):
         """
-        Check if all the elements in the two lists are equivalent.
+        Check if all the elements in the two lists are permutation equivalent.
         """
-        for (dims_A, dims_B) in zip(list_dims_A, list_dims_B):
-            if not equivalent_dims(dims_A, dims_B):
-                return False
-        return True
+        set_dims_B = set(list_dims_B)
+        for dims_A in list_dims_A:
+            for dims_B in set_dims_B:
+                if equivalent_dims(dims_A, dims_B):
+                    set_dims_B.remove(dims_B)
+                    break
+        if len(set_dims_B) == 0:
+            return True
+        else:
+            return False
 
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
         logger.info(f"Cannot collapse {A} and {B}")
@@ -174,20 +180,16 @@ def collapse_symmetric_expr(A, B):
     contracted_set_A = set(dims_dict_A) - set(uncontracted_list_A)
     contracted_set_B = set(dims_dict_B) - set(uncontracted_list_B)
 
-    if not equivalent_list_dims(uncontracted_list_A, uncontracted_list_B):
+    if not equivalent_list_dims_w_permutation(uncontracted_list_A,
+                                              uncontracted_list_B):
         logger.info(f"Cannot collapse {A} and {B}")
         return
 
-    # The connected_dims for the contracted dimensions are unordered.
-    # A and B are equivalent if one of the permutations are equivalent.
-    for contracted_set_B_permute in set(
-            itertools.permutations(contracted_set_B)):
-
-        if equivalent_list_dims(contracted_set_A, contracted_set_B_permute):
-            # One of the permutations is equivalent
-            A.einsum_subscripts = B.einsum_subscripts
-            A.set_inputs(B.inputs)
-            return
+    if equivalent_list_dims_w_permutation(contracted_set_A, contracted_set_B):
+        # One of the permutations is equivalent
+        A.einsum_subscripts = B.einsum_subscripts
+        A.set_inputs(B.inputs)
+        return
 
     logger.info(f"Cannot collapse {A} and {B}")
     return
