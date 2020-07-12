@@ -28,6 +28,14 @@ def ham_heis_mpo(num):
     return load_quimb_tensors(mpo)
 
 
+def ham_rand_mpo(num, rank, size=2):
+    """
+    Random Hamiltonian in MPO form.
+    """
+    mpo = qtn.MPO_rand_herm(num, rank, phys_dim=size)
+    return load_quimb_tensors(mpo)
+
+
 def gauge_transform_mps(tensors, right=True):
     """
     Perform gause transformation on the MPS
