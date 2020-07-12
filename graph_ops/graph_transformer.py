@@ -573,6 +573,7 @@ def simplify(output_node):
         for j in range(i):
             collapse_symmetric_expr(all_pnodes[i].node, all_pnodes[j].node)
 
+    sympy_input_types = (ad.DistributiveNode, ad.ScalarNode, ad.MulNode)
     #sympy_simplify the distributed nodes
     if isinstance(output_node, ad.DistributiveNode):
         sympy_inputs = []
@@ -584,11 +585,8 @@ def simplify(output_node):
                 rewrite_einsum_expr(node)
             if node.inputs != []:
                 node.set_inputs(node.inputs)
-            if isinstance(node, ad.DistributiveNode):
-                for in_node in node.inputs:
-                    if not isinstance(in_node,
-                                      (ad.DistributiveNode, ad.ScalarNode)):
-                        sympy_inputs.append(in_node)
+            if not isinstance(node, sympy_input_types):
+                sympy_inputs.append(node)
         output_node = sympy_simplify(output_node, sympy_inputs)
 
     return output_node
