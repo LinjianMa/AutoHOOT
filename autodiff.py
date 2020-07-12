@@ -540,7 +540,7 @@ class SubByConstNode(OpNode):
 
 class MulNode(OpNode):
     """
-    Note: The cases const * tensor and tensor * tensor are not distributive.
+    Note: The elementwise multiplication is not distributive.
     """
     @staticmethod
     def create(*args, **kwargs):
