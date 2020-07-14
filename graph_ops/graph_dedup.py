@@ -152,10 +152,7 @@ def collapse_symmetric_expr(A, B):
                 if equivalent_dims(dims_A, dims_B):
                     set_dims_B.remove(dims_B)
                     break
-        if len(set_dims_B) == 0:
-            return True
-        else:
-            return False
+        return len(set_dims_B) == 0
 
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
         logger.info(f"Cannot collapse {A} and {B}")
