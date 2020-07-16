@@ -538,14 +538,27 @@ class SubByConstNode(OpNode):
         return "(%s - %s)" % (inputs[0].name, self.const_attr)
 
 
-class MulNode(DistributiveNode):
+class MulNode(OpNode):
+    """
+    Note: The elementwise multiplication is not distributive.
+    """
     @staticmethod
     def create(*args, **kwargs):
+        if isinstance(args[0], ScalarNode) and isinstance(args[1], ScalarNode):
+            return ScalarNode(args[0].value * args[1].value)
         return MulNode(*args, **kwargs)
 
     def __init__(self, node_A, node_B):
         super().__init__()
-        self.inputs = [node_A, node_B]
+        self.set_inputs([node_A, node_B])
+
+    def __deepcopy__(self, memo):
+        return self.create(*self.inputs)
+
+    def set_inputs(self, inputs):
+        assert len(inputs) == 2
+        self.inputs = inputs
+        node_A, node_B = inputs
         self.scalar_A = False
         self.scalar_B = False
         if node_A.shape == [] or node_A.shape == [1]:
@@ -674,11 +687,6 @@ class MulByConstNode(MulNode):
         assert isinstance(const_val, (int, float))
         super().__init__(node_A, ScalarNode(const_val))
         assert isinstance(self.inputs[1], ScalarNode)
-
-    def set_inputs(self, inputs):
-        assert len(inputs) == 2
-        self.inputs = inputs
-        self.name = "(%s * %s)" % (inputs[0].name, inputs[1].name)
 
     def compute(self, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
