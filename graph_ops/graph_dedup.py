@@ -183,7 +183,7 @@ def collapse_symmetric_expr(A, B):
         return
 
     if equivalent_list_dims_w_permutation(contracted_set_A, contracted_set_B):
-        # One of the permutations is equivalent
+        # One of the permutations is equivalent.
         A.einsum_subscripts = B.einsum_subscripts
         A.set_inputs(B.inputs)
         return
