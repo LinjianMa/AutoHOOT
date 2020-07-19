@@ -244,16 +244,15 @@ class DmrgGraph(object):
         return intermediate, hes[0][0]
 
 
-def dmrg_local_update(intermediate, hes_val, max_mps_rank):
+def dmrg_local_update(intermediate, eigvec, max_mps_rank):
     """
     Perform local update for DMRG.
 
     Parameters
     ----------
-    intermediate: the input einsum node. Its inputs are two mps sites
-    hes_val: the hessian tensor to calculate eigenvalue / gigenvector on
-    max_mps_rank: maximum mps tensor rank
-
+    intermediate: the input einsum node. Its inputs are two mps sites.
+    eigvec: the eigenvector to get the low rank decomposition.
+    max_mps_rank: maximum mps tensor rank.
     """
     # parse intermediate strings
     inputs = intermediate.inputs
@@ -287,28 +286,15 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     right_uncontract_str = "".join(right_uncontract_chars)
 
     #############################################################
-    # perform updates
-
-    eigvec_shape = intermediate.shape
-    assert len(hes_val.shape) == 2 * len(eigvec_shape)
-    assert np.array_equal(eigvec_shape, hes_val.shape[:len(eigvec_shape)])
-    assert np.array_equal(eigvec_shape, hes_val.shape[len(eigvec_shape):])
-
-    # get the eigenvector of the hessian matrix
-    hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
-    eigvals, eigvecs = T.eigh(hes_val_mat)
-    # index for smallest eigenvalue
-    idx = T.argmin(eigvals)
-    eigvecs = T.reshape(eigvecs[:, idx], eigvec_shape)
-
     # svd decomposition to get updated sites
-    eigvecs_mat = T.transpose(eigvecs, left_indices + right_indices)
-    eigvecs_mat = T.reshape(eigvecs_mat,
-                            (np.prod([eigvec_shape[i]
-                                      for i in left_indices]), -1))
+    eigvec_shape = intermediate.shape
+    eigvec_mat = T.transpose(eigvec, left_indices + right_indices)
+    eigvec_mat = T.reshape(eigvec_mat,
+                           (np.prod([eigvec_shape[i]
+                                     for i in left_indices]), -1))
 
-    U, s, VT = T.svd(eigvecs_mat)
-    rank = min([max_mps_rank, eigvecs_mat.shape[0], eigvecs_mat.shape[1]])
+    U, s, VT = T.svd(eigvec_mat)
+    rank = min([max_mps_rank, eigvec_mat.shape[0], eigvec_mat.shape[1]])
     U, s, VT = U[:, :rank], s[:rank], VT[:rank, :]
     VT = T.diag(s) @ VT
 
@@ -319,19 +305,7 @@ def dmrg_local_update(intermediate, hes_val, max_mps_rank):
     right = T.einsum(f"{contract_char}{right_uncontract_str}->{right_subs}",
                      VT)
 
-    outprod = T.einsum(f"{left_subs},{right_subs}->{out_subs}", left, right)
-
-    outprod_indices = list(range(len(outprod.shape)))
-    vTv = T.tensordot(outprod,
-                      outprod,
-                      axes=[outprod_indices, outprod_indices])
-
-    vvT = T.tensordot(outprod, outprod, axes=[[], []])
-    vvT_indices = list(range(len(vvT.shape)))
-    eig_val = T.tensordot(hes_val, vvT, [vvT_indices, vvT_indices])
-    eig_val /= vTv
-
-    return left, right, eig_val
+    return left, right
 
 
 def dmrg(mpo_tensors,
@@ -383,9 +357,25 @@ def dmrg(mpo_tensors,
             hes_val, = executor.run(feed_dict=feed_dict,
                                     out_nodes=[dg.hessians[i]])
 
+            # get the eigenvector of the hesval
+            eigvec_shape = dg.intermediates[i].shape
+            assert len(hes_val.shape) == 2 * len(eigvec_shape)
+            assert np.array_equal(eigvec_shape,
+                                  hes_val.shape[:len(eigvec_shape)])
+            assert np.array_equal(eigvec_shape,
+                                  hes_val.shape[len(eigvec_shape):])
+
+            # get the eigenvector of the hessian matrix
+            hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
+            eigvals, eigvecs = T.eigh(hes_val_mat)
+            # index for smallest eigenvalue
+            idx = T.argmin(eigvals)
+            eig_val = eigvals[idx]
+            eigvec = T.reshape(eigvecs[:, idx], eigvec_shape)
+
             # Update the two sites of mps
-            mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
-                dg.intermediates[i], hes_val, max_mps_rank)
+            mps_tensors[i], mps_tensors[i + 1] = dmrg_local_update(
+                dg.intermediates[i], eigvec, max_mps_rank)
 
             # update the rank
             mps_ranks[i] = mps_tensors[i + 1].shape[0]
@@ -437,9 +427,26 @@ def dmrg_shared_exec(mpo_tensors,
 
             hes_val, = executor.run(feed_dict=feed_dict,
                                     out_nodes=[dg.hessians[i]])
+
+            # get the eigenvector of the hesval
+            eigvec_shape = dg.intermediates[i].shape
+            assert len(hes_val.shape) == 2 * len(eigvec_shape)
+            assert np.array_equal(eigvec_shape,
+                                  hes_val.shape[:len(eigvec_shape)])
+            assert np.array_equal(eigvec_shape,
+                                  hes_val.shape[len(eigvec_shape):])
+
+            # get the eigenvector of the hessian matrix
+            hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
+            eigvals, eigvecs = T.eigh(hes_val_mat)
+            # index for smallest eigenvalue
+            idx = T.argmin(eigvals)
+            eig_val = eigvals[idx]
+            eigvec = T.reshape(eigvecs[:, idx], eigvec_shape)
+
             # Update the two sites of mps
-            mps_tensors[i], mps_tensors[i + 1], eig_val = dmrg_local_update(
-                dg.intermediates[i], hes_val, max_mps_rank)
+            mps_tensors[i], mps_tensors[i + 1] = dmrg_local_update(
+                dg.intermediates[i], eigvec, max_mps_rank)
 
             # update the rank
             mps_ranks[i] = mps_tensors[i + 1].shape[0]
