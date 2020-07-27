@@ -308,6 +308,24 @@ def dmrg_local_update(intermediate, eigvec, max_mps_rank):
     return left, right
 
 
+def get_smallest_eigenpair(hes_val, eigvec_shape):
+    """
+    Get the smallest eigenvalue and its corresponding eigenvector of the input hes_val.
+    """
+    assert len(hes_val.shape) == 2 * len(eigvec_shape)
+    assert np.array_equal(eigvec_shape, hes_val.shape[:len(eigvec_shape)])
+    assert np.array_equal(eigvec_shape, hes_val.shape[len(eigvec_shape):])
+
+    # get the eigenvector of the hessian matrix
+    hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
+    eigvals, eigvecs = T.eigh(hes_val_mat)
+    # index for smallest eigenvalue
+    idx = T.argmin(eigvals)
+    eig_val = eigvals[idx]
+    eigvec = T.reshape(eigvecs[:, idx], eigvec_shape)
+    return eig_val, eigvec
+
+
 def dmrg(mpo_tensors,
          init_mps_tensors,
          max_mps_rank,
@@ -357,21 +375,10 @@ def dmrg(mpo_tensors,
             hes_val, = executor.run(feed_dict=feed_dict,
                                     out_nodes=[dg.hessians[i]])
 
-            # get the eigenvector of the hesval
+            # get the smallest eigenvalue and the corresponding eigenvector of the hesval
             eigvec_shape = dg.intermediates[i].shape
-            assert len(hes_val.shape) == 2 * len(eigvec_shape)
-            assert np.array_equal(eigvec_shape,
-                                  hes_val.shape[:len(eigvec_shape)])
-            assert np.array_equal(eigvec_shape,
-                                  hes_val.shape[len(eigvec_shape):])
-
-            # get the eigenvector of the hessian matrix
-            hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
-            eigvals, eigvecs = T.eigh(hes_val_mat)
-            # index for smallest eigenvalue
-            idx = T.argmin(eigvals)
-            eig_val = eigvals[idx]
-            eigvec = T.reshape(eigvecs[:, idx], eigvec_shape)
+            eig_val, eigvec = get_smallest_eigenpair(hes_val,
+                                                     dg.intermediates[i].shape)
 
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1] = dmrg_local_update(
@@ -428,21 +435,10 @@ def dmrg_shared_exec(mpo_tensors,
             hes_val, = executor.run(feed_dict=feed_dict,
                                     out_nodes=[dg.hessians[i]])
 
-            # get the eigenvector of the hesval
+            # get the smallest eigenvalue and the corresponding eigenvector of the hesval
             eigvec_shape = dg.intermediates[i].shape
-            assert len(hes_val.shape) == 2 * len(eigvec_shape)
-            assert np.array_equal(eigvec_shape,
-                                  hes_val.shape[:len(eigvec_shape)])
-            assert np.array_equal(eigvec_shape,
-                                  hes_val.shape[len(eigvec_shape):])
-
-            # get the eigenvector of the hessian matrix
-            hes_val_mat = T.reshape(hes_val, (np.prod(eigvec_shape), -1))
-            eigvals, eigvecs = T.eigh(hes_val_mat)
-            # index for smallest eigenvalue
-            idx = T.argmin(eigvals)
-            eig_val = eigvals[idx]
-            eigvec = T.reshape(eigvecs[:, idx], eigvec_shape)
+            eig_val, eigvec = get_smallest_eigenpair(hes_val,
+                                                     dg.intermediates[i].shape)
 
             # Update the two sites of mps
             mps_tensors[i], mps_tensors[i + 1] = dmrg_local_update(
