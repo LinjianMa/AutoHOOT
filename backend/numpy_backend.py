@@ -40,7 +40,9 @@ class NumpyBackend(Backend):
 
     @staticmethod
     def einsum(subscripts, *operands, optimize=True):
-        return np.einsum(subscripts, *operands, optimize=optimize)
+        # NumPy einsum cannot correctly optimize some einsums, use opt_einsum instead.
+        from opt_einsum import contract
+        return contract(subscripts, *operands, optimize=optimize)
 
     @staticmethod
     def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
