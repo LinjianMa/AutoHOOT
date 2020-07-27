@@ -182,6 +182,7 @@ def dmrg_shared_exec_iterative_solve(mpo_tensors,
 
             # Calculate the eigenvector using the implicit solver.
             # Note: This only supports NumPy datatype.
+            # TODO: Add a general Lanczos solver that adapts to all the backends.
             operator = DMRGLinearOperator(dg, executor_hvps, i, feed_dict)
             # Reference: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html
             eig_vals, eigvecs = spla.eigsh(operator,
