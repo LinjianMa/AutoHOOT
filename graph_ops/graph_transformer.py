@@ -315,6 +315,8 @@ def prune_identity_nodes(einsum_node):
     p_variable_nodes = [
         pnode for pnode in p_innodes if pnode not in p_identity_nodes
     ]
+    if len(p_variable_nodes) == 0:
+        return einsum_node
 
     # each disjoint set in uf_identity represents the indices
     # linked by identity node

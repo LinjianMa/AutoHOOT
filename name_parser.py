@@ -128,7 +128,7 @@ class AutodiffParser:
 
         def p_expression_identity(t):
             'expression : IDENTITY LPAREN NUMBER RPAREN'
-            t[0] = ad.identity(t[3])
+            t[0] = ad.identity(int(t[3]))
 
         def p_expression_einsum(t):
             'expression : EINSUM_PREFIX LPAREN EINSUM_SUBSCRIPT INPUTS RPAREN'

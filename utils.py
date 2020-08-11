@@ -119,8 +119,15 @@ def sympy_simplify(out, inputs):
     ss = symbols(ss_name)
     formula = out.name
     # Visit the inputs in reverse topological order.
-    all_nodes = reversed(find_topo_sort([out]))
-    for i in all_nodes:
+    all_nodes = list(reversed(find_topo_sort([out])))
+    const_nodes = list(
+        filter(lambda x: isinstance(x, ad.ConstantNode), all_nodes))
+    non_const_nodes = [n for n in all_nodes if n not in const_nodes]
+
+    for i in non_const_nodes:
+        if i in inputs:
+            formula = formula.replace(i.name, input_to_chars[i])
+    for i in const_nodes:
         if i in inputs:
             formula = formula.replace(i.name, input_to_chars[i])
 
