@@ -1,12 +1,12 @@
 attrs
-jax
-jaxlib
+jax==0.2.0
+jaxlib>=0.1.55
 graphviz
 numpy
 pytest==5.4.3
 pytest-benchmark
 quimb==1.2.0
-tensorflow==2.1.0
+tensorflow>=2.1.2
 ply
 opt_einsum
 sympy
