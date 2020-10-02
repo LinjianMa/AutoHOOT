@@ -118,11 +118,13 @@ class JaxBackend(Backend):
 
     @staticmethod
     def tensorinv(tensor, ind=2):
+        import numpy as onp
+
         oldshape = tensor.shape
         if ind > 0:
             invshape = oldshape[ind:] + oldshape[:ind]
-            prod = np.prod(oldshape[:ind])
-            assert prod == np.prod(oldshape[ind:])
+            prod = onp.prod(oldshape[:ind])
+            assert prod == onp.prod(oldshape[ind:])
         else:
             raise ValueError("Invalid ind argument.")
         tensor = np.reshape(tensor, [prod, -1])
