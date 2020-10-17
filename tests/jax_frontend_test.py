@@ -61,3 +61,46 @@ def test_mul():
 
     for outval, expect_outval in zip(outvals, expect_outvals):
         assert T.norm(outval - expect_outval) < 1e-6
+
+
+def test_einsum():
+    def testfunc(a, b):
+        # Note: because our executor output is always a list, here a list is also
+        # returned to make them consistent.
+        return np.einsum('ij,jk->ik', a, b),
+
+    T.set_backend('jax')
+    a = T.random((5, 10))
+    b = T.random((10, 5))
+    inputs = [a, b]
+
+    out_nodes, variables = make_graph(testfunc, *inputs)
+    executor = ad.Executor(out_nodes)
+    feed_dict = dict(zip(variables, inputs))
+
+    outvals = executor.run(feed_dict=feed_dict)
+    expect_outvals = testfunc(*inputs)
+
+    for outval, expect_outval in zip(outvals, expect_outvals):
+        assert T.norm(outval - expect_outval) < 1e-6
+
+
+def test_transpose():
+    def testfunc(a):
+        # Note: because our executor output is always a list, here a list is also
+        # returned to make them consistent.
+        return np.transpose(a, (1, 0, 2)),
+
+    T.set_backend('jax')
+    a = T.random((5, 10, 7))
+    inputs = [a]
+
+    out_nodes, variables = make_graph(testfunc, *inputs)
+    executor = ad.Executor(out_nodes)
+    feed_dict = dict(zip(variables, inputs))
+
+    outvals = executor.run(feed_dict=feed_dict)
+    expect_outvals = testfunc(*inputs)
+
+    for outval, expect_outval in zip(outvals, expect_outvals):
+        assert T.norm(outval - expect_outval) < 1e-6
