@@ -18,10 +18,11 @@ einsum = ad.EinsumNode.create
 from utils import indices_to_subscripts
 
 
-def transpose(node):
-    # TODO: let it handle general tensor transpose
-    assert len(node.shape) == 2
-    return einsum("ab->ba", node)
+def transpose(node, axes=(1, 0)):
+    # Default to handle simple transpose of a 2d matrix.
+    subscripts = indices_to_subscripts([list(range(len(node.shape)))], axes,
+                                       len(node.shape))
+    return einsum(subscripts, node)
 
 
 def sum(node, axis=None):

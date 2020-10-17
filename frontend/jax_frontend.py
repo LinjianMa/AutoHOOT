@@ -142,7 +142,7 @@ def parse_jax_mul(parameters, innodes):
 
 def parse_jax_transpose(parameters, innodes):
     assert len(innodes) == 1
-    return ad.transpose(innodes[0])
+    return ad.transpose(innodes[0], parameters['permutation'])
 
 
 def parse_jax_xla_call(parameters, innodes):
