@@ -140,6 +140,49 @@ def parse_jax_mul(parameters, innodes):
     return innodes[0] * innodes[1]
 
 
+def parse_jax_transpose(parameters, innodes):
+    assert len(innodes) == 1
+    return ad.transpose(innodes[0], parameters['permutation'])
+
+
+def parse_jax_xla_call(parameters, innodes):
+    jaxpr = parameters['call_jaxpr']
+    out_list = make_graph_from_subjaxpr(jaxpr, innodes)
+    # Here we assume single output einsum.
+    return out_list[0]
+
+
+def make_graph_from_subjaxpr(jaxpr, inputs):
+    """
+    Transfer one JAX subpr to an AutoHoot graph.
+
+    Parameters
+    ----------
+    jaxpr: The Jax PR.
+    inputs: List of ad.Node.
+
+    Returns 
+    -------
+    A list of ad.Node.
+    """
+
+    node_set = {}
+
+    # Here we assume the input node (ad.Node) follow the same sequence as jaxpr definition.
+    for i, var in enumerate(jaxpr.invars):
+        node_set[str(var)] = inputs[i]
+
+    for eqn in jaxpr.eqns:
+        assert len(eqn.outvars) == 1
+        outname = str(eqn.outvars[0])
+        innodes = [node_set[str(var)] for var in eqn.invars]
+        node_set[outname] = parse_jax_operator(eqn.primitive, eqn.params,
+                                               innodes)
+
+    out_list = [node_set[str(var)] for var in jaxpr.outvars]
+    return out_list
+
+
 def parse_jax_operator(operator, parameters, innodes):
     """
     Transfer one JAX operator to an operation node.
@@ -161,6 +204,10 @@ def parse_jax_operator(operator, parameters, innodes):
         return parse_jax_add(parameters, innodes)
     elif str(operator) == "mul":
         return parse_jax_mul(parameters, innodes)
+    elif str(operator) == 'xla_call':
+        return parse_jax_xla_call(parameters, innodes)
+    elif str(operator) == 'transpose':
+        return parse_jax_transpose(parameters, innodes)
     else:
         raise Exception(f'Jax {operator} parser not implemented.')
 
