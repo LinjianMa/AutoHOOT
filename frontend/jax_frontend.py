@@ -135,6 +135,11 @@ def parse_jax_add(parameters, innodes):
     return innodes[0] + innodes[1]
 
 
+def parse_jax_sub(parameters, innodes):
+    assert len(innodes) == 2
+    return innodes[0] - innodes[1]
+
+
 def parse_jax_mul(parameters, innodes):
     assert len(innodes) == 2
     return innodes[0] * innodes[1]
@@ -202,6 +207,8 @@ def parse_jax_operator(operator, parameters, innodes):
         return parse_jax_dot_general(parameters, innodes)
     elif str(operator) == "add":
         return parse_jax_add(parameters, innodes)
+    elif str(operator) == "sub":
+        return parse_jax_sub(parameters, innodes)
     elif str(operator) == "mul":
         return parse_jax_mul(parameters, innodes)
     elif str(operator) == 'xla_call':
