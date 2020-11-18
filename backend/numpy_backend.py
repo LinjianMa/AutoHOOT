@@ -14,6 +14,7 @@
 
 import numpy as np
 import scipy.linalg as sla
+import sparse
 from .core import Backend
 
 
@@ -25,16 +26,44 @@ class NumpyBackend(Backend):
         return {'dtype': tensor.dtype}
 
     @staticmethod
-    def tensor(data, dtype=None):
-        return np.array(data, dtype=dtype)
+    def tensor(data, dtype=None, format="dense"):
+        """
+        Parameters
+        ----------
+        data: the input multidimentional array.
+        dtype: datatype
+        format: a string denoting the tensor datatype.
+            if "dense", then return a dense tensor.
+            if "coo", then return a sparse tensor in the COO format.
+        """
+        if format == "dense":
+            return np.array(data, dtype=dtype)
+        elif format == "coo":
+            return sparse.COO.from_numpy(np.array(data, dtype=dtype))
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def is_tensor(tensor):
-        return isinstance(tensor, np.ndarray)
+        typelist = (np.ndarray, sparse._coo.core.COO)
+        return isinstance(tensor, typelist)
+
+    @staticmethod
+    def random(shape, format='dense', density=1.):
+        if format == "dense":
+            return np.random.random(shape)
+        elif format == "coo":
+            return sparse.random(shape, density=density, format='coo')
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def to_numpy(tensor):
-        return np.copy(tensor)
+        if isinstance(tensor, sparse._coo.core.COO):
+            # transfer the sparse tensor to numpy array
+            return tensor.todense()
+        else:
+            return np.copy(tensor)
 
     @staticmethod
     def shape(tensor):
@@ -60,6 +89,11 @@ class NumpyBackend(Backend):
 
     @staticmethod
     def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
+        if not isinstance(A, np.ndarray):
+            A = A.todense()
+        if not isinstance(B, np.ndarray):
+            B = B.todense()
+
         if not from_left:
             return sla.solve_triangular(A.T,
                                         B.T,
@@ -83,26 +117,6 @@ class NumpyBackend(Backend):
         else:
             return np.sum(np.abs(tensor)**order, axis=axis)**(1 / order)
 
-    def kr(self, matrices, weights=None, mask=None):
-        if mask is None:
-            mask = 1
-        n_columns = matrices[0].shape[1]
-        n_factors = len(matrices)
-
-        start = ord('a')
-        common_dim = 'z'
-        target = ''.join(chr(start + i) for i in range(n_factors))
-        source = ','.join(i + common_dim for i in target)
-        operation = source + '->' + target + common_dim
-
-        if weights is not None:
-            matrices = [
-                m if i else m * self.reshape(weights, (1, -1))
-                for i, m in enumerate(matrices)
-            ]
-
-        return np.einsum(operation, *matrices).reshape((-1, n_columns)) * mask
-
 
 for name in [
         'reshape', 'moveaxis', 'where', 'copy', 'transpose', 'arange', 'ones',
@@ -116,5 +130,5 @@ for name in [
 for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd', 'eigh']:
     NumpyBackend.register_method(name, getattr(np.linalg, name))
 
-for name in ['random', 'seed']:
+for name in ['seed']:
     NumpyBackend.register_method(name, getattr(np.random, name))
