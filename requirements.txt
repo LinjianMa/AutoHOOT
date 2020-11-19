@@ -9,6 +9,7 @@ quimb==1.2.0
 tensorflow>=2.1.2
 ply
 opt_einsum
+sparse
 sympy
-tensorly
+tensorly==0.4.5
 git+https://github.com/mnick/scikit-tensor.git
