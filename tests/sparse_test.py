@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import autodiff as ad
 import backend as T
 import sparse
 import numpy as np
@@ -48,3 +49,24 @@ def test_sparse_ops():
     out1 = T.solve_tri(x_sparse, y_sparse)
     out2 = T.solve_tri(x_dense, y_dense)
     assert float_eq(out1, out2)
+
+
+def test_sparse_einsum_graph():
+
+    T.set_backend("numpy")
+    size = 5
+
+    x1 = ad.Variable(name="x1", shape=[size, size], format="coo")
+    x2 = ad.Variable(name="x2", shape=[size, size])
+    y = ad.einsum('ik,kj->ij', x1, x2, out_format="coo")
+    executor = ad.Executor([y])
+
+    x1_val = T.random([size, size], format='coo', density=0.1)
+    x2_val = T.random([size, size])
+
+    y_val, = executor.run(feed_dict={x1: x1_val, x2: x2_val}, debug=True)
+
+    expected_yval = x1_val @ x2_val
+
+    assert float_eq(y_val, expected_yval)
+    assert isinstance(y_val, sparse._coo.core.COO)

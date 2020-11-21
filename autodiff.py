@@ -20,6 +20,8 @@ from utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
 from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
 from numpy.core.einsumfunc import _parse_einsum_input
 
+format_list = ["dense", "coo"]
+
 
 class Node(object):
     """Node in a computation graph."""
@@ -41,6 +43,7 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
+        self.format = "dense"
         # used for chaining jacobian
         self.input_indices_length = None
 
@@ -277,7 +280,7 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape, symmetry=[]):
+    def __init__(self, name, shape, symmetry=[], format="dense"):
         """
         Parameters
         ----------
@@ -294,6 +297,8 @@ class VariableNode(Node):
         self.shape = shape
         assert shape is not None
         self.symmetry = symmetry
+        assert format in format_list
+        self.format = format
 
     def __deepcopy__(self, memo):
         return self.clone()
@@ -307,13 +312,21 @@ class VariableNode(Node):
             assert T.norm(input_val -
                           T.transpose(input_val, transpose_axes)) < 1e-8
 
+    def check_format(self, input_val):
+        assert self.format == T.get_format(input_val)
+
 
 class MatrixNode(VariableNode):
     @staticmethod
     def create(*args, **kwargs):
         return MatrixNode(*args, **kwargs)
 
-    def __init__(self, name, shape, symmetry=[], orthonormal=None):
+    def __init__(self,
+                 name,
+                 shape,
+                 symmetry=[],
+                 orthonormal=None,
+                 format="dense"):
         """
         orthonormal: whether the matrix is orthonormal.
             If column, then orthonormal in the column dimension: M @ M.T = I
@@ -322,7 +335,7 @@ class MatrixNode(VariableNode):
         assert orthonormal in (None, 'column', 'row')
         assert len(shape) == 2
         self.orthonormal = orthonormal
-        super().__init__(name, shape, symmetry)
+        super().__init__(name, shape, symmetry, format)
 
     def check_orthonormal(self, input_val):
         assert len(input_val.shape) == 2
@@ -346,6 +359,7 @@ class CloneNode(OpNode):
         self.name = name
         self.shape = node.shape
         self.inputs = [node]
+        self.format = node.format
 
     def __deepcopy__(self, memo):
         assert len(self.inputs) == 1
@@ -767,7 +781,7 @@ class EinsumNode(OpNode):
         return EinsumNode(*args, **kwargs)
 
     @staticmethod
-    def _name_generator(subscripts, names):
+    def _name_generator(subscripts, names, format="dense"):
         """Generate the einsum name for arbitary number of var names.
 
         Parameters
@@ -781,15 +795,20 @@ class EinsumNode(OpNode):
         """
         name = f"T.einsum('{subscripts}',"
         name += ",".join(names)
+        if format != "dense":
+            name += f",out_format={format}"
         name += ")"
         return name
 
-    def __init__(self, subscripts, *nodes):
+    def __init__(self, subscripts, *nodes, out_format="dense"):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
         ----------
+        subscripts: a string used to specify the contraction rule
         nodes: arbitary number of nodes
+        out_format: the output tensor format.
+            Needs to be specified mainly during the graph optimization steps for sparse tensors.
 
         Returns
         -------
@@ -797,10 +816,14 @@ class EinsumNode(OpNode):
         """
         super().__init__()
         self.einsum_subscripts = subscripts
+        assert out_format in format_list
+        self.format = out_format
         self.set_inputs(list(nodes))
 
     def __deepcopy__(self, memo):
-        return self.create(self.einsum_subscripts, *self.inputs)
+        return self.create(self.einsum_subscripts,
+                           *self.inputs,
+                           out_format=self.format)
 
     def set_inputs(self, nodes):
         """
@@ -811,14 +834,20 @@ class EinsumNode(OpNode):
         self.inputs = nodes
         node_names = [node.name for node in nodes]
         self.name = EinsumNode._name_generator(self.einsum_subscripts,
-                                               node_names)
+                                               node_names, self.format)
         self.shape = self._output_shape(self.einsum_subscripts, nodes)
 
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
-        return T.einsum(self.einsum_subscripts, *input_vals)
+        if self.format == "dense":
+            return T.einsum(self.einsum_subscripts, *input_vals)
+        else:
+            assert T.support_sparse_format
+            return T.einsum(self.einsum_subscripts,
+                            *input_vals,
+                            out_format=self.format)
 
     def _output_shape(self, subscripts, nodes):
         in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
@@ -1025,7 +1054,8 @@ class EinsumNode(OpNode):
 
     def s2s_expr(self, inputs):
         input_names = [inputvar.name for inputvar in inputs]
-        return EinsumNode._name_generator(self.einsum_subscripts, input_names)
+        return EinsumNode._name_generator(self.einsum_subscripts, input_names,
+                                          self.format)
 
 
 class NormNode(OpNode):
@@ -1324,6 +1354,7 @@ class Executor:
         if debug:
             for node, val in feed_dict.items():
                 node.check_symmetry(val)
+                node.check_format(val)
                 if isinstance(node, MatrixNode):
                     node.check_orthonormal(val)
 

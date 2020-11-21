@@ -86,6 +86,12 @@ class Backend(object):
         raise NotImplementedError
 
     @staticmethod
+    def get_format(tensor):
+        """Returns the format of the given tensor.
+        """
+        raise NotImplementedError
+
+    @staticmethod
     def copy(tensor):
         """Return a copy of the given tensor"""
         raise NotImplementedError

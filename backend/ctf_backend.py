@@ -19,6 +19,7 @@ from .core import Backend
 
 class CTFBackend(Backend):
     backend_name = 'ctf'
+    support_sparse_format = False
 
     @staticmethod
     def context(tensor):
@@ -35,6 +36,10 @@ class CTFBackend(Backend):
     @staticmethod
     def to_numpy(tensor):
         return ctf.to_nparray(tensor)
+
+    @staticmethod
+    def get_format(tensor):
+        return "dense"
 
     @staticmethod
     def shape(tensor):

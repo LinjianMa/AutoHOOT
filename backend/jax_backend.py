@@ -23,6 +23,7 @@ from .core import Backend
 
 class JaxBackend(Backend):
     backend_name = 'jax'
+    support_sparse_format = False
     random_index = 0
 
     @staticmethod
@@ -41,6 +42,10 @@ class JaxBackend(Backend):
     def to_numpy(tensor):
         import numpy as onp
         return onp.asarray(tensor)
+
+    @staticmethod
+    def get_format(tensor):
+        return "dense"
 
     @staticmethod
     def shape(tensor):
