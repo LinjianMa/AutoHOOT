@@ -70,13 +70,13 @@ jobs:
         # Every execution of python w.r.t CTF must have LD_LIBRARY_PATH setup.
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
         export PYTHONPATH=$PWD:$PYTHONPATH
-        pytest --ignore=ctf
+        pytest --ignore=ctf --ignore=taco
     - name: Generate pytest coverage
       run: |
         pip install pytest-cov
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
         export PYTHONPATH=$PWD:$PYTHONPATH
-        pytest --ignore=ctf --cov=./ --cov-report=xml
+        pytest --ignore=ctf --ignore=taco --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
