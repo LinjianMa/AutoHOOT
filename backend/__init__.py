@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 '''
 Backend templete borrowed from tensorly:
 https://github.com/tensorly/tensorly/tree/696aa5de398ffddce13955289af7d3f2dbbbd6be/tensorly/backend
@@ -32,6 +31,7 @@ _KNOWN_BACKENDS = {
     'ctf': 'CTFBackend',
     'tensorflow': 'TensorflowBackend',
     'jax': 'JaxBackend',
+    'taco': 'TacoBackend',
 }
 
 _LOADED_BACKENDS = {}

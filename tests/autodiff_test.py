@@ -608,6 +608,9 @@ def test_summation_einsum_2(backendopt):
 
 def test_trace_einsum(backendopt):
     for datatype in backendopt:
+        if datatype == 'taco':
+            continue  # Currently taco doesn't support same subscript in one operand.
+
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         trace = ad.einsum('ii->', x)
