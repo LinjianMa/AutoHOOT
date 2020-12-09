@@ -18,6 +18,9 @@ import scipy.linalg as sla
 import sparse
 from .core import Backend
 
+# No neg for taco, FR pending (https://github.com/tensor-compiler/taco/issues/342).
+setattr(pt.tensor, '__neg__', lambda x: 0 - x)
+
 
 class TacoBackend(Backend):
     backend_name = 'taco'
@@ -38,7 +41,7 @@ class TacoBackend(Backend):
             if "coo", then return a sparse tensor in the COO format.
         """
         if format == "dense":
-            return np.array(data, dtype=dtype)
+            return pt.from_array(np.array(data))
         elif format == "coo":
             return sparse.COO.from_numpy(np.array(data, dtype=dtype))
         else:
@@ -46,13 +49,13 @@ class TacoBackend(Backend):
 
     @staticmethod
     def is_tensor(tensor):
-        typelist = (np.ndarray, sparse._coo.core.COO)
+        typelist = (np.ndarray, sparse._coo.core.COO, pt.tensor)
         return isinstance(tensor, typelist)
 
     @staticmethod
     def random(shape, format='dense', density=1.):
         if format == "dense":
-            return np.random.random(shape)
+            return pt.from_array(np.random.random(shape))
         elif format == "coo":
             return sparse.random(shape, density=density, format='coo')
         else:
@@ -79,18 +82,32 @@ class TacoBackend(Backend):
         return np.clip(tensor, a_min, a_max)
 
     @staticmethod
-    def dot(a, b):
-        return a.dot(b)
+    def einsum(subscripts, *operands, optimize=True):
+        # Use taco einsum evaluation.
+        return pt.einsum(subscripts, *operands)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True):
-        # Use taco style einsum evaluation.
-        # Simple/Expensive API calls, later make pt.tensor first class citizen..
-        taco_ops = []
-        for op in operands:
-            taco_tensor = pt.from_array(op)  # Note that this is dense.
-            taco_ops.append(taco_tensor)
-        return pt.einsum(subscripts, *taco_ops).to_array()
+    def ones(shape, dtype=None):
+        return pt.from_array(np.ones(shape, dtype))
+
+    @staticmethod
+    def ones_like(tensor):
+        return TacoBackend.ones(tensor.shape)
+
+    @staticmethod
+    def power(A, B):
+        return pt.tensor_pow(A, B, out_format=pt.dense)
+
+    @staticmethod
+    def transpose(tensor):
+        assert len(tensor.shape) == 2
+        return pt.einsum('ij->ji', tensor)
+
+    @staticmethod
+    def dot(A, B):
+        # This is just matrix multiplication in test code.
+        # Taco dot has SEGV issues, avoid.
+        return pt.einsum('ij,jk->ik', A, B)
 
     @staticmethod
     def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
@@ -108,32 +125,36 @@ class TacoBackend(Backend):
             return sla.solve_triangular(A, B, trans=transp_L, lower=lower)
 
     @staticmethod
+    def array_equal(A, B):
+        return np.array_equal(A.to_array(), B.to_array())
+
+    @staticmethod
+    def tensorinv(a, ind=2):
+        return pt.from_array(np.linalg.tensorinv(a.to_array(), ind))
+
+    @staticmethod
+    def inv(a):
+        return pt.from_array(np.linalg.inv(a.to_array()))
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         # handle difference in default axis notation
         if axis == ():
             axis = None
 
         if order == 'inf':
-            return np.max(np.abs(tensor), axis=axis)
+            return pt.tensor_max(pt.tensor_abs(tensor), axis=axis)
         elif order == 1:
-            return np.sum(np.abs(tensor), axis=axis)
+            return pt.tensor_sum(pt.tensor_abs(tensor), axis=axis)
         elif order == 2:
-            return np.sqrt(np.sum(tensor**2, axis=axis))
+            return pt.tensor_sqrt(pt.tensor_sum(tensor**2, axis=axis),
+                                  out_format=pt.dense)
         else:
-            return np.sum(np.abs(tensor)**order, axis=axis)**(1 / order)
+            return pt.tensor_sum(pt.tesnor_abs(tensor)**order,
+                                 axis=axis)**(1 / order)
 
 
-for name in [
-        'reshape', 'moveaxis', 'where', 'copy', 'transpose', 'arange', 'ones',
-        'ones_like', 'zeros', 'zeros_like', 'eye', 'kron', 'concatenate',
-        'max', 'min', 'all', 'mean', 'sum', 'prod', 'sign', 'abs', 'sqrt',
-        'argmin', 'argmax', 'stack', 'conj', 'array_equal', 'power',
-        'identity', 'diag', 'tensordot'
-]:
-    TacoBackend.register_method(name, getattr(np, name))
-
-for name in ['solve', 'qr', 'inv', 'tensorinv', 'cholesky', 'svd', 'eigh']:
-    TacoBackend.register_method(name, getattr(np.linalg, name))
-
-for name in ['seed']:
-    TacoBackend.register_method(name, getattr(np.random, name))
+for name in ['tensordot']:
+    TacoBackend.register_method(name, getattr(pt, name))
+for name in ['sum']:
+    TacoBackend.register_method(name, getattr(pt, 'tensor_' + name))
