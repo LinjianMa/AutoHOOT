@@ -126,7 +126,7 @@ class TacoBackend(Backend):
 
     @staticmethod
     def array_equal(A, B):
-        return np.array_equal(A.to_array(), B.to_array())
+        return pt.tensor_sum(A != B) == 0
 
     @staticmethod
     def tensorinv(a, ind=2):
