@@ -18,9 +18,6 @@ import scipy.linalg as sla
 import sparse
 from .core import Backend
 
-# No neg for taco, FR pending (https://github.com/tensor-compiler/taco/issues/342).
-setattr(pt.tensor, '__neg__', lambda x: 0 - x)
-
 
 class TacoBackend(Backend):
     backend_name = 'taco'
