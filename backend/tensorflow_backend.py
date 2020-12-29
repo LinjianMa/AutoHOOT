@@ -112,9 +112,6 @@ class TensorflowBackend(Backend):
         invtensor = tf.linalg.inv(tensor)
         return tf.reshape(invtensor, oldshape)
 
-    def kr(self, matrices, weights=None, mask=None):
-        raise NotImplementedError
-
 
 for name in [
         'reshape', 'where', 'transpose', 'ones_like', 'zeros', 'zeros_like',

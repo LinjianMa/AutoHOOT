@@ -47,6 +47,16 @@ jobs:
         make python
         make python_install
         # Finish install CTF, now set up library path.
+    - name: Install Taco
+      run: |
+        git clone https://github.com/tensor-compiler/taco
+        cd taco
+        mkdir build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release -DPYTHON=ON ..
+        make -j8
+        cd lib
+        export PYTHONPATH=$PWD
     - name: Lint with flake8
       run: |
         pip install flake8
@@ -59,14 +69,14 @@ jobs:
         pip install pytest
         # Every execution of python w.r.t CTF must have LD_LIBRARY_PATH setup.
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
-        export PYTHONPATH=$PWD
-        pytest --ignore=ctf
+        export PYTHONPATH=$PWD:$PYTHONPATH
+        pytest --ignore=ctf --ignore=taco
     - name: Generate pytest coverage
       run: |
         pip install pytest-cov
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/install/lib"
-        export PYTHONPATH=$PWD
-        pytest --ignore=ctf --cov=./ --cov-report=xml
+        export PYTHONPATH=$PWD:$PYTHONPATH
+        pytest --ignore=ctf --ignore=taco --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 '''
 Backend templete borrowed from tensorly:
 https://github.com/tensorly/tensorly/tree/696aa5de398ffddce13955289af7d3f2dbbbd6be/tensorly/backend
@@ -32,6 +31,7 @@ _KNOWN_BACKENDS = {
     'ctf': 'CTFBackend',
     'tensorflow': 'TensorflowBackend',
     'jax': 'JaxBackend',
+    'taco': 'TacoBackend',
 }
 
 _LOADED_BACKENDS = {}
@@ -39,21 +39,7 @@ _LOCAL_STATE = threading.local()
 
 
 def initialize_backend():
-    """Initialises the backend
-    1) retrieve the default backend name from the `TENSORLY_BACKEND` environment variable
-        if not found, use _DEFAULT_BACKEND
-    2) sets the backend to the retrived backend name
-    """
-    backend_name = os.environ.get('TENSORLY_BACKEND', _DEFAULT_BACKEND)
-    if backend_name not in _KNOWN_BACKENDS:
-        msg = (
-            "TENSORLY_BACKEND should be one of {}, got {}. Defaulting to {}'"
-        ).format(', '.join(map(repr, _KNOWN_BACKENDS)), backend_name,
-                 _DEFAULT_BACKEND)
-        warnings.warn(msg, UserWarning)
-        backend_name = _DEFAULT_BACKEND
-
-    set_backend(backend_name, local_threadsafe=False)
+    set_backend(_DEFAULT_BACKEND, local_threadsafe=False)
 
 
 def register_backend(backend_name):
@@ -87,7 +73,7 @@ def set_backend(backend, local_threadsafe=False):
 
     Parameters
     ----------
-    backend : tensorly.Backend or str
+    backend : Backend or str
         name of the backend to load or Backend Class
     local_threadsafe : bool, optional, default is False
         If False, set the backend as default for all threads
@@ -242,12 +228,9 @@ abs = dispatch(Backend.abs)
 sqrt = dispatch(Backend.sqrt)
 norm = dispatch(Backend.norm)
 dot = dispatch(Backend.dot)
-kron = dispatch(Backend.kron)
 solve = dispatch(Backend.solve)
 power = dispatch(Backend.power)
 qr = dispatch(Backend.qr)
-kr = dispatch(Backend.kr)
-partial_svd = dispatch(Backend.partial_svd)
 array_equal = dispatch(Backend.array_equal)
 einsum = dispatch(Backend.einsum)
 random = dispatch(Backend.random)

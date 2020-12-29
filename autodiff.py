@@ -609,9 +609,9 @@ class MulNode(OpNode):
         if self.scalar_A is False and self.scalar_B is False:
             assert input_vals[0].shape == input_vals[1].shape
         if self.scalar_A:
-            assert input_vals[0].shape == ()
+            assert len(input_vals[0].shape) == 0
         if self.scalar_B:
-            assert input_vals[1].shape == ()
+            assert len(input_vals[1].shape) == 0
         return input_vals[0] * input_vals[1]
 
     def transposed_vjp(self, output_grad):

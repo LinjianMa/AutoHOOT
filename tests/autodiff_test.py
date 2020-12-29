@@ -608,6 +608,9 @@ def test_summation_einsum_2(backendopt):
 
 def test_trace_einsum(backendopt):
     for datatype in backendopt:
+        if datatype == 'taco':
+            continue  # Currently taco doesn't support same subscript in one operand.
+
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         trace = ad.einsum('ii->', x)
@@ -748,7 +751,7 @@ def test_inner_product_hvp(backendopt):
             v: v_val
         })
 
-        expected_yval = T.sum(T.transpose(x_val) @ x_val)
+        expected_yval = T.sum(T.dot(T.transpose(x_val), x_val))
         expected_grad_x_val = 2 * x_val
         expected_hv_val = 2 * v_val
 
@@ -779,12 +782,13 @@ def test_hvp1(backendopt):
             v: v_val
         })
 
-        expected_yval = T.transpose(x_val) @ H_val @ x_val
-        expected_grad_x_val = 2 * H_val @ x_val
+        Hx = T.dot(H_val, x_val)
+        expected_yval = T.sum(T.dot(T.transpose(x_val), Hx))
+        expected_grad_x_val = 2 * Hx
         expected_hv_val = T.tensor([[4.], [8.], [12.]])
 
         assert isinstance(y, ad.Node)
-        assert T.array_equal(y_val, expected_yval[0][0])
+        assert T.array_equal(y_val, expected_yval)
         assert T.array_equal(grad_x_val, expected_grad_x_val)
         assert T.array_equal(Hv_val, expected_hv_val)
 
@@ -811,8 +815,9 @@ def test_hvp2(backendopt):
             H: H_val,
             v: v_val
         })
-        expected_yval = T.sum(T.transpose(x_val) @ H_val @ x_val)
-        expected_grad_x_val = 2 * H_val @ x_val
+        Hx = T.dot(H_val, x_val)
+        expected_yval = T.sum(T.dot(T.transpose(x_val), Hx))
+        expected_grad_x_val = 2 * Hx
         expected_hv_val = T.tensor([[4.], [8.], [12.]])
 
         assert isinstance(y, ad.Node)

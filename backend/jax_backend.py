@@ -92,26 +92,6 @@ class JaxBackend(Backend):
         else:
             return np.sum(np.abs(tensor)**order, axis=axis)**(1 / order)
 
-    def kr(self, matrices, weights=None, mask=None):
-        if mask is None:
-            mask = 1
-        n_columns = matrices[0].shape[1]
-        n_factors = len(matrices)
-
-        start = ord('a')
-        common_dim = 'z'
-        target = ''.join(chr(start + i) for i in range(n_factors))
-        source = ','.join(i + common_dim for i in target)
-        operation = source + '->' + target + common_dim
-
-        if weights is not None:
-            matrices = [
-                m if i else m * self.reshape(weights, (1, -1))
-                for i, m in enumerate(matrices)
-            ]
-
-        return np.einsum(operation, *matrices).reshape((-1, n_columns)) * mask
-
     def random(self, shape):
         rand_val = random.uniform(random.PRNGKey(self.random_index),
                                   shape=shape)
