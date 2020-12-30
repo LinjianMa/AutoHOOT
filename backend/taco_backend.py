@@ -17,10 +17,13 @@ import pytaco as pt
 import scipy.linalg as sla
 import sparse
 from .core import Backend
+from utils import DenseTensor, SparseTensor
 
 
 class TacoBackend(Backend):
     backend_name = 'taco'
+    support_sparse_format = True
+    pt_format_dict = {"dense": pt.dense, "compressed": pt.compressed}
 
     @staticmethod
     def context(tensor):
@@ -40,7 +43,11 @@ class TacoBackend(Backend):
         if format == "dense":
             return pt.from_array(np.array(data))
         elif format == "coo":
-            return sparse.COO.from_numpy(np.array(data, dtype=dtype))
+            sp_tensor = sparse.COO.from_numpy(np.array(data, dtype=dtype))
+            pt_tensor = pt.tensor(shape, pt.compressed)
+            for i in range(len(sp_tensor.data)):
+                pt_tensor.insert(sp_tensor.coords[:, i], sp_tensor.data[i])
+            return pt_tensor
         else:
             raise NotImplementedError
 
@@ -54,17 +61,30 @@ class TacoBackend(Backend):
         if format == "dense":
             return pt.from_array(np.random.random(shape))
         elif format == "coo":
-            return sparse.random(shape, density=density, format='coo')
+            sp_tensor = sparse.random(shape, density=density, format='coo')
+            pt_tensor = pt.tensor(shape, pt.compressed)
+            for i in range(len(sp_tensor.data)):
+                pt_tensor.insert(sp_tensor.coords[:, i], sp_tensor.data[i])
+            return pt_tensor
         else:
             raise NotImplementedError
 
     @staticmethod
     def to_numpy(tensor):
-        if isinstance(tensor, sparse._coo.core.COO):
-            # transfer the sparse tensor to numpy array
-            return tensor.todense()
+        if isinstance(tensor, pt.pytensor.taco_tensor.tensor):
+            return pt.to_array(tensor)
         else:
             return np.copy(tensor)
+
+    @staticmethod
+    def get_format(tensor):
+        if not isinstance(tensor, pt.pytensor.taco_tensor.tensor):
+            return DenseTensor()
+        mode_formats = [mode.name for mode in tensor.format.mode_formats]
+        if all(name == "dense" for name in mode_formats):
+            return DenseTensor()
+        return SparseTensor(mode_formats=mode_formats,
+                            mode_order=tensor.format.mode_ordering)
 
     @staticmethod
     def shape(tensor):
@@ -79,9 +99,14 @@ class TacoBackend(Backend):
         return np.clip(tensor, a_min, a_max)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True):
-        # Use taco einsum evaluation.
-        return pt.einsum(subscripts, *operands)
+    def einsum(subscripts, *operands, optimize=True, out_format=DenseTensor()):
+        if isinstance(out_format, DenseTensor):
+            return pt.einsum(subscripts, *operands)
+        pt_mode_formats = [
+            TacoBackend.pt_format_dict[fmt] for fmt in out_format.mode_formats
+        ]
+        pt_format = pt.format(pt_mode_formats, out_format.mode_order)
+        return pt.einsum(subscripts, *operands, out_format=pt_format)
 
     @staticmethod
     def ones(shape, dtype=None):

@@ -15,7 +15,9 @@
 import autodiff as ad
 import backend as T
 import sparse
+import pytaco as pt
 import numpy as np
+from utils import SparseTensor
 from tests.test_utils import float_eq
 
 
@@ -53,12 +55,14 @@ def test_sparse_ops():
 
 def test_sparse_einsum_graph():
 
-    T.set_backend("numpy")
+    T.set_backend("taco")
     size = 5
+    coo = SparseTensor(["compressed", "compressed"])
+    csc = SparseTensor(["compressed", "dense"])
 
-    x1 = ad.Variable(name="x1", shape=[size, size], format="coo")
+    x1 = ad.Variable(name="x1", shape=[size, size], format=coo)
     x2 = ad.Variable(name="x2", shape=[size, size])
-    y = ad.einsum('ik,kj->ij', x1, x2, out_format="coo")
+    y = ad.einsum('ik,kj->ij', x1, x2, out_format=csc)
     executor = ad.Executor([y])
 
     x1_val = T.random([size, size], format='coo', density=0.1)
@@ -66,7 +70,6 @@ def test_sparse_einsum_graph():
 
     y_val, = executor.run(feed_dict={x1: x1_val, x2: x2_val}, debug=True)
 
-    expected_yval = x1_val @ x2_val
-
+    expected_yval = T.einsum("ab,bc->ac", x1_val, x2_val)
     assert float_eq(y_val, expected_yval)
-    assert isinstance(y_val, sparse._coo.core.COO)
+    assert isinstance(y_val, pt.pytensor.taco_tensor.tensor)

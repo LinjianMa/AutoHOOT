@@ -16,11 +16,10 @@ import copy
 
 import backend as T
 import numpy as np
+from utils import DenseTensor, SparseTensor
 from utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
 from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
 from numpy.core.einsumfunc import _parse_einsum_input
-
-format_list = ["dense", "coo"]
 
 
 class Node(object):
@@ -43,7 +42,7 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
-        self.format = "dense"
+        self.format = DenseTensor()
         # used for chaining jacobian
         self.input_indices_length = None
 
@@ -280,7 +279,7 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape, symmetry=[], format="dense"):
+    def __init__(self, name, shape, symmetry=[], format=DenseTensor()):
         """
         Parameters
         ----------
@@ -297,7 +296,7 @@ class VariableNode(Node):
         self.shape = shape
         assert shape is not None
         self.symmetry = symmetry
-        assert format in format_list
+        assert isinstance(format, (DenseTensor, SparseTensor))
         self.format = format
 
     def __deepcopy__(self, memo):
@@ -326,7 +325,7 @@ class MatrixNode(VariableNode):
                  shape,
                  symmetry=[],
                  orthonormal=None,
-                 format="dense"):
+                 format=DenseTensor()):
         """
         orthonormal: whether the matrix is orthonormal.
             If column, then orthonormal in the column dimension: M @ M.T = I
@@ -781,7 +780,7 @@ class EinsumNode(OpNode):
         return EinsumNode(*args, **kwargs)
 
     @staticmethod
-    def _name_generator(subscripts, names, format="dense"):
+    def _name_generator(subscripts, names):
         """Generate the einsum name for arbitary number of var names.
 
         Parameters
@@ -793,14 +792,13 @@ class EinsumNode(OpNode):
         Returns a einsum expression.
 
         """
+        # TODO: currently the name generator doesn't support sparse format
         name = f"T.einsum('{subscripts}',"
         name += ",".join(names)
-        if format != "dense":
-            name += f",out_format={format}"
         name += ")"
         return name
 
-    def __init__(self, subscripts, *nodes, out_format="dense"):
+    def __init__(self, subscripts, *nodes, out_format=DenseTensor()):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
@@ -816,7 +814,6 @@ class EinsumNode(OpNode):
         """
         super().__init__()
         self.einsum_subscripts = subscripts
-        assert out_format in format_list
         self.format = out_format
         self.set_inputs(list(nodes))
 
@@ -834,14 +831,14 @@ class EinsumNode(OpNode):
         self.inputs = nodes
         node_names = [node.name for node in nodes]
         self.name = EinsumNode._name_generator(self.einsum_subscripts,
-                                               node_names, self.format)
+                                               node_names)
         self.shape = self._output_shape(self.einsum_subscripts, nodes)
 
     def compute(self, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
-        if self.format == "dense":
+        if isinstance(self.format, DenseTensor):
             return T.einsum(self.einsum_subscripts, *input_vals)
         else:
             assert T.support_sparse_format
@@ -1053,9 +1050,9 @@ class EinsumNode(OpNode):
         ]
 
     def s2s_expr(self, inputs):
+        # TODO: currently it doesn't support sparse format
         input_names = [inputvar.name for inputvar in inputs]
-        return EinsumNode._name_generator(self.einsum_subscripts, input_names,
-                                          self.format)
+        return EinsumNode._name_generator(self.einsum_subscripts, input_names)
 
 
 class NormNode(OpNode):

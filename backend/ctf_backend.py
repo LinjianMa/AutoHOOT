@@ -15,6 +15,7 @@
 import numpy as np
 import ctf
 from .core import Backend
+from utils import DenseTensor
 
 
 class CTFBackend(Backend):
@@ -39,7 +40,7 @@ class CTFBackend(Backend):
 
     @staticmethod
     def get_format(tensor):
-        return "dense"
+        return DenseTensor()
 
     @staticmethod
     def shape(tensor):

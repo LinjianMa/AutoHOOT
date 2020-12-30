@@ -16,6 +16,7 @@ import numpy as np
 import scipy.linalg as sla
 import sparse
 from .core import Backend
+from utils import DenseTensor, SparseTensor
 
 
 class NumpyBackend(Backend):
@@ -37,9 +38,9 @@ class NumpyBackend(Backend):
             if "dense", then return a dense tensor.
             if "coo", then return a sparse tensor in the COO format.
         """
-        # if the data is not a np array (e.g. in the sparse format), 
+        # if the data is not a np array (e.g. in the sparse format),
         # first transfer it to the standard np array.
-        data = NumpyBackend.to_numpy(data).astype(dtype) 
+        data = NumpyBackend.to_numpy(data).astype(dtype)
         if format == "dense":
             return data
         elif format == "coo":
@@ -72,9 +73,9 @@ class NumpyBackend(Backend):
     @staticmethod
     def get_format(tensor):
         if isinstance(tensor, sparse._coo.core.COO):
-            return "coo"
+            return DenseTensor()
         else:
-            return "dense"
+            return SparseTensor(["compressed" for _ in range(tensor.ndim)])
 
     @staticmethod
     def shape(tensor):
@@ -93,14 +94,12 @@ class NumpyBackend(Backend):
         return a.dot(b)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True, out_format="dense"):
+    def einsum(subscripts, *operands, optimize=True, out_format=DenseTensor()):
+        if isinstance(out_format, SparseTensor):
+            raise NotImplementedError
         # NumPy einsum cannot correctly optimize some einsums, use opt_einsum instead.
         from opt_einsum import contract
-        output = contract(subscripts, *operands, optimize=optimize)
-        # If the contraction output is not sparse, transfer the datatype to simulate the sparse einsum
-        if out_format != NumpyBackend.get_format(output):
-            output = NumpyBackend.tensor(output, format=out_format)
-        return output
+        return contract(subscripts, *operands, optimize=optimize)
 
     @staticmethod
     def solve_tri(A, B, lower=True, from_left=True, transp_L=False):

@@ -15,6 +15,7 @@
 import tensorflow as tf
 import numpy as np
 from .core import Backend
+from utils import DenseTensor
 
 
 class TensorflowBackend(Backend):
@@ -61,7 +62,7 @@ class TensorflowBackend(Backend):
 
     @staticmethod
     def get_format(tensor):
-        return "dense"
+        return DenseTensor()
 
     @staticmethod
     def shape(tensor):
