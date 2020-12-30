@@ -15,6 +15,7 @@
 import backend as T
 from utils import conjugate_gradient
 
+
 def test_HinverseG(backendopt):
     for datatype in backendopt:
         T.set_backend(datatype)
