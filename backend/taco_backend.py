@@ -44,7 +44,7 @@ class TacoBackend(Backend):
             return pt.from_array(np.array(data))
         elif format == "coo":
             sp_tensor = sparse.COO.from_numpy(np.array(data, dtype=dtype))
-            pt_tensor = pt.tensor(shape, pt.compressed)
+            pt_tensor = pt.tensor(sp_tensor.shape, pt.compressed)
             for i in range(len(sp_tensor.data)):
                 pt_tensor.insert(sp_tensor.coords[:, i], sp_tensor.data[i])
             return pt_tensor
