@@ -17,7 +17,7 @@ import backend as T
 import sparse
 import pytaco as pt
 import numpy as np
-from utils import SparseTensor
+import formats
 from tests.test_utils import float_eq
 
 
@@ -57,8 +57,8 @@ def test_sparse_einsum_graph():
 
     T.set_backend("taco")
     size = 5
-    coo = SparseTensor(["compressed", "compressed"])
-    csc = SparseTensor(["compressed", "dense"])
+    coo = formats.SparseFormat([formats.compressed, formats.compressed])
+    csc = formats.SparseFormat([formats.compressed, formats.dense])
 
     x1 = ad.Variable(name="x1", shape=[size, size], format=coo)
     x2 = ad.Variable(name="x2", shape=[size, size])

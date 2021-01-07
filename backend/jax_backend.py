@@ -19,7 +19,7 @@ import jax.numpy as np
 import jax.scipy.linalg as sla
 from jax import random
 from .core import Backend
-from utils import DenseTensor
+from formats import DenseFormat
 
 
 class JaxBackend(Backend):
@@ -46,7 +46,7 @@ class JaxBackend(Backend):
 
     @staticmethod
     def get_format(tensor):
-        return DenseTensor()
+        return DenseFormat()
 
     @staticmethod
     def shape(tensor):

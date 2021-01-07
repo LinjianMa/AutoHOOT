@@ -15,8 +15,8 @@
 import numpy as np
 import scipy.linalg as sla
 import sparse
+import formats
 from .core import Backend
-from utils import DenseTensor, SparseTensor
 
 
 class NumpyBackend(Backend):
@@ -73,9 +73,10 @@ class NumpyBackend(Backend):
     @staticmethod
     def get_format(tensor):
         if isinstance(tensor, sparse._coo.core.COO):
-            return DenseTensor()
+            return formats.SparseFormat(
+                [formats.compressed for _ in range(tensor.ndim)])
         else:
-            return SparseTensor(["compressed" for _ in range(tensor.ndim)])
+            return formats.DenseFormat()
 
     @staticmethod
     def shape(tensor):
@@ -94,8 +95,11 @@ class NumpyBackend(Backend):
         return a.dot(b)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True, out_format=DenseTensor()):
-        if isinstance(out_format, SparseTensor):
+    def einsum(subscripts,
+               *operands,
+               optimize=True,
+               out_format=formats.DenseFormat()):
+        if isinstance(out_format, formats.SparseFormat):
             raise NotImplementedError
         # NumPy einsum cannot correctly optimize some einsums, use opt_einsum instead.
         from opt_einsum import contract

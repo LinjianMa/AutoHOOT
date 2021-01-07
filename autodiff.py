@@ -16,7 +16,7 @@ import copy
 
 import backend as T
 import numpy as np
-from utils import DenseTensor, SparseTensor
+from formats import DenseFormat, SparseFormat
 from utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
 from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
 from numpy.core.einsumfunc import _parse_einsum_input
@@ -42,7 +42,7 @@ class Node(object):
         self.const_attr = None
         self.name = ""
         self.shape = None
-        self.format = DenseTensor()
+        self.format = DenseFormat()
         # used for chaining jacobian
         self.input_indices_length = None
 
@@ -279,7 +279,7 @@ class VariableNode(Node):
     def create(*args, **kwargs):
         return VariableNode(*args, **kwargs)
 
-    def __init__(self, name, shape, symmetry=[], format=DenseTensor()):
+    def __init__(self, name, shape, symmetry=[], format=DenseFormat()):
         """
         Parameters
         ----------
@@ -296,7 +296,7 @@ class VariableNode(Node):
         self.shape = shape
         assert shape is not None
         self.symmetry = symmetry
-        assert isinstance(format, (DenseTensor, SparseTensor))
+        assert isinstance(format, (DenseFormat, SparseFormat))
         self.format = format
 
     def __deepcopy__(self, memo):
@@ -325,7 +325,7 @@ class MatrixNode(VariableNode):
                  shape,
                  symmetry=[],
                  orthonormal=None,
-                 format=DenseTensor()):
+                 format=DenseFormat()):
         """
         orthonormal: whether the matrix is orthonormal.
             If column, then orthonormal in the column dimension: M @ M.T = I
@@ -798,7 +798,7 @@ class EinsumNode(OpNode):
         name += ")"
         return name
 
-    def __init__(self, subscripts, *nodes, out_format=DenseTensor()):
+    def __init__(self, subscripts, *nodes, out_format=DenseFormat()):
         """Create a new node that is the result a matrix multiple of two input nodes.
 
         Parameters
@@ -838,7 +838,7 @@ class EinsumNode(OpNode):
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
-        if isinstance(self.format, DenseTensor):
+        if isinstance(self.format, DenseFormat):
             return T.einsum(self.einsum_subscripts, *input_vals)
         else:
             assert T.support_sparse_format

@@ -16,8 +16,8 @@ import numpy as np
 import pytaco as pt
 import scipy.linalg as sla
 import sparse
+import formats
 from .core import Backend
-from utils import DenseTensor, SparseTensor
 
 # Hack for @ operator for simplicity. No dimension checks.
 setattr(pt.tensor, '__matmul__', lambda x, y: TacoBackend.dot(x, y))
@@ -59,7 +59,14 @@ setattr(pt.tensor, '__deepcopy__', lambda t, _: pt.as_tensor(t, copy=True))
 class TacoBackend(Backend):
     backend_name = 'taco'
     support_sparse_format = True
-    pt_format_dict = {"dense": pt.dense, "compressed": pt.compressed}
+    pt_format_dict = {
+        formats.dense: pt.dense,
+        formats.compressed: pt.compressed
+    }
+    pt_format_dict_rev = {
+        pt.dense: formats.dense,
+        pt.compressed: formats.compressed
+    }
 
     @staticmethod
     def context(tensor):
@@ -112,12 +119,15 @@ class TacoBackend(Backend):
     @staticmethod
     def get_format(tensor):
         if not isinstance(tensor, pt.pytensor.taco_tensor.tensor):
-            return DenseTensor()
-        mode_formats = [mode.name for mode in tensor.format.mode_formats]
-        if all(name == "dense" for name in mode_formats):
-            return DenseTensor()
-        return SparseTensor(mode_formats=mode_formats,
-                            mode_order=tensor.format.mode_ordering)
+            return formats.DenseFormat()
+        mode_formats = [
+            TacoBackend.pt_format_dict_rev[mode]
+            for mode in tensor.format.mode_formats
+        ]
+        if all(isinstance(format, formats.Dense) for format in mode_formats):
+            return formats.DenseFormat()
+        return formats.SparseFormat(mode_formats=mode_formats,
+                                    mode_order=tensor.format.mode_ordering)
 
     @staticmethod
     def shape(tensor):
@@ -132,8 +142,11 @@ class TacoBackend(Backend):
         return np.clip(tensor, a_min, a_max)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True, out_format=DenseTensor()):
-        if isinstance(out_format, DenseTensor):
+    def einsum(subscripts,
+               *operands,
+               optimize=True,
+               out_format=formats.DenseFormat()):
+        if isinstance(out_format, formats.DenseFormat):
             return pt.einsum(subscripts, *operands)
         pt_mode_formats = [
             TacoBackend.pt_format_dict[fmt] for fmt in out_format.mode_formats
