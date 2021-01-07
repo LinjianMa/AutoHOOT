@@ -30,36 +30,6 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
 
-class DenseTensor(object):
-    def __eq__(self, other):
-        if isinstance(other, DenseTensor):
-            return True
-        else:
-            return False
-
-
-class SparseTensor(object):
-    """ Sparse tensor data format.
-    Parameters
-    ----------
-    mode_formats: a list containing the format of each mode ("dense" or "compressed")
-    mode_order: (optional) a list specifying the order in which modes should be stored
-    """
-    def __init__(self, mode_formats, mode_order=None):
-        for mode in mode_formats:
-            assert mode in ("dense", "compressed")
-        self.mode_formats = mode_formats
-        if mode_order is None:
-            self.mode_order = list(range(len(mode_formats)))
-        else:
-            self.mode_order = mode_order
-
-    def __eq__(self, other):
-        if isinstance(other, DenseTensor):
-            return False
-        return self.mode_formats == other.mode_formats and self.mode_order == other.mode_order
-
-
 def jit_decorator(forward):
     from jax import jit
 
