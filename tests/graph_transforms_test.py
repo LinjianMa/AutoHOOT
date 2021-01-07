@@ -305,6 +305,9 @@ def test_tree_distribution_mim(dist_op, backendopt):
     """
 
     for datatype in backendopt:
+        if datatype == "taco":
+            # '..,kk,..->..' is not supported in taco
+            continue
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -339,6 +342,9 @@ def test_tree_distribution_two_layers(dist_op, backendopt):
     """
 
     for datatype in backendopt:
+        if datatype == "taco":
+            # '..,kk,..->..' is not supported in taco
+            continue
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])
@@ -368,6 +374,9 @@ def test_tree_distribution_ppE(dist_op, backendopt):
     """
 
     for datatype in backendopt:
+        if datatype == "taco":
+            # '..,kk,..->..' is not supported in taco
+            continue
         T.set_backend(datatype)
 
         a = ad.Variable(name="a", shape=[3, 2])

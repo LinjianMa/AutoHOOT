@@ -19,6 +19,42 @@ import sparse
 from .core import Backend
 from utils import DenseTensor, SparseTensor
 
+# Hack for @ operator for simplicity. No dimension checks.
+setattr(pt.tensor, '__matmul__', lambda x, y: TacoBackend.dot(x, y))
+
+
+def _scalarfunc(t):
+    if len(t.shape) == 0:
+        # TODO(yejiayu): Extend this to support any type casts.
+        return float(t[0])
+    else:
+        raise TypeError("Only rank 0 can be converted to scalars.")
+
+
+setattr(pt.tensor, '__float__', _scalarfunc)
+
+###############################################################################
+# Impl to get around pytaco slicing.
+###############################################################################
+__pt_impl_get_item = getattr(pt.tensor, '__getitem__')
+
+
+def _getitem(self, index):
+    if index is None or isinstance(index, int) or len(index) == 0:
+        return __pt_impl_get_item(self, index)
+
+    # Fallback to numpy slicing if an input has slice().
+    for i in index:
+        if isinstance(i, slice):
+            return pt.from_array(self.to_array()[index])
+    return __pt_impl_get_item(self, index)
+
+
+setattr(pt.tensor, '__getitem__', lambda self, index: _getitem(self, index))
+###############################################################################
+
+setattr(pt.tensor, '__deepcopy__', lambda t, _: pt.as_tensor(t, copy=True))
+
 
 class TacoBackend(Backend):
     backend_name = 'taco'
@@ -71,10 +107,7 @@ class TacoBackend(Backend):
 
     @staticmethod
     def to_numpy(tensor):
-        if isinstance(tensor, pt.pytensor.taco_tensor.tensor):
-            return pt.to_array(tensor)
-        else:
-            return np.copy(tensor)
+        return tensor.to_array()
 
     @staticmethod
     def get_format(tensor):
@@ -121,9 +154,11 @@ class TacoBackend(Backend):
         return pt.tensor_pow(A, B, out_format=pt.dense)
 
     @staticmethod
-    def transpose(tensor):
-        assert len(tensor.shape) == 2
-        return pt.einsum('ij->ji', tensor)
+    def transpose(tensor, axes=None):
+        if axes == None:
+            assert len(tensor.shape) == 2
+            return pt.einsum('ij->ji', tensor)
+        return tensor.transpose(axes)
 
     @staticmethod
     def dot(A, B):
@@ -151,6 +186,19 @@ class TacoBackend(Backend):
         return pt.tensor_sum(A != B) == 0
 
     @staticmethod
+    def identity(n):
+        return pt.from_array(np.identity(n))
+
+    @staticmethod
+    def svd(matrix):
+        u, s, vh = np.linalg.svd(matrix.to_array())
+        return pt.from_array(u), pt.from_array(s), pt.from_array(vh)
+
+    @staticmethod
+    def seed(seed):
+        np.random.seed(seed)
+
+    @staticmethod
     def tensorinv(a, ind=2):
         return pt.from_array(np.linalg.tensorinv(a.to_array(), ind))
 
@@ -159,15 +207,21 @@ class TacoBackend(Backend):
         return pt.from_array(np.linalg.inv(a.to_array()))
 
     @staticmethod
+    def abs(tensor):
+        return pt.tensor_abs(tensor, out_format=pt.dense)
+
+    @staticmethod
     def norm(tensor, order=2, axis=None):
         # handle difference in default axis notation
         if axis == ():
             axis = None
 
         if order == 'inf':
-            return pt.tensor_max(pt.tensor_abs(tensor), axis=axis)
+            return pt.tensor_max(pt.tensor_abs(tensor, out_format=pt.dense),
+                                 axis=axis)
         elif order == 1:
-            return pt.tensor_sum(pt.tensor_abs(tensor), axis=axis)
+            return pt.tensor_sum(pt.tensor_abs(tensor, out_format=pt.dense),
+                                 axis=axis)
         elif order == 2:
             return pt.tensor_sqrt(pt.tensor_sum(tensor**2, axis=axis),
                                   out_format=pt.dense)

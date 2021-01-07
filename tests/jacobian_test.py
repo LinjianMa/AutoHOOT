@@ -470,6 +470,8 @@ def test_jacobian_summation_einsum_2(backendopt):
 
 def test_jacobian_trace_einsum(backendopt):
     for datatype in backendopt:
+        if datatype == 'taco':
+            continue
         T.set_backend(datatype)
         x = ad.Variable(name="x", shape=[2, 2])
         trace = ad.einsum('ii->', x)

@@ -32,6 +32,7 @@ dim = 3
 def test_cpd_als_tensorly(benchmark):
     for datatype in BACKEND_TYPES:
         tl.set_backend(datatype)
+        T.set_backend(datatype)
         assert tl.get_backend() == datatype
 
         _, input_tensor_val = init_rand_cp(dim, size, rank)
@@ -68,4 +69,5 @@ def test_cpd_als(benchmark):
 def test_cpd_als_shared_exec(benchmark):
     for datatype in BACKEND_TYPES:
         input_tensor = init_rand_cp(dim, size, rank)
-        outputs = benchmark(cpd_als_shared_exec, dim, size, rank, 1, input_tensor)
+        outputs = benchmark(cpd_als_shared_exec, dim, size, rank, 1,
+                            input_tensor)

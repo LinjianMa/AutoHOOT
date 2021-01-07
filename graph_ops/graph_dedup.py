@@ -169,13 +169,10 @@ def collapse_symmetric_expr(A, B):
         return len(set_dims_B) == 0
 
     if not isinstance(A, ad.EinsumNode) or not isinstance(B, ad.EinsumNode):
-        logger.info(f"Cannot collapse {A} and {B}")
         return
     if A.inputs != B.inputs:
-        logger.info(f"Cannot collapse {A} and {B}")
         return
     if len(A.shape) != len(B.shape):
-        logger.info(f"Cannot collapse {A} and {B}")
         return
 
     dims_dict_A = get_disjoint_set(A)
