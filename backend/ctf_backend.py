@@ -15,10 +15,12 @@
 import numpy as np
 import ctf
 from .core import Backend
+from formats import DenseFormat
 
 
 class CTFBackend(Backend):
     backend_name = 'ctf'
+    support_sparse_format = False
 
     @staticmethod
     def context(tensor):
@@ -35,6 +37,10 @@ class CTFBackend(Backend):
     @staticmethod
     def to_numpy(tensor):
         return ctf.to_nparray(tensor)
+
+    @staticmethod
+    def get_format(tensor):
+        return DenseFormat()
 
     @staticmethod
     def shape(tensor):

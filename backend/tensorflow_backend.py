@@ -15,10 +15,12 @@
 import tensorflow as tf
 import numpy as np
 from .core import Backend
+from formats import DenseFormat
 
 
 class TensorflowBackend(Backend):
     backend_name = 'tensorflow'
+    support_sparse_format = False
 
     @staticmethod
     def context(tensor):
@@ -57,6 +59,10 @@ class TensorflowBackend(Backend):
             return tensor.numpy()
         else:
             return tensor
+
+    @staticmethod
+    def get_format(tensor):
+        return DenseFormat()
 
     @staticmethod
     def shape(tensor):

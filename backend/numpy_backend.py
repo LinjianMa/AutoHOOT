@@ -15,11 +15,13 @@
 import numpy as np
 import scipy.linalg as sla
 import sparse
+import formats
 from .core import Backend
 
 
 class NumpyBackend(Backend):
     backend_name = 'numpy'
+    support_sparse_format = True
 
     @staticmethod
     def context(tensor):
@@ -30,16 +32,19 @@ class NumpyBackend(Backend):
         """
         Parameters
         ----------
-        data: the input multidimentional array.
+        data: the input data representing the tensor.
         dtype: datatype
         format: a string denoting the tensor datatype.
             if "dense", then return a dense tensor.
             if "coo", then return a sparse tensor in the COO format.
         """
+        # if the data is not a np array (e.g. in the sparse format),
+        # first transfer it to the standard np array.
+        data = NumpyBackend.to_numpy(data).astype(dtype)
         if format == "dense":
-            return np.array(data, dtype=dtype)
+            return data
         elif format == "coo":
-            return sparse.COO.from_numpy(np.array(data, dtype=dtype))
+            return sparse.COO.from_numpy(data)
         else:
             raise NotImplementedError
 
@@ -66,6 +71,14 @@ class NumpyBackend(Backend):
             return np.copy(tensor)
 
     @staticmethod
+    def get_format(tensor):
+        if isinstance(tensor, sparse._coo.core.COO):
+            return formats.SparseFormat(
+                [formats.compressed for _ in range(tensor.ndim)])
+        else:
+            return formats.DenseFormat()
+
+    @staticmethod
     def shape(tensor):
         return tensor.shape
 
@@ -82,7 +95,12 @@ class NumpyBackend(Backend):
         return a.dot(b)
 
     @staticmethod
-    def einsum(subscripts, *operands, optimize=True):
+    def einsum(subscripts,
+               *operands,
+               optimize=True,
+               out_format=formats.DenseFormat()):
+        if isinstance(out_format, formats.SparseFormat):
+            raise NotImplementedError
         # NumPy einsum cannot correctly optimize some einsums, use opt_einsum instead.
         from opt_einsum import contract
         return contract(subscripts, *operands, optimize=optimize)

@@ -19,10 +19,12 @@ import jax.numpy as np
 import jax.scipy.linalg as sla
 from jax import random
 from .core import Backend
+from formats import DenseFormat
 
 
 class JaxBackend(Backend):
     backend_name = 'jax'
+    support_sparse_format = False
     random_index = 0
 
     @staticmethod
@@ -41,6 +43,10 @@ class JaxBackend(Backend):
     def to_numpy(tensor):
         import numpy as onp
         return onp.asarray(tensor)
+
+    @staticmethod
+    def get_format(tensor):
+        return DenseFormat()
 
     @staticmethod
     def shape(tensor):
