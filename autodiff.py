@@ -1050,7 +1050,8 @@ class EinsumNode(OpNode):
         ]
 
     def s2s_expr(self, inputs):
-        # TODO: currently it doesn't support sparse format
+        if isinstance(self.format, SparseFormat):
+            raise NotImplementedError
         input_names = [inputvar.name for inputvar in inputs]
         return EinsumNode._name_generator(self.einsum_subscripts, input_names)
 
