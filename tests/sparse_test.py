@@ -73,3 +73,26 @@ def test_sparse_einsum_graph():
     expected_yval = T.einsum("ab,bc->ac", x1_val, x2_val)
     assert float_eq(y_val, expected_yval)
     assert isinstance(y_val, pt.pytensor.taco_tensor.tensor)
+
+
+def test_sparse_optimize():
+
+    T.set_backend("taco")
+    size = 1000
+    coo = formats.SparseFormat([formats.compressed, formats.compressed])
+
+    X = ad.Variable(name="X", shape=[size, size], format=coo)
+    A = ad.Variable(name="A", shape=[size, size])
+    B = ad.Variable(name="B", shape=[size, size])
+    y = ad.einsum('ij,is,js->ij', X, A, B, out_format=coo)
+    executor = ad.Executor([y])
+
+    X_val = T.random([size, size], format='coo', density=0.1)
+    B_val = T.random([size, size])
+    A_val = T.random([size, size])
+
+    y_val, = executor.run(feed_dict={A: A_val, B: B_val, X: X_val}, debug=True)
+
+    expected_yval = T.einsum("ij, is, js->ij", X_val, A_val, B_val)
+    assert float_eq(y_val, expected_yval)
+    assert isinstance(y_val, pt.pytensor.taco_tensor.tensor)
