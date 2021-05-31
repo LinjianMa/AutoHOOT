@@ -240,7 +240,7 @@ class IdentityNode(ConstantNode):
         super().__init__(name, [size, size])
 
     def compute(self):
-        return T.identity(self.shape[0])
+        return T.identity(int(self.shape[0]))
 
     def s2s_expr(self, inputs):
         return f"T.identity({self.shape[0]})"
