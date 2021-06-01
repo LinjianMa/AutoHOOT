@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
+from autohoot import autodiff as ad
 import jax.numpy as np
-import backend as T
+from autohoot import backend as T
 
-from frontend.jax_frontend import make_graph
+from autohoot.frontend.jax_frontend import make_graph
 
 
 def test_simpledot():

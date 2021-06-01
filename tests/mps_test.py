@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 import quimb.tensor as qtn
 
 from examples.mps import dmrg, dmrg_shared_exec, MpoGraph, MpsGraph, DmrgGraph
@@ -147,9 +147,9 @@ def test_dmrg_shared_exec_one_sweep():
 
 def test_dmrg_shared_exec_graph():
 
-    from graph_ops.graph_transformer import simplify
-    from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
-    from utils import find_topo_sort
+    from autohoot.graph_ops.graph_transformer import simplify
+    from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
+    from autohoot.utils import find_topo_sort
 
     num, rank, size = 4, 3, 2
     mpo_ranks = [rank for i in range(1, num)]

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from utils import get_all_inputs, find_topo_sort
-from graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.utils import get_all_inputs, find_topo_sort
+from autohoot.graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 

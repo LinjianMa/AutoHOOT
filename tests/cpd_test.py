@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from graph_ops.graph_transformer import optimize, linearize, simplify
-from graph_ops.graph_dedup import dedup
+from autohoot import autodiff as ad
+import autohoot.backend as T
+from autohoot.graph_ops.graph_transformer import optimize, linearize, simplify
+from autohoot.graph_ops.graph_dedup import dedup
 from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_graph, cpd_als, cpd_als_shared_exec
-from utils import find_topo_sort
+from autohoot.utils import find_topo_sort
 
 size, rank = 10, 5
 

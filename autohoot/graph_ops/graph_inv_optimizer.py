@@ -18,10 +18,10 @@
 """
 import logging
 import numpy as np
-import autodiff as ad
+from autohoot import autodiff as ad
 
-from utils import PseudoNode
-from graph_ops.graph_optimizer import UF
+from autohoot.utils import PseudoNode
+from autohoot.graph_ops.graph_optimizer import UF
 from numpy.core.einsumfunc import _parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -206,8 +206,8 @@ def prune_single_inv_node(einsum_node, inv_node):
     If it can be optimized, return the optimized einsum node.
 
     """
-    from graph_ops.graph_transformer import rewrite_einsum_expr
-    from graph_ops.graph_generator import split_einsum
+    from autohoot.graph_ops.graph_transformer import rewrite_einsum_expr
+    from autohoot.graph_ops.graph_generator import split_einsum
 
     inv_node_input = inv_node.inputs[0]
     if not isinstance(inv_node_input, ad.EinsumNode):

@@ -15,7 +15,7 @@
 import numpy as np
 import scipy.linalg as sla
 import sparse
-import formats
+from autohoot import formats
 from .core import Backend
 
 

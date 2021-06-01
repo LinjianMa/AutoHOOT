@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-from utils import find_topo_sort, inner_product
+from autohoot import autodiff as ad
+from autohoot.utils import find_topo_sort, inner_product
 
 
 def invert_dict(d):
@@ -171,10 +171,10 @@ class SourceToSource():
 
     def import_lines(self, backend):
         file_string = ''
-        file_string += f'import backend as T\n'
+        file_string += f'import autohoot.backend as T\n'
         file_string += f'T.set_backend(\'{backend}\')\n'
         if backend == 'jax':
-            file_string += f'from utils import jit_decorator\n'
+            file_string += f'from autohoot.utils import jit_decorator\n'
             file_string += f'@jit_decorator\n'
         return file_string
 

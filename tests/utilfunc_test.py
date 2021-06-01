@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from utils import update_variables
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.utils import update_variables
 from tests.test_utils import tree_eq
 
 def test_update_variables(backendopt):

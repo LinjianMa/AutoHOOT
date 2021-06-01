@@ -15,13 +15,13 @@
 from functools import reduce
 
 import attr
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 import logging
 import numpy as np
 import time
 from sympy import symbols, simplify
-from name_parser import AutodiffParser
+from autohoot.name_parser import AutodiffParser
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -211,7 +211,7 @@ class StandardEinsumExprMode:
         self.node = node
 
     def __enter__(self):
-        from graph_ops.graph_transformer import generate_einsum_info
+        from autohoot.graph_ops.graph_transformer import generate_einsum_info
         uf, p_outnode, p_innodes = generate_einsum_info(self.node)
         self.node.uf = uf
         self.p_outnode = p_outnode

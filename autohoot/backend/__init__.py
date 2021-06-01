@@ -59,7 +59,7 @@ def register_backend(backend_name):
     """
     if backend_name in _KNOWN_BACKENDS:
         module = importlib.import_module(
-            'backend.{0}_backend'.format(backend_name))
+            'autohoot.backend.{0}_backend'.format(backend_name))
         backend = getattr(module, _KNOWN_BACKENDS[backend_name])()
         _LOADED_BACKENDS[backend_name] = backend
     else:

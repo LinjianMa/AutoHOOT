@@ -8,6 +8,15 @@ The library is compatible with other AD libraries, including [TensorFlow](https:
 
 The example usage of the libaray is shown in the [examples](https://github.com/LinjianMa/AutoHOOT/tree/master/examples) and [tests](https://github.com/LinjianMa/AutoHOOT/tree/master/tests) folders.
 
+
+## Installation
+Consider install in editable mode as this package is in developement:
+
+```bash
+pip install -e path/to/the/project/directory
+```
+
+
 ## Tests cases
 Run all tests with
 ```bash

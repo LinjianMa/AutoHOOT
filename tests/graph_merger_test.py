@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
-from graph_ops.graph_transformer import linearize
-from utils import find_topo_sort, find_topo_sort_p
-from utils import replace_node, OutputInjectedModeP, PseudoNode
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
+from autohoot.graph_ops.graph_transformer import linearize
+from autohoot.utils import find_topo_sort, find_topo_sort_p
+from autohoot.utils import replace_node, OutputInjectedModeP, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq
 
 

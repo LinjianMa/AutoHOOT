@@ -12,25 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from autohoot import backend as T
-from autohoot.utils import conjugate_gradient
-
-
-def test_HinverseG(backendopt):
-    for datatype in backendopt:
-        T.set_backend(datatype)
-
-        N = 10
-        T.seed(1224)
-
-        A = T.random([N, N])
-        A = T.transpose(A) @ A
-        A = A + T.identity(N)
-        b = T.random([N])
-
-        def hess_fn(x):
-            return [T.einsum("ab,b->a", A, x[0])]
-
-        error_tol = 1e-9
-        x, = conjugate_gradient(hess_fn, [b], error_tol)
-        assert (T.norm(T.abs(T.einsum("ab,b->a", A, x) - b)) <= 1e-4)
+from . import autodiff
+from . import formats
+from . import name_parser
+from . import source
+from . import utils

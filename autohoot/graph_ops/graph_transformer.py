@@ -23,16 +23,16 @@ import logging
 import itertools
 import copy
 import numpy as np
-import autodiff as ad
+from autohoot import autodiff as ad
 
 from collections import deque
-from graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
-from graph_ops.graph_generator import generate_optimal_tree
-from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
-from graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
+from autohoot.graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
+from autohoot.graph_ops.graph_generator import generate_optimal_tree
+from autohoot.graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
+from autohoot.graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
-from utils import replace_node, sympy_simplify
+from autohoot.utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
+from autohoot.utils import replace_node, sympy_simplify
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 

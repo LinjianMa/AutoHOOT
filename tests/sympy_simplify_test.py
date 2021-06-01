@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
+from autohoot import autodiff as ad
 from tests.test_utils import tree_eq
-from utils import sympy_simplify
+from autohoot.utils import sympy_simplify
 
 
 def test_add():

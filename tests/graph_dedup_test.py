@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-from graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes, collapse_symmetric_expr
+from autohoot import autodiff as ad
+from autohoot.graph_ops.graph_dedup import dedup, declone, get_transpose_indices, remove_transposes, collapse_symmetric_expr
 from tests.test_utils import tree_eq, gen_dict
-from utils import find_topo_sort
+from autohoot.utils import find_topo_sort
 from visualizer import print_computation_graph
 
 

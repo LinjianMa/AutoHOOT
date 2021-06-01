@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
-from utils import find_topo_sort
+from autohoot import autodiff as ad
+from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
+from autohoot.utils import find_topo_sort
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 

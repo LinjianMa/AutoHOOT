@@ -17,12 +17,12 @@
     alternating least squares.
 """
 import logging
-import autodiff as ad
+from autohoot import autodiff as ad
 
-from utils import get_all_inputs, find_topo_sort, OutputInjectedMode
-from graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree, generate_optimal_tree_w_constraint
-from graph_ops.graph_dedup import dedup, remove_transposes
-from graph_ops.graph_transformer import rewrite_einsum_expr
+from autohoot.utils import get_all_inputs, find_topo_sort, OutputInjectedMode
+from autohoot.graph_ops.graph_generator import split_einsum, get_common_ancestor, generate_optimal_tree, generate_optimal_tree_w_constraint
+from autohoot.graph_ops.graph_dedup import dedup, remove_transposes
+from autohoot.graph_ops.graph_transformer import rewrite_einsum_expr
 from numpy.core.einsumfunc import _parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'

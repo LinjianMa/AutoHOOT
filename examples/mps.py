@@ -15,16 +15,16 @@
 import math, copy
 import attr
 import numpy as np
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 
-from utils import CharacterGetter
+from autohoot.utils import CharacterGetter
 from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, gauge_transform_mps
-from graph_ops.graph_generator import split_einsum
-from graph_ops.graph_transformer import simplify
-from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
+from autohoot.graph_ops.graph_generator import split_einsum
+from autohoot.graph_ops.graph_transformer import simplify
+from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import update_variables
+from autohoot.utils import update_variables
 
 
 @attr.s()

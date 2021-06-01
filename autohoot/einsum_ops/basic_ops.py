@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
+from autohoot import autodiff as ad
 
 einsum = ad.EinsumNode.create
-from utils import indices_to_subscripts
+from autohoot.utils import indices_to_subscripts
 
 
 def transpose(node, axes=(1, 0)):

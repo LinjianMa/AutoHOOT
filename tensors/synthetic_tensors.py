@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import backend as T
+from autohoot import backend as T
 
 
 def init_rand_cp(dim, size, rank):

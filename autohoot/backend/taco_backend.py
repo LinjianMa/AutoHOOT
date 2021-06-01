@@ -16,7 +16,7 @@ import numpy as np
 import pytaco as pt
 import scipy.linalg as sla
 import sparse
-import formats
+from autohoot import formats
 from .core import Backend
 
 # Hack for @ operator for simplicity. No dimension checks.

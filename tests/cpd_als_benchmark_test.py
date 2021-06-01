@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+import autohoot.backend as T
 import pytest
 import tensorly as tl
 
