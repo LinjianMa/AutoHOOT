@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from graphviz import Digraph
-import autodiff as ad
-from utils import find_topo_sort
-from utils import OutputInjectedMode
+from autohoot import autodiff as ad
+from autohoot.utils import find_topo_sort
+from autohoot.utils import OutputInjectedMode
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Specify the graph here.

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from source import SourceToSource
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.source import SourceToSource
 
 
 def import_code(code, name="ephermal"):

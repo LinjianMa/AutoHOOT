@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import backend as T
+from autohoot import backend as T
 import quimb.tensor as qtn
 
 def load_quimb_tensors(network):

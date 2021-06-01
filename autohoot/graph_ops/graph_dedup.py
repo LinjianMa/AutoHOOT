@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
+from autohoot import autodiff as ad
 import copy, logging
 import numpy as np
 import itertools
 
-from utils import find_topo_sort, OutputInjectedModeP, replace_node, PseudoNode
-from utils import find_topo_sort_p
+from autohoot.utils import find_topo_sort, OutputInjectedModeP, replace_node, PseudoNode
+from autohoot.utils import find_topo_sort_p
 from numpy.core.einsumfunc import _parse_einsum_input
 from collections import defaultdict
 
@@ -87,7 +87,7 @@ def get_disjoint_set(node):
 
     When the list of dims is connected by a contraction char, the output index will be -1.
     """
-    from graph_ops.graph_transformer import generate_einsum_info
+    from autohoot.graph_ops.graph_transformer import generate_einsum_info
 
     def sort_hash(dim_info):
         return dim_info.name

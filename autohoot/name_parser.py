@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
+from autohoot import autodiff as ad
 import ply.yacc as yacc
 import ply.lex as lex
 

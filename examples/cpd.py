@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import math
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 from tensors.synthetic_tensors import init_rand_cp
-from utils import conjugate_gradient, cp_nls_optimizer, CharacterGetter
-from graph_ops.graph_transformer import optimize, simplify
-from graph_ops.graph_dedup import dedup
-from graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
+from autohoot.utils import conjugate_gradient, cp_nls_optimizer, CharacterGetter
+from autohoot.graph_ops.graph_transformer import optimize, simplify
+from autohoot.graph_ops.graph_dedup import dedup
+from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 import time
 
 BACKEND_TYPES = ['numpy']

@@ -14,11 +14,11 @@
 
 import copy
 
-import backend as T
+from autohoot import backend as T
 import numpy as np
-from formats import DenseFormat, SparseFormat
-from utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
-from utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
+from autohoot.formats import DenseFormat, SparseFormat
+from autohoot.utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
+from autohoot.utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
 from numpy.core.einsumfunc import _parse_einsum_input
 
 
@@ -1271,7 +1271,7 @@ identity = IdentityNode.create
 tensorinv = TensorInverseNode.create
 scalar = ScalarNode.create
 
-from einsum_ops import basic_ops
+from autohoot.einsum_ops import basic_ops
 transpose = basic_ops.transpose
 sum = basic_ops.sum
 tensordot = basic_ops.tensordot

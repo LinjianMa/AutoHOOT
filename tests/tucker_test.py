@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 from tensors.synthetic_tensors import init_rand_tucker
 from examples.tucker import TuckerGraph, tucker_als, tucker_als_shared_exec
 

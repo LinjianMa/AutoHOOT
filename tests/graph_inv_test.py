@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
-from graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
 from tests.test_utils import tree_eq
 
 

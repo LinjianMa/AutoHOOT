@@ -14,7 +14,7 @@
 
 import jax
 import jax.numpy as np
-import autodiff as ad
+from autohoot import autodiff as ad
 
 
 def make_jaxpr(fun):
@@ -74,7 +74,7 @@ def parse_jax_dot_general(parameters, innodes):
         https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.dot_general.html?highlight=dot_general#jax.lax.dot_general
     Note: the dot_general is a bit different from tensordot because it has specific batch dimensions
     """
-    from utils import indices_to_subscripts
+    from autohoot.utils import indices_to_subscripts
     assert len(innodes) == 2
     node_A, node_B = innodes
     dim_numbers = parameters['dimension_numbers']

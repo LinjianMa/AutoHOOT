@@ -15,7 +15,7 @@
 import tensorflow as tf
 import numpy as np
 from .core import Backend
-from formats import DenseFormat
+from autohoot.formats import DenseFormat
 
 
 class TensorflowBackend(Backend):

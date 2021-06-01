@@ -13,14 +13,14 @@
 # limitations under the License.
 
 # This file contains the basic operations that can fuse/prune the graph.
-import autodiff as ad
+from autohoot import autodiff as ad
 import logging
 import copy
 
-from graph_ops.union_find import UFBase
+from autohoot.graph_ops.union_find import UFBase
 from numpy.core.einsumfunc import _parse_einsum_input
-from utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode, DimInfo
-from utils import get_all_einsum_descendants
+from autohoot.utils import find_topo_sort, IntGetter, CharacterGetter, PseudoNode, DimInfo
+from autohoot.utils import get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 

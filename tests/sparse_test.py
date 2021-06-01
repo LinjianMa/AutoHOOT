@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import autodiff as ad
-import backend as T
+from autohoot import autodiff as ad
+from autohoot import backend as T
 import sparse
 import pytaco as pt
 import numpy as np
-import formats
+from autohoot import formats
 from tests.test_utils import float_eq
 
 

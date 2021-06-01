@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import pytest
-import autodiff as ad
-import backend as T
-from graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes, prune_orthonormal_matmuls
-from graph_ops.graph_optimizer import find_sub_einsumtree
+from autohoot import autodiff as ad
+from autohoot import backend as T
+from autohoot.graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes, prune_orthonormal_matmuls
+from autohoot.graph_ops.graph_optimizer import find_sub_einsumtree
 from tests.test_utils import tree_eq, gen_dict
-from utils import PseudoNode
+from autohoot.utils import PseudoNode
 
 
 def test_einsum_multiuse(backendopt):
@@ -394,7 +394,7 @@ def test_tree_distribution_ppE(dist_op, backendopt):
 
 @pytest.mark.parametrize("dist_op", [ad.AddNode, ad.SubNode])
 def test_distribute_dup(dist_op, backendopt):
-    from graph_ops.graph_transformer import distribute_graph_w_linearize
+    from autohoot.graph_ops.graph_transformer import distribute_graph_w_linearize
 
     for datatype in backendopt:
         T.set_backend(datatype)

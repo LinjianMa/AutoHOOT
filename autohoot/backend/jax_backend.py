@@ -19,7 +19,7 @@ import jax.numpy as np
 import jax.scipy.linalg as sla
 from jax import random
 from .core import Backend
-from formats import DenseFormat
+from autohoot.formats import DenseFormat
 
 
 class JaxBackend(Backend):
