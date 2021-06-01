@@ -10,11 +10,10 @@ The example usage of the libaray is shown in the [examples](https://github.com/L
 
 
 ## Installation
-Considering this package is in development, it is recommended to install it in
-the editable mode.
+Consider install in editable mode as this package is in developement:
 
 ```bash
-    pip install -e path/to/the/project/directory
+pip install -e path/to/the/project/directory
 ```
 
 
