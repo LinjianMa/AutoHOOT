@@ -25,7 +25,7 @@ setup(
     install_requires=[
         'attrs',
         'jax==0.2.8',
-        'jaxlib>=0.1.59',
+        'jaxlib==0.1.59',
         'numpy',
         'tensorflow>=2.1.2',
         'ply',
