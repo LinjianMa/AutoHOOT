@@ -14,7 +14,7 @@
 
 import numpy as np
 import scipy.linalg as sla
-# import sparse
+import sparse
 from autohoot import formats
 from .core import Backend
 
@@ -43,40 +43,40 @@ class NumpyBackend(Backend):
         data = NumpyBackend.to_numpy(data).astype(dtype)
         if format == "dense":
             return data
-        # elif format == "coo":
-        #     return sparse.COO.from_numpy(data)
+        elif format == "coo":
+            return sparse.COO.from_numpy(data)
         else:
             raise NotImplementedError
 
     @staticmethod
     def is_tensor(tensor):
-        typelist = (np.ndarray)#, sparse._coo.core.COO)
+        typelist = (np.ndarray, sparse._coo.core.COO)
         return isinstance(tensor, typelist)
 
     @staticmethod
     def random(shape, format='dense', density=1.):
         if format == "dense":
             return np.random.random(shape)
-        # elif format == "coo":
-        #     return sparse.random(shape, density=density, format='coo')
+        elif format == "coo":
+            return sparse.random(shape, density=density, format='coo')
         else:
             raise NotImplementedError
 
     @staticmethod
     def to_numpy(tensor):
-        # if isinstance(tensor, sparse._coo.core.COO):
-        #     # transfer the sparse tensor to numpy array
-        #     return tensor.todense()
-        # else:
-        return np.copy(tensor)
+        if isinstance(tensor, sparse._coo.core.COO):
+            # transfer the sparse tensor to numpy array
+            return tensor.todense()
+        else:
+            return np.copy(tensor)
 
     @staticmethod
     def get_format(tensor):
-        # if isinstance(tensor, sparse._coo.core.COO):
-        #     return formats.SparseFormat(
-        #         [formats.compressed for _ in range(tensor.ndim)])
-        # else:
-        return formats.DenseFormat()
+        if isinstance(tensor, sparse._coo.core.COO):
+            return formats.SparseFormat(
+                [formats.compressed for _ in range(tensor.ndim)])
+        else:
+            return formats.DenseFormat()
 
     @staticmethod
     def shape(tensor):
@@ -99,8 +99,8 @@ class NumpyBackend(Backend):
                *operands,
                optimize=True,
                out_format=formats.DenseFormat()):
-        # if isinstance(out_format, formats.SparseFormat):
-        #     raise NotImplementedError
+        if isinstance(out_format, formats.SparseFormat):
+            raise NotImplementedError
         # NumPy einsum cannot correctly optimize some einsums, use opt_einsum instead.
         from opt_einsum import contract
         return contract(subscripts, *operands, optimize=optimize)
