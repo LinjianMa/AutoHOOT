@@ -15,8 +15,10 @@
 import pytest
 from autohoot import autodiff as ad
 from autohoot import backend as T
-from autohoot.graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, copy_tree, rewrite_einsum_expr, prune_identity_nodes, prune_scalar_nodes, prune_orthonormal_matmuls
-from autohoot.graph_ops.graph_optimizer import find_sub_einsumtree
+from autohoot.graph_ops.graph_utils import copy_tree
+from autohoot.graph_ops.graph_pruning import prune_identity_nodes, prune_scalar_nodes, prune_orthonormal_matmuls
+from autohoot.graph_ops.graph_transformer import linearize, simplify, optimize, distribute_tree, find_sub_einsumtree
+from autohoot.einsum_graph.expr_generator import rewrite_einsum_expr
 from tests.test_utils import tree_eq, gen_dict
 from autohoot.utils import PseudoNode
 

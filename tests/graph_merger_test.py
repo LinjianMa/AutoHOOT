@@ -14,8 +14,7 @@
 
 from autohoot import autodiff as ad
 from autohoot import backend as T
-from autohoot.graph_ops.graph_optimizer import fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
-from autohoot.graph_ops.graph_transformer import linearize
+from autohoot.graph_ops.graph_transformer import linearize, fuse_einsums, find_sub_einsumtree, get_all_einsum_descendants
 from autohoot.utils import find_topo_sort, find_topo_sort_p
 from autohoot.utils import replace_node, OutputInjectedModeP, PseudoNode
 from tests.test_utils import tree_eq, gen_dict, float_eq

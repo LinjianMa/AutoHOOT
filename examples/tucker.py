@@ -17,7 +17,7 @@ from autohoot import autodiff as ad
 from autohoot import backend as T
 from autohoot.utils import CharacterGetter
 from tensors.synthetic_tensors import init_rand_tucker
-from autohoot.graph_ops.graph_generator import split_einsum
+from autohoot.graph_ops.optimal_tree import split_einsum
 from numpy.core.einsumfunc import _parse_einsum_input
 from autohoot.graph_ops.graph_transformer import simplify
 from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree

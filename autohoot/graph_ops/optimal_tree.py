@@ -35,9 +35,8 @@ def generate_optimal_tree(node, path=None):
     Returns:
         final_node: The newly generated node.
     """
-    from autohoot.graph_ops.graph_optimizer import fuse_einsums
     from autohoot.graph_ops.graph_dedup import declone
-    from autohoot.graph_ops.graph_transformer import linearize
+    from autohoot.graph_ops.graph_transformer import linearize, fuse_einsums
 
     assert isinstance(node, ad.EinsumNode)
     leaves = get_all_inputs(node)

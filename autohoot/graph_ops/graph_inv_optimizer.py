@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
     This file will contains the graph transformations and optimizations for 
     tensor inverse.
@@ -19,9 +18,8 @@
 import logging
 import numpy as np
 from autohoot import autodiff as ad
-
 from autohoot.utils import PseudoNode
-from autohoot.graph_ops.graph_optimizer import UF
+from autohoot.einsum_graph.graph_structure import UF
 from numpy.core.einsumfunc import _parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -206,8 +204,8 @@ def prune_single_inv_node(einsum_node, inv_node):
     If it can be optimized, return the optimized einsum node.
 
     """
-    from autohoot.graph_ops.graph_transformer import rewrite_einsum_expr
-    from autohoot.graph_ops.graph_generator import split_einsum
+    from autohoot.einsum_graph.expr_generator import rewrite_einsum_expr
+    from autohoot.graph_ops.optimal_tree import split_einsum
 
     inv_node_input = inv_node.inputs[0]
     if not isinstance(inv_node_input, ad.EinsumNode):
