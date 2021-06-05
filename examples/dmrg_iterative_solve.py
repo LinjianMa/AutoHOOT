@@ -21,7 +21,7 @@ import scipy.sparse.linalg as spla
 from numpy.core.einsumfunc import _parse_einsum_input
 from tensors.quimb_tensors import gauge_transform_mps
 from examples.mps import MpsGraph, MpoGraph, dmrg_local_update
-from autohoot.graph_ops.graph_generator import split_einsum
+from autohoot.graph_ops.optimal_tree import split_einsum
 from autohoot.graph_ops.graph_transformer import simplify
 from autohoot.utils import update_variables
 from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree

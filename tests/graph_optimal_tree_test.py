@@ -15,7 +15,7 @@
 from autohoot import autodiff as ad
 from autohoot import backend as T
 from autohoot.utils import get_all_inputs, find_topo_sort
-from autohoot.graph_ops.graph_generator import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
+from autohoot.graph_ops.optimal_tree import generate_optimal_tree, split_einsum, get_common_ancestor, generate_optimal_tree_w_constraint
 from tests.test_utils import tree_eq
 from visualizer import print_computation_graph
 

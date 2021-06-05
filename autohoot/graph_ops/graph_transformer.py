@@ -11,28 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-    This file will contains the equivalent graph transformations.
-    These are not optimizations but equivalent transforms.
-
-    Currently it includes 
-        * Linearization
-"""
 import logging
 import itertools
-import copy
 import numpy as np
 from autohoot import autodiff as ad
 
-from collections import deque
 from autohoot.graph_ops.graph_dedup import dedup, declone, collapse_symmetric_expr
-from autohoot.graph_ops.graph_generator import generate_optimal_tree
+from autohoot.graph_ops.optimal_tree import generate_optimal_tree
 from autohoot.graph_ops.graph_inv_optimizer import optimize_inverse, prune_inv_node
-from autohoot.graph_ops.graph_optimizer import find_sub_einsumtree, fuse_einsums, UF, cross_einsum_connect
-from numpy.core.einsumfunc import _parse_einsum_input
-from autohoot.utils import find_topo_sort, OutputInjectedMode, PseudoNode, find_topo_sort_p, OutputInjectedModeP, DimInfo
+from autohoot.graph_ops.graph_utils import copy_tree, get_leaves
+from autohoot.graph_ops.graph_pruning import prune_identity_nodes, prune_orthonormal_matmuls, prune_scalar_nodes
+
+from autohoot.einsum_graph.graph_structure import UF, DimInfo
+from autohoot.einsum_graph.expr_generator import rewrite_einsum_expr
+from autohoot.einsum_graph.graph_generator import cross_einsum_connect
+
+from autohoot.utils import find_topo_sort, OutputInjectedMode, find_topo_sort_p, OutputInjectedModeP, PseudoNode
 from autohoot.utils import replace_node, sympy_simplify
+from autohoot.utils import get_all_einsum_descendants
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -150,316 +146,117 @@ def distribute_graph_w_linearize(output):
     return output
 
 
-def copy_tree(node):
+def find_sub_einsumtree(output_node_p):
+    # TMP Pseudo Mode.
     """
-        Copies a tree, creating new nodes for each one in the tree.
+    Finds all the subtrees from the given graph definition.
+    There can be overlap of different subtrees.
+    Arguments:
+        output_node_p: the root of the tree, must be PseudoNode.
+        input_nodes: leaf of the tree
+    Returns:
+        Return many einsum trees of the form 
+        [[Pseudo root node, leaf nodes], ... ]
     """
-    node_map = {}
-    visited = set()
-    q = deque()
-    q.append(node)
-    while len(q) > 0:
-        tmp = q.popleft()
-        if tmp in visited:
-            continue
-        visited.add(tmp)
-        if tmp not in node_map:
-            node_map[tmp] = copy.deepcopy(tmp)
-        new_tmp = node_map[tmp]
-        new_inputs = []
-
-        if not isinstance(tmp, ad.OpNode):
-            node_map[tmp] = copy.deepcopy(tmp)
-            continue
-
-        for t in tmp.inputs:
-            if t not in node_map:
-                node_map[t] = copy.deepcopy(t)
-            new_inputs.append(node_map[t])
-            q.append(t)
-        new_tmp.set_inputs(new_inputs)
-    return node_map[node]
-
-
-def generate_einsum_info(einsum_node):
-    """
-        Generates the einsum information for easier programming.
-
-        Args:
-            einsum_node: All inputs must be unique.
-
-        Returns:
-            uf (type: graph_ops.graph_optimizer.UF): 
-            the union_find set of the input
-
-        Updates the subscript of the graph nodes affected.
-        
-    """
-    assert (isinstance(einsum_node, ad.EinsumNode))
-
-    pseudo_nodes = []
-    einsum_node_dims_info = [
-        DimInfo(node=einsum_node, dim_index=i)
-        for i in range(len(einsum_node.shape))
-    ]
-    p_outnode = PseudoNode(node=einsum_node, dims_info=einsum_node_dims_info)
-    pseudo_nodes.append(p_outnode)
-
-    p_innodes = []
-    for k, node in enumerate(einsum_node.inputs):
-        dims_info = [
-            DimInfo(node=node, dim_index=i, node_index=k)
-            for i in range(len(node.shape))
-        ]
-        p_innode = PseudoNode(node=node, dims_info=dims_info)
-        pseudo_nodes.append(p_innode)
-        p_innodes.append(p_innode)
-
-    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
-
-    # For any two dims with the same literal, get their pos and connect.
-    uf = UF(all_dims_info)
-    cross_einsum_connect(uf, einsum_node, all_dims_info)
-
-    uf.assign()
-    # Assign literals
-    for node in pseudo_nodes:
-        node.generate_subscript(uf)
-
-    return uf, p_outnode, p_innodes
-
-
-def rewrite_einsum_expr(einsum_node):
-    """
-        Rewrites the einsum expression of a node.
-        Inplace update.
-
-        Args:
-            einsum_node: Allow duplicate inputs of the einsum node.
-
-        Returns:
-            uf (type: graph_ops.graph_optimizer.UF): 
-            the union_find set of the input
-        
-    """
-    assert (isinstance(einsum_node, ad.EinsumNode))
-    input_nodes = einsum_node.inputs
-
-    # TODO: Get all the einsum nodes in the computation graph.
-    # Note that the order matters!
-
-    pseudo_nodes = []
-    # Here einsum node has a temporary name so that the character assignment
-    # order is consistent.
-    einsum_node_dims_info = [
-        DimInfo(node=einsum_node, dim_index=i, temp_node_name='_temp_einsum')
-        for i in range(len(einsum_node.shape))
-    ]
-    pseudo_nodes.append(
-        PseudoNode(node=einsum_node, dims_info=einsum_node_dims_info))
-
-    for k, node in enumerate(einsum_node.inputs):
-        dims_info = [
-            DimInfo(node=node, dim_index=i, node_index=k)
-            for i in range(len(node.shape))
-        ]
-        pseudo_nodes.append(PseudoNode(node=node, dims_info=dims_info))
-
-    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
-
-    # For any two dims with the same literal, get their pos and connect.
-    uf = UF(all_dims_info)
-    cross_einsum_connect(uf, einsum_node, all_dims_info)
-
-    uf.assign()
-    # Assign literals
-    for node in pseudo_nodes:
-        node.generate_subscript(uf)
-
-    einsum_node_subscript = pseudo_nodes[0].subscript
-
-    # Remove the einsum node.
-    pseudo_nodes.pop(0)
-
-    # Sort based on both the node name and subscript.
-    pseudo_nodes = sorted(pseudo_nodes,
-                          key=lambda pnode: pnode.node.name + pnode.subscript)
-
-    new_input_subs = [pnode.subscript for pnode in pseudo_nodes]
-    new_subscripts = ",".join(new_input_subs) + "->" + einsum_node_subscript
-    einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs([pnode.node for pnode in pseudo_nodes])
-    logger.info(f"Rewrite to new subscript: {new_subscripts}")
-
-    return uf
-
-
-def prune_identity_nodes(einsum_node):
-    """
-        reduce the number of identity nodes in the
-        einsum_node's inputs. Inplace update.
-
-        Args:
-            einsum_node: An fused einsum node.
-    """
-    if not (isinstance(einsum_node, ad.EinsumNode)):
-        return
-
-    uf_str, p_outnode, p_innodes = generate_einsum_info(einsum_node)
-    whole_str = p_outnode.subscript + "".join(
-        [node.subscript for node in p_innodes])
-
-    p_identity_nodes = list(
-        filter(lambda pnode: isinstance(pnode.node, ad.IdentityNode),
-               p_innodes))
-    p_variable_nodes = [
-        pnode for pnode in p_innodes if pnode not in p_identity_nodes
-    ]
-
-    # each disjoint set in uf_identity represents the indices
-    # linked by identity node
-    uf_identity = UF(list(whole_str))
-    for pnode in p_identity_nodes:
-        uf_identity.connect(pnode.subscript[0], pnode.subscript[1])
-
-    input_indices_set, output_indices_set = set(), set()
-    for pnode in p_variable_nodes:
-        # replace subscripts by the root chars
-        sub_list = [uf_identity.root(char) for char in pnode.subscript]
-        pnode.subscript = "".join(sub_list)
-        input_indices_set |= set(sub_list)
-
-    p_updated_inputs = p_variable_nodes
-    out_sub_list = []
-    for i, char in enumerate(p_outnode.subscript):
-        uf_root_char = uf_identity.root(char)
-        if uf_root_char in output_indices_set:
-            # we cannot assign the same char to two indices in the
-            # output. Therefore, assign a new char, and add one
-            # identity node to the inputs to show the constraint.
-            new_char = uf_str.cg.getchar()
-            out_sub_list.append(new_char)
-            p_identity_node = PseudoNode(node=ad.identity(
-                einsum_node.shape[i]),
-                                         subscript=f"{uf_root_char}{new_char}")
-            p_updated_inputs.append(p_identity_node)
-        else:
-            # directly assign the root char to the subscripts
-            out_sub_list.append(uf_root_char)
-            output_indices_set.add(uf_root_char)
-    p_outnode.subscript = "".join(out_sub_list)
-
-    new_input_subs = [pnode.subscript for pnode in p_updated_inputs]
-    new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript
-    einsum_node.einsum_subscripts = new_subscripts
-    einsum_node.set_inputs([pnode.node for pnode in p_updated_inputs])
-
-
-def prune_scalar_nodes(einsum_node):
-    """
-        Remove the scalar input nodes of a einsum_node.
-        Args:
-            einsum_node: An fused einsum node.
-        Return:
-            both the scalar and the pruned einsum node.
-    """
-    in_subs, out_subs, _ = _parse_einsum_input(
-        (einsum_node.einsum_subscripts, *einsum_node.inputs))
-    in_subs_list = in_subs.split(',')
-
-    new_inputs, new_input_subs, scalars = [], [], []
-
-    for i in range(len(in_subs_list)):
-        if in_subs_list[i] == "" and isinstance(einsum_node.inputs[i],
-                                                ad.ScalarNode):
-            scalars.append(einsum_node.inputs[i].value)
-        else:
-            new_inputs.append(einsum_node.inputs[i])
-            new_input_subs.append(in_subs_list[i])
-
-    scalar = np.prod(scalars)
-
-    new_subscripts = ",".join(new_input_subs) + "->" + out_subs
-    output_node = ad.einsum(new_subscripts, *new_inputs)
-
-    if scalar == 1.:
-        return output_node
+    trees = []
+    output_node = output_node_p.node
+    if isinstance(output_node, ad.EinsumNode):
+        tree_nodes = get_all_einsum_descendants(output_node)
+        leaves = get_leaves(tree_nodes)
+        for leaf in leaves:
+            new_trees = find_sub_einsumtree(PseudoNode(leaf))
+            trees += new_trees
+        trees.append([output_node_p, leaves])
+        return trees
     else:
-        return scalar * output_node
+        for i_node in output_node.inputs:
+            new_trees = find_sub_einsumtree(PseudoNode(i_node))
+            trees += new_trees
+        return trees
 
 
-def prune_orthonormal_matmuls(einsum_node):
+def node_dims_info(einsum_node):
     """
-    Remove the matrices of a einsum_node if M @ M.T like structures exist.
-    Args:
-        einsum_node: An fused einsum node.
-    Return:
-        An optimized einsum node.
+        Get node dimensions information.
+
+        Args:
+            einsum_node: A Pseudo Node.
     """
+    return einsum_node.dims_info + sum(
+        [x.dims_info for x in einsum_node.node.inputs], [])
 
-    # A map from the orthonormal matrix mode to (orthonormal_index, contraction_index)
-    orthonormal_indices_map = {'column': (0, 1), 'row': (1, 0)}
 
-    _, p_outnode, p_innodes = generate_einsum_info(einsum_node)
-    subs_list = [pnode.subscript
-                 for pnode in p_innodes] + [p_outnode.subscript]
+def fuse_einsums(output_node, input_nodes):
+    """
+    Find and fuse einsums.
+        Parameters:
+            Each node must have attribute inputs, which makes it a sparse graph
+            representation.
+        Returns:
+            A graph with fused intermediate einsum nodes. Represented by
+            output_node.
+    Note: inputs of a node can have same node. But one node can't go to two 
+    output nodes
+    """
+    # First assume everything einsum.
+    logger.info('Start fusing einsum')
 
-    ortho_pnode_map = {}
-    for pnode in p_innodes:
-        if isinstance(pnode.node,
-                      ad.MatrixNode) and pnode.node.orthonormal != None:
-            nodename = pnode.node.name
-            if nodename in ortho_pnode_map:
-                ortho_pnode_map[nodename].append(pnode)
-            else:
-                ortho_pnode_map[nodename] = [pnode]
+    # Making this automatic.
+    # Assume output_node is einsum and their children are einsum of any number
+    # of input nodes
+    assert (isinstance(output_node, ad.EinsumNode))
 
-    for pnodes in ortho_pnode_map.values():
-        if len(pnodes) < 2:
-            continue
+    pseudo_nodes = []
 
-        remaining_pnodes = pnodes
-        pnodes_subs = list(itertools.combinations(pnodes, 2))
+    # # Get all the einsum nodes except the input nodes in the computation graph.
+    # # Note that the order doesn't matter!
+    all_nodes = find_topo_sort([output_node], input_nodes)
 
-        for pnodes_binary_input in pnodes_subs:
-            if not set(pnodes_binary_input).issubset(set(remaining_pnodes)):
-                continue
+    pseudo_input_nodes = []
+    pseudo_output_node = None
 
-            pnode_A, pnode_B = pnodes_binary_input
-            o_index, c_index = orthonormal_indices_map[
-                pnode_A.node.orthonormal]
-            # Criteria for the pruning: the o_index of two inputs are different,
-            # and the c_index only appear in these two nodes.
-            c_index_is_equal = pnode_A.subscript[c_index] == pnode_B.subscript[
-                c_index]
-            o_index_not_equal = pnode_A.subscript[
-                o_index] != pnode_B.subscript[o_index]
-            if not (c_index_is_equal and o_index_not_equal):
-                continue
-            num_subs_w_cindex = len(
-                list(
-                    filter(lambda subs: pnode_A.subscript[c_index] in subs,
-                           subs_list)))
-            if not num_subs_w_cindex == 2:
-                continue
-            remaining_pnodes = [
-                pnode for pnode in remaining_pnodes
-                if not pnode in pnodes_binary_input
-            ]
-            p_innodes = [
-                pnode for pnode in p_innodes
-                if not pnode in pnodes_binary_input
-            ]
+    # We first represennt each dim as a different character, and then union.
+    # Create a map
+    for k, node in enumerate(all_nodes):
+        node.dims_info = [
+            DimInfo(node=node, dim_index=i, node_index=k)
+            for i in range(len(node.shape))
+        ]
+        pnode = PseudoNode(node=node, dims_info=node.dims_info)
+        pseudo_nodes.append(pnode)
+        if node in input_nodes:
+            pseudo_input_nodes.append(pnode)
+        if node == output_node:
+            pseudo_output_node = pnode
 
-            i_node = ad.identity(pnode_A.node.shape[o_index])
-            i_subs = f"{pnode_A.subscript[o_index]}{pnode_B.subscript[o_index]}"
-            p_innodes.append(PseudoNode(node=i_node, subscript=i_subs))
+    intermediate_nodes = list(set(pseudo_nodes) - set(pseudo_input_nodes))
 
-    new_input_subs = [pnode.subscript for pnode in p_innodes]
-    new_subscripts = ",".join(new_input_subs) + "->" + p_outnode.subscript
-    new_inputs = [pnode.node for pnode in p_innodes]
+    einsum_pseudo_nodes = list(
+        filter(lambda x: isinstance(x.node, ad.EinsumNode),
+               intermediate_nodes))
 
-    return ad.einsum(new_subscripts, *new_inputs)
+    all_dims_info = sum([node.dims_info for node in pseudo_nodes], [])
+
+    # For any two dims with the same literal, get their pos and connect.
+    uf = UF(all_dims_info)
+    for node in einsum_pseudo_nodes:
+        all_dims_info = node_dims_info(node)
+        cross_einsum_connect(uf, node.node, all_dims_info)
+
+    uf.assign()
+    # Assign literals
+    for node in pseudo_nodes:
+        node.generate_subscript(uf)
+
+    new_input_subs = [node.subscript for node in pseudo_input_nodes]
+    new_subscripts = ",".join(
+        new_input_subs) + "->" + pseudo_output_node.subscript
+    logger.info(f"Generated new subscript: {new_subscripts}")
+    ##########################################
+    output_node = ad.einsum(new_subscripts,
+                            *[node.node for node in pseudo_input_nodes])
+
+    return output_node
 
 
 def optimize(node):
