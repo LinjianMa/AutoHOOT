@@ -198,7 +198,10 @@ class ConstantNode(Node):
     def __init__(self, name, shape=None, value=None):
         super().__init__()
         self.name = name
-        self.shape = shape
+        if shape is None:
+            self.shape = shape
+        else:
+            self.shape = list(shape)
         self.value = value
 
     def compute(self):
@@ -293,7 +296,7 @@ class VariableNode(Node):
         """
         super().__init__()
         self.name = name
-        self.shape = shape
+        self.shape = list(shape)
         assert shape is not None
         self.symmetry = symmetry
         assert isinstance(format, (DenseFormat, SparseFormat))
