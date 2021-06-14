@@ -19,7 +19,7 @@ import numpy as np
 from autohoot.formats import DenseFormat, SparseFormat
 from autohoot.utils import find_topo_sort, sum_node_list, inner_product, find_topo_sort_p
 from autohoot.utils import IntGetter, indices_to_subscripts, StandardEinsumExprMode, PseudoNode, OutputInjectedMode, OutputInjectedModeP
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 
 
 class Node(object):
@@ -838,6 +838,14 @@ class EinsumNode(OpNode):
         self.shape = self._output_shape(self.einsum_subscripts, nodes)
 
     def compute(self, input_vals):
+        # Ensure einsum_subscripts are valid in backends
+        einsum_symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,->'
+        subscripts = self.einsum_subscripts.replace(" ", "")
+        for s in subscripts:
+            if s not in einsum_symbols:
+                raise ValueError(
+                    "Character %s is not a valid symbol for Einsum computation in backends."
+                    % s)
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
@@ -850,7 +858,7 @@ class EinsumNode(OpNode):
                             out_format=self.format)
 
     def _output_shape(self, subscripts, nodes):
-        in_subs, out_subs, _ = _parse_einsum_input((subscripts, *nodes))
+        in_subs, out_subs, _ = parse_einsum_input((subscripts, *nodes))
         if out_subs == '':
             return []
         in_shapes, out_shape = [], []

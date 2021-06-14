@@ -20,7 +20,7 @@ import numpy as np
 from autohoot import autodiff as ad
 from autohoot.utils import PseudoNode
 from autohoot.einsum_graph.graph_structure import UF
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 
@@ -93,7 +93,7 @@ def split_inv_einsum(inv_node):
     for node in einsum_node.inputs:
         assert not isinstance(node, ad.EinsumNode)
 
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (einsum_node.einsum_subscripts, *einsum_node.inputs))
     in_subs_list = in_subs.split(',')
 
@@ -231,7 +231,7 @@ def prune_single_inv_node(einsum_node, inv_node):
         list(set(einsum_node.inputs) - set(inv_node_input.inputs)))
 
     # Assign pseudo nodes and chars
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (split_einsum_node.einsum_subscripts, *split_einsum_node.inputs))
     in_subs_list = in_subs.split(',')
 
@@ -262,7 +262,7 @@ def prune_single_inv_node(einsum_node, inv_node):
     if p_einsum_input.subscript[0] == p_inv_input.subscript[
             0] or p_einsum_input.subscript[1] == p_inv_input.subscript[1]:
         # the str is like "ab,ac", and one einsum needs to be transposed to compare
-        p_in_subs, p_out_subs, _ = _parse_einsum_input(
+        p_in_subs, p_out_subs, _ = parse_einsum_input(
             (p_einsum_input.node.einsum_subscripts,
              *p_einsum_input.node.inputs))
         einsum_input = ad.einsum(

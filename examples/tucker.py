@@ -18,7 +18,7 @@ from autohoot import backend as T
 from autohoot.utils import CharacterGetter
 from tensors.synthetic_tensors import init_rand_tucker
 from autohoot.graph_ops.optimal_tree import split_einsum
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 from autohoot.graph_ops.graph_transformer import simplify
 from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
 
@@ -44,7 +44,7 @@ def n_mode_eigendec(node, tensor_val, rank):
     assert isinstance(node, ad.EinsumNode)
     assert len(node.inputs) == 2
 
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (node.einsum_subscripts, *node.inputs))
     core_subs, A_subs = in_subs.split(',')
 

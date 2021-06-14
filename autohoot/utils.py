@@ -146,8 +146,10 @@ class CharacterGetter():
         if self.char == 'z':
             self.char = 'A'
         elif self.char == 'Z':
-            logging.info('Run out of characters.')
-            raise NotImplementedError
+            # This is consistent with Opt_einsum
+            # https://github.com/dgasmith/opt_einsum/blob/master/opt_einsum/parser.py#L53
+            logging.info('Run out of letters, start using unicode characters.')
+            self.char = chr(192)
         else:
             self.char = chr(ord(self.char) + 1)
         return previous_char

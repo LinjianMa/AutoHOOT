@@ -17,7 +17,7 @@ from autohoot import autodiff as ad
 from autohoot.utils import PseudoNode
 from autohoot.einsum_graph.graph_generator import generate_einsum_info
 from autohoot.einsum_graph.graph_structure import UF
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 
 
 def prune_identity_nodes(einsum_node):
@@ -89,7 +89,7 @@ def prune_scalar_nodes(einsum_node):
         Return:
             both the scalar and the pruned einsum node.
     """
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (einsum_node.einsum_subscripts, *einsum_node.inputs))
     in_subs_list = in_subs.split(',')
 

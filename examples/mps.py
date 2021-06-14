@@ -23,7 +23,7 @@ from tensors.quimb_tensors import rand_mps, ham_heis_mpo, load_quimb_tensors, ga
 from autohoot.graph_ops.optimal_tree import split_einsum
 from autohoot.graph_ops.graph_transformer import simplify
 from autohoot.graph_ops.graph_als_optimizer import generate_sequential_optimal_tree
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 from autohoot.utils import update_variables
 
 
@@ -276,7 +276,7 @@ def dmrg_local_update(intermediate, eigvec, max_mps_rank):
     index_input_0 = int(inputs[0].name[1:])
     index_input_1 = int(inputs[1].name[1:])
 
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (intermediate.einsum_subscripts, *intermediate.inputs))
 
     if index_input_0 > index_input_1:
