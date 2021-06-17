@@ -20,7 +20,7 @@ import itertools
 from autohoot.utils import find_topo_sort, OutputInjectedModeP, replace_node, PseudoNode
 from autohoot.utils import find_topo_sort_p
 from autohoot.einsum_graph.graph_generator import get_disjoint_set
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 from collections import defaultdict
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
@@ -239,7 +239,7 @@ def dedup_transpose(graph, node, trans_node, trans_indices):
         for onode in node.outputs:
             # NOTE: currently we cannot deal with non-einsum nodes.
             assert isinstance(onode, ad.EinsumNode)
-            in_subs, out_subs, _ = _parse_einsum_input(
+            in_subs, out_subs, _ = parse_einsum_input(
                 (onode.einsum_subscripts, *onode.inputs))
             in_subs_list = in_subs.split(',')
             for (i, n) in enumerate(onode.inputs):

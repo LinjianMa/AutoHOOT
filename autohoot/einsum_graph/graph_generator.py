@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-from numpy.core.einsumfunc import _parse_einsum_input
+from opt_einsum.parser import parse_einsum_input
 from autohoot import autodiff as ad
 from autohoot.utils import PseudoNode
 from autohoot.einsum_graph.graph_structure import DimInfo, UF
@@ -33,7 +33,7 @@ def cross_einsum_connect(uf, output_node, dims_info):
     # for child in output_node.inputs:
     #     assert (isinstance(child, ad.EinsumNode))
 
-    in_subs, out_subs, _ = _parse_einsum_input(
+    in_subs, out_subs, _ = parse_einsum_input(
         (output_node.einsum_subscripts, *output_node.inputs))
     in_subs_list = in_subs.split(',')
     whole_str = out_subs + "".join(in_subs_list)

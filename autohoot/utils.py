@@ -134,20 +134,26 @@ def sympy_simplify(out, inputs):
 
 
 class CharacterGetter():
-    """ Return a character and increment"""
+    """ Return a new character for constructing the einstr"""
     def __init__(self):
         self.char = 'a'
 
     def getchar(self):
         """
-            Returns a single character. Increment after return.
+            Returns a single character. Update self.char after return.
+            Update rule: runs through the usual 52 letters before resorting to unicode characters.
+            Unicode characters start at ``chr(192)``.
+            The update rule is consistent with Opt_einsum
+            https://github.com/dgasmith/opt_einsum/blob/master/opt_einsum/parser.py#L53
         """
         previous_char = self.char
         if self.char == 'z':
             self.char = 'A'
         elif self.char == 'Z':
-            logging.info('Run out of characters.')
-            raise NotImplementedError
+            logging.info('Run out of letters, start using unicode characters.')
+            self.char = chr(192)
+        elif ord(self.char) == 10**6:
+            raise ValueError('Run out of characters.')
         else:
             self.char = chr(ord(self.char) + 1)
         return previous_char
