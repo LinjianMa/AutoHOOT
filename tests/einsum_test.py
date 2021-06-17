@@ -15,7 +15,6 @@
 import autohoot.autodiff as ad
 import autohoot.backend as T
 from autohoot.graph_ops.graph_transformer import optimize
-from autohoot.utils import CharacterGetter
 from tests.test_utils import float_eq
 
 
@@ -29,12 +28,12 @@ def test_large_matmul_chain(backendopt):
         x_list = [
             ad.Variable(name=f"x{i}", shape=[size, size]) for i in range(n)
         ]
-        cg = CharacterGetter()
-        prev_char = cg.getchar()
+        prev_char = chr(192)
         left_char = prev_char
         for i in range(n):
-            x_list[i].subscripts = f"{prev_char}{cg.getchar()}"
-            prev_char = x_list[i].subscripts[1]
+            new_char = chr(ord(prev_char) + 1)
+            x_list[i].subscripts = f"{prev_char}{new_char}"
+            prev_char = new_char
         right_char = prev_char
         input_subs = ','.join([node.subscripts for node in x_list])
         einsum_subscripts = input_subs + '->' + left_char + right_char

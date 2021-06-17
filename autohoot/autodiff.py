@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
+import copy, re
 
 from autohoot import backend as T
 import numpy as np
@@ -839,13 +839,12 @@ class EinsumNode(OpNode):
 
     def compute(self, input_vals):
         # Ensure einsum_subscripts are valid in backends
-        einsum_symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,->'
-        subscripts = self.einsum_subscripts.replace(" ", "")
-        for s in subscripts:
-            if s not in einsum_symbols:
-                raise ValueError(
-                    "Character %s is not a valid symbol for Einsum computation in backends."
-                    % s)
+        subscripts = self.einsum_subscripts.replace(' ', '')
+        match = re.match('^([a-zA-Z,.]+)(->[a-zA-Z.]*)?$', subscripts)
+        if not match:
+            raise ValueError(
+                f"{subscripts} have incorrect format for Einsum computation in backends."
+            )
         """Given values of input nodes, return result of matrix multiplication."""
         for val in input_vals:
             assert T.is_tensor(val)
