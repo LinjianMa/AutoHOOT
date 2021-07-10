@@ -30,7 +30,6 @@ setup(
         'tensorflow>=2.1.2',
         'ply',
         'opt_einsum',
-        'sparse',
         'numba==0.51.2',
         'sympy',
     ],
