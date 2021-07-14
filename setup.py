@@ -23,7 +23,7 @@ setup(
     packages=find_packages(exclude=["examples", "tests", "tensors"]),
     python_requires='>=3.6',
     install_requires=[
-        'attrs',
+        'attrs>=21.2.0',
         'jax==0.2.8',
         'jaxlib==0.1.59',
         'numpy',
