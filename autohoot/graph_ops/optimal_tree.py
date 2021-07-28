@@ -38,6 +38,13 @@ def generate_optimal_tree(node, path=None):
     from autohoot.graph_ops.graph_dedup import declone
     from autohoot.graph_ops.graph_transformer import linearize, fuse_einsums
 
+    if path in ["kahypar", "labels", "quickbb", "hyper", "hyper-kahypar"]:
+        from cotengra.hyper import HyperOptimizer
+        path = HyperOptimizer(path)
+    else:
+        path_types = (type(None), list, str)
+        assert isinstance(path, path_types)
+
     assert isinstance(node, ad.EinsumNode)
     leaves = get_all_inputs(node)
     for leaf in leaves:
@@ -48,7 +55,6 @@ def generate_optimal_tree(node, path=None):
                                          *node.inputs,
                                          einsum_call=True)
     else:
-        assert len(path) > 0
         _, contract_list = contract_path(node.einsum_subscripts,
                                          *node.inputs,
                                          optimize=path,
