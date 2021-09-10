@@ -1,6 +1,6 @@
 attrs>=21.2.0
-jax==0.2.8
-jaxlib==0.1.59
+jax>=0.2.20
+jaxlib>=0.1.71
 graphviz
 numpy
 pytest==5.4.3
