@@ -32,6 +32,13 @@ def test_einsum_gen(backendopt):
         assert len(new_output.inputs) == 2
 
 
+def test_einsum_gen_w_clone():
+    A = ad.Variable(name="A", shape=[2, 2])
+    output = ad.einsum('ab->ba', A.clone())
+    new_output = generate_optimal_tree(output)
+    assert tree_eq(output, new_output, [A])
+
+
 def test_einsum_gen_corner_case(backendopt):
     """
     Note: Numpy contraction path cannot find the opt path for this expression.
