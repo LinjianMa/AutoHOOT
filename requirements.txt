@@ -3,14 +3,12 @@ jax>=0.2.20
 jaxlib>=0.1.71
 graphviz
 numpy
-pytest==5.4.3
+pytest
 pytest-benchmark
 quimb==1.2.0
-tensorflow>=2.1.2
 ply
 opt_einsum
 sparse
-numba==0.51.2
 sympy
 tensorly==0.4.5
 git+https://github.com/mnick/scikit-tensor.git

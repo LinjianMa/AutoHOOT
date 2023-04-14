@@ -20,8 +20,8 @@ import tensorly as tl
 from tensors.synthetic_tensors import init_rand_cp
 from examples.cpd import cpd_als, cpd_als_shared_exec
 from tensorly.decomposition import parafac
-from sktensor import dtensor
-from sktensor import cp_als as sk_cp_als
+# from sktensor import dtensor
+# from sktensor import cp_als as sk_cp_als
 
 BACKEND_TYPES = ['numpy']
 size, rank = 150, 150
@@ -46,16 +46,16 @@ def test_cpd_als_tensorly(benchmark):
                             verbose=0)
 
 
-@pytest.mark.benchmark(group="cp_als")
-def test_cpd_als_sktensor(benchmark):
-    for datatype in BACKEND_TYPES:
+# @pytest.mark.benchmark(group="cp_als")
+# def test_cpd_als_sktensor(benchmark):
+#     for datatype in BACKEND_TYPES:
 
-        _, input_tensor_val = init_rand_cp(dim, size, rank)
-        benchmark(sk_cp_als,
-                  dtensor(input_tensor_val),
-                  rank=rank,
-                  max_iter=1,
-                  init='random')
+#         _, input_tensor_val = init_rand_cp(dim, size, rank)
+#         benchmark(sk_cp_als,
+#                   dtensor(input_tensor_val),
+#                   rank=rank,
+#                   max_iter=1,
+#                   init='random')
 
 
 @pytest.mark.benchmark(group="cp_als")
