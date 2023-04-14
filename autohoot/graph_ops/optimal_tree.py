@@ -39,9 +39,6 @@ def generate_optimal_tree(node, path=None):
     from autohoot.graph_ops.graph_transformer import linearize, fuse_einsums
 
     assert isinstance(node, ad.EinsumNode)
-    leaves = get_all_inputs(node)
-    for leaf in leaves:
-        assert (not isinstance(leaf, ad.EinsumNode))
 
     if path is None:
         _, contract_list = contract_path(node.einsum_subscripts,
@@ -68,7 +65,7 @@ def generate_optimal_tree(node, path=None):
     # opt_einsum sometimes generate the path where the last node
     # is just transposing the indices. If this happens, then just merge
     # this node with its input node.
-    if len(final_node.inputs) == 1:
+    if len(final_node.inputs) == 1 and isinstance(final_node.inputs[0], ad.EinsumNode):
         # To handle the case where duplicated inputs exist
         linearize(final_node)
         in_node = final_node.inputs[0]
